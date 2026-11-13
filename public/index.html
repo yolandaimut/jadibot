@@ -1,1 +1,842 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JadiBot Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* --- variabel tema dinamis untuk theme changer --- */
+    :root[data-theme="emerald"] {
+      --accent-main: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --accent-border: rgba(16, 185, 129, 0.35);
+      --gradient-start: #34d399;
+      --gradient-mid: #10b981;
+      --gradient-end: #06b6d4;
+    }
 
+    :root[data-theme="cyan"] {
+      --accent-main: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.14);
+      --accent-border: rgba(6, 182, 212, 0.35);
+      --gradient-start: #38bdf8;
+      --gradient-mid: #06b6d4;
+      --gradient-end: #3b82f6;
+    }
+
+    :root[data-theme="violet"] {
+      --accent-main: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --accent-border: rgba(139, 92, 246, 0.35);
+      --gradient-start: #c084fc;
+      --gradient-mid: #8b5cf6;
+      --gradient-end: #ec4899;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #090d16;
+      color: #f1f5f9;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* --- animasi teks judul futuristik pada header --- */
+    @keyframes futuristicFlow {
+      0% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+      50% { background-position: 100% 50%; filter: drop-shadow(0 0 16px var(--accent-border)); }
+      100% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+    }
+
+    .animated-brand-title {
+      background: linear-gradient(270deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: futuristicFlow 6s ease infinite;
+    }
+
+    /* --- utilitas warna berbasis variabel css --- */
+    .accent-bg { background-color: var(--accent-main); }
+    .accent-bg:hover { background-color: var(--accent-hover); }
+    .accent-text { color: var(--accent-main); }
+    .accent-border { border-color: var(--accent-border); }
+    .accent-soft-bg { background-color: var(--accent-soft); }
+
+    /* --- kustomisasi scrollbar modern --- */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-slate-700 selection:text-white">
+
+  <header class="sticky top-0 z-40 w-full h-14 sm:h-16 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-1.5 overflow-x-hidden">
+    <div class="flex items-center min-w-0 shrink-0">
+      <h1 class="text-base sm:text-xl md:text-2xl font-extrabold tracking-tight animated-brand-title select-none whitespace-nowrap">
+        JadiBot Platform
+      </h1>
+    </div>
+
+    <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-0.5 sm:p-1 flex items-center gap-0.5 sm:gap-1">
+        <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          <span class="sm:hidden">Dash</span>
+          <span class="hidden sm:inline">Dashboard</span>
+        </button>
+
+        <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          <span class="sm:hidden">IDE</span>
+          <span class="hidden sm:inline">Developer IDE</span>
+        </button>
+      </div>
+
+      <button id="themeToggleButton" onclick="cycleAccentTheme()" class="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] sm:text-xs font-semibold text-slate-200 transition-all duration-200 active:scale-95 shrink-0 whitespace-nowrap">
+        <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full accent-bg shrink-0"></span>
+        <span id="currentThemeLabel">Emerald</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="topToastBanner" class="fixed top-16 left-0 right-0 z-30 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2">
+    <div id="topToastInner" class="pointer-events-auto mt-2 px-4 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate">
+      <span id="topToastDot" class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
+      <span id="topToastText" class="truncate">Notifikasi Sistem</span>
+    </div>
+  </div>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
+
+    <section id="skeletonLoaderSection" class="space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-20 bg-slate-800 rounded"></div>
+        </div>
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-20 bg-slate-800 rounded"></div>
+        </div>
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-20 bg-slate-800 rounded"></div>
+        </div>
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-24 bg-slate-800 rounded"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 h-96 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-6 animate-pulse space-y-4">
+          <div class="h-5 w-40 bg-slate-800 rounded"></div>
+          <div class="h-64 w-full bg-slate-800/70 rounded-xl"></div>
+        </div>
+        <div class="lg:col-span-7 h-96 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-6 animate-pulse space-y-4">
+          <div class="h-5 w-48 bg-slate-800 rounded"></div>
+          <div class="h-72 w-full bg-slate-950 rounded-xl"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="liveApplicationContainer" class="hidden space-y-6">
+
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Pesan Diterima</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            </span>
+          </div>
+          <div id="statMessagesReceived" class="mt-3 text-3xl font-extrabold text-white font-mono-code">0</div>
+          <p class="mt-1 text-xs text-slate-500">Sinkronisasi real-time database.json</p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Pesan Terkirim</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+            </span>
+          </div>
+          <div id="statMessagesSent" class="mt-3 text-3xl font-extrabold text-white font-mono-code">0</div>
+          <p class="mt-1 text-xs text-slate-500">Respon otomatis & keluar</p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total User Aktif</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </span>
+          </div>
+          <div id="statUniqueUsers" class="mt-3 text-3xl font-extrabold text-white font-mono-code">0</div>
+          <p class="mt-1 text-xs text-slate-500">Nomor unik terdata</p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Bot Uptime</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </span>
+          </div>
+          <div id="statBotUptime" class="mt-3 text-2xl font-extrabold text-white font-mono-code">00:00:00</div>
+          <p class="mt-1 text-xs text-slate-500">Durasi aktif sesi berjalan</p>
+        </div>
+      </section>
+
+      <section id="workspaceDashboardView" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 space-y-6">
+
+          <div class="rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+              <div>
+                <h2 class="text-sm font-bold text-white">Status Koneksi & Profil</h2>
+                <p id="sessionIdentifierDisplay" class="text-xs text-slate-400 font-mono-code mt-0.5">ID: Memuat...</p>
+              </div>
+
+              <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
+                <span id="connectionStatusIcon" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                <span id="connectionStatusText">Disconnected</span>
+              </div>
+            </div>
+
+            <div id="connectedProfileCard" class="hidden rounded-xl bg-slate-950/90 border border-slate-800 p-4">
+              <div class="flex items-center gap-4">
+                <img id="botProfileAvatar" src="" alt="Avatar Bot" class="w-14 h-14 rounded-full object-cover border-2 accent-border" />
+                <div class="flex-1 min-w-0">
+                  <h3 id="botProfileName" class="text-base font-bold text-white truncate">-</h3>
+                  <p id="botProfileNumber" class="text-xs font-mono-code accent-text mt-0.5">-</p>
+                  <span class="inline-block mt-1.5 text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Multi-File Auth Active
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div id="authenticationBox" class="space-y-4">
+              <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                <button id="authTabQrBtn" onclick="switchAuthMode('qr')" class="py-2 rounded-lg text-xs font-semibold transition-all accent-bg text-slate-950">
+                  QR Code Box
+                </button>
+                <button id="authTabPairingBtn" onclick="switchAuthMode('pairing')" class="py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                  Phone Pairing
+                </button>
+              </div>
+
+              <div id="qrCodeAuthPanel" class="flex flex-col items-center justify-center p-5 rounded-xl bg-slate-950/80 border border-slate-800/90 min-h-[250px] text-center">
+                <img id="qrCodeImageElement" src="" alt="QR Code" class="hidden w-52 h-52 rounded-xl border-4 border-white shadow-lg mb-3" />
+                <p id="qrCodeStatusText" class="text-xs text-slate-400 max-w-xs">
+                  Klik tombol di bawah untuk menginisialisasi sesi dan menampilkan QR Code terbaru.
+                </p>
+                <button onclick="initiateConnection('qr')" class="mt-4 px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95">
+                  Generate / Refresh QR Code
+                </button>
+              </div>
+
+              <div id="pairingCodeAuthPanel" class="hidden p-5 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nomor WhatsApp Internasional</label>
+                  <input id="pairingPhoneInput" type="text" placeholder="Contoh: 6281234567890" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white font-mono-code focus:outline-none focus:border-emerald-500" />
+                </div>
+
+                <button onclick="initiateConnection('pairing')" class="w-full py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95">
+                  Request 8-Digit Pairing Code
+                </button>
+
+                <div id="pairingCodeDisplayWrapper" class="hidden pt-2 text-center">
+                  <p class="text-xs text-slate-400 mb-1.5">Masukkan kode berikut di perangkat WhatsApp Anda:</p>
+                  <div id="pairingCodeValue" class="py-3 px-4 rounded-xl bg-slate-900 border accent-border text-2xl font-extrabold tracking-widest font-mono-code accent-text select-all">
+                    ----
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800/80 space-y-3">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-medium">Auto Read Pesan Masuk</span>
+                <button id="toggleAutoReadBtn" onclick="toggleBotSetting('autoRead')" class="px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-300 transition-all">
+                  Aktif
+                </button>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-medium">Public Bot Mode</span>
+                <button id="togglePublicModeBtn" onclick="toggleBotSetting('publicMode')" class="px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-300 transition-all">
+                  Aktif
+                </button>
+              </div>
+            </div>
+
+            <div class="pt-2 flex items-center gap-3">
+              <button onclick="openLogoutConfirmationModal()" class="w-full py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all">
+                Hapus Sesi / Logout
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="lg:col-span-7 flex flex-col">
+          <div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                <h2 class="ml-2 text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code">
+                  Real-Time Baileys CLI Terminal
+                </h2>
+              </div>
+
+              <button onclick="clearTerminalLogs()" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-all">
+                Clear Logs
+              </button>
+            </div>
+
+            <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 p-4 font-mono-code text-xs space-y-1.5 leading-relaxed">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="workspaceDeveloperView" class="hidden grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-4 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col justify-between space-y-4">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 class="text-sm font-bold text-white">Daftar Plugins Aktif</h2>
+              <button onclick="prepareNewPluginTemplate()" class="px-2.5 py-1 rounded-lg accent-soft-bg accent-text text-xs font-semibold">
+                + Plugin Baru
+              </button>
+            </div>
+
+            <div id="pluginsFileListContainer" class="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-1">
+            <p class="font-semibold text-slate-200">Properti Context Tersedia:</p>
+            <p class="font-mono-code text-[11px] text-slate-400">socketInstance, rawMessage, messageText, senderJid, participantJid, isFromMe, botDatabase, replyMessage(text)</p>
+          </div>
+        </div>
+
+        <div class="lg:col-span-8 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div class="flex-1">
+              <label class="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Nama File Plugin (.js)</label>
+              <input id="pluginFileNameInput" type="text" placeholder="contoh: auto-reply.js" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white font-mono-code focus:outline-none" />
+            </div>
+
+            <button onclick="saveAndApplyPlugin()" class="sm:mt-5 px-5 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0">
+              Simpan & Terapkan Plugin
+            </button>
+          </div>
+
+          <div>
+            <label class="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1.5">ESM Plugin Source Code Editor</label>
+            <textarea id="pluginCodeEditorTextarea" rows="13" spellcheck="false" class="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-emerald-300 font-mono-code leading-relaxed focus:outline-none"></textarea>
+          </div>
+
+          <div id="developerErrorReportBox" class="rounded-xl bg-slate-950 border border-slate-800 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Real-Time Syntax & Runtime Inspector</span>
+              <span id="inspectorStatusBadge" class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono-code">
+                Status: Aman / Ready
+              </span>
+            </div>
+            <pre id="inspectorErrorDetailOutput" class="text-xs font-mono-code text-slate-400 whitespace-pre-wrap break-words">Belum ada error sintaks maupun runtime yang terdeteksi.</pre>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <div id="logoutConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 space-y-4 shadow-2xl">
+      <h3 class="text-base font-bold text-white">Konfirmasi Hapus Sesi & Database</h3>
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Tindakan ini akan memutus koneksi WhatsApp dan menghapus seluruh folder sesi beserta file <span class="font-mono-code text-rose-400">database.json</span> milik bot ini secara permanen.
+      </p>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button onclick="closeLogoutConfirmationModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">
+          Batal
+        </button>
+        <button onclick="confirmSessionLogout()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white">
+          Ya, Hapus Permanen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- manajemen state aplikasi frontend ---
+    const availableThemes = ['emerald', 'cyan', 'violet'];
+    let currentThemeIndex = 0;
+    let botStartTimeMs = Date.now();
+    let currentConnectionStatus = 'DISCONNECTED';
+    let loadedPluginsCache = [];
+    let toastTimeoutTimer = null;
+
+    // --- inisialisasi atau ambil session id persisten per browser ---
+    function getOrCreateClientSessionId() {
+      const storageKey = 'jadibot_enterprise_session_id';
+      let savedSessionId = localStorage.getItem(storageKey);
+      if (!savedSessionId) {
+        savedSessionId = 'bot_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem(storageKey, savedSessionId);
+      }
+      return savedSessionId;
+    }
+
+    const activeSessionId = getOrCreateClientSessionId();
+    const socketClient = io();
+
+    // --- fungsi notifikasi toast satu baris di bawah header ---
+    function showTopToast(messageText, isError = false) {
+      const bannerElement = document.getElementById('topToastBanner');
+      const dotElement = document.getElementById('topToastDot');
+      const textElement = document.getElementById('topToastText');
+
+      textElement.textContent = messageText;
+      dotElement.className = isError
+        ? 'w-2 h-2 rounded-full bg-rose-500 shrink-0'
+        : 'w-2 h-2 rounded-full accent-bg shrink-0';
+
+      bannerElement.classList.remove('opacity-0', '-translate-y-2');
+      bannerElement.classList.add('opacity-100', 'translate-y-0');
+
+      if (toastTimeoutTimer) clearTimeout(toastTimeoutTimer);
+      toastTimeoutTimer = setTimeout(() => {
+        bannerElement.classList.remove('opacity-100', 'translate-y-0');
+        bannerElement.classList.add('opacity-0', '-translate-y-2');
+      }, 3200);
+    }
+
+    // --- fungsi pengubah tema warna instan ---
+    function cycleAccentTheme() {
+      currentThemeIndex = (currentThemeIndex + 1) % availableThemes.length;
+      const selectedTheme = availableThemes[currentThemeIndex];
+      document.documentElement.setAttribute('data-theme', selectedTheme);
+
+      const formattedLabel = selectedTheme.charAt(0).toUpperCase() + selectedTheme.slice(1);
+      document.getElementById('currentThemeLabel').textContent = formattedLabel;
+      localStorage.setItem('jadibot_theme_pref', selectedTheme);
+      showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
+    }
+
+    // --- muat preferensi tema saat pertama kali dibuka ---
+    (function initializeSavedTheme() {
+      const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
+      const foundIndex = availableThemes.indexOf(savedTheme);
+      currentThemeIndex = foundIndex >= 0 ? foundIndex : 0;
+      const themeName = availableThemes[currentThemeIndex];
+      document.documentElement.setAttribute('data-theme', themeName);
+      document.getElementById('currentThemeLabel').textContent =
+        themeName.charAt(0).toUpperCase() + themeName.slice(1);
+    })();
+
+    // --- fungsi perpindahan tab utama antara dashboard dan developer ide ---
+    function switchWorkspaceTab(targetTab) {
+      const dashboardView = document.getElementById('workspaceDashboardView');
+      const developerView = document.getElementById('workspaceDeveloperView');
+      const tabDashboardBtn = document.getElementById('navTabDashboard');
+      const tabDeveloperBtn = document.getElementById('navTabDeveloper');
+
+      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
+      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
+
+      if (targetTab === 'developer') {
+        dashboardView.classList.add('hidden');
+        developerView.classList.remove('hidden');
+        developerView.classList.add('grid');
+
+        tabDeveloperBtn.className = activeTabClasses;
+        tabDashboardBtn.className = inactiveTabClasses;
+      } else {
+        developerView.classList.add('hidden');
+        developerView.classList.remove('grid');
+        dashboardView.classList.remove('hidden');
+
+        tabDashboardBtn.className = activeTabClasses;
+        tabDeveloperBtn.className = inactiveTabClasses;
+      }
+    }
+
+    // --- fungsi perpindahan tab metode autentikasi qr dan pairing ---
+    function switchAuthMode(mode) {
+      const qrPanel = document.getElementById('qrCodeAuthPanel');
+      const pairingPanel = document.getElementById('pairingCodeAuthPanel');
+      const qrBtn = document.getElementById('authTabQrBtn');
+      const pairingBtn = document.getElementById('authTabPairingBtn');
+
+      if (mode === 'pairing') {
+        qrPanel.classList.add('hidden');
+        pairingPanel.classList.remove('hidden');
+        pairingBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all accent-bg text-slate-950';
+        qrBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+      } else {
+        pairingPanel.classList.add('hidden');
+        qrPanel.classList.remove('hidden');
+        qrBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all accent-bg text-slate-950';
+        pairingBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+      }
+    }
+
+    // --- fungsi animasi perubahan angka statistik ---
+    function animateMetricCounter(elementId, newValue) {
+      const targetElement = document.getElementById(elementId);
+      const currentValue = parseInt(targetElement.textContent.replace(/[^0-9]/g, ''), 10) || 0;
+      const targetNumber = parseInt(newValue, 10) || 0;
+
+      if (currentValue === targetNumber) {
+        targetElement.textContent = targetNumber.toLocaleString('id-ID');
+        return;
+      }
+
+      const stepCount = 12;
+      const incrementValue = (targetNumber - currentValue) / stepCount;
+      let currentStep = 0;
+
+      const counterInterval = setInterval(() => {
+        currentStep += 1;
+        if (currentStep >= stepCount) {
+          targetElement.textContent = targetNumber.toLocaleString('id-ID');
+          clearInterval(counterInterval);
+        } else {
+          const intermediate = Math.round(currentValue + incrementValue * currentStep);
+          targetElement.textContent = intermediate.toLocaleString('id-ID');
+        }
+      }, 25);
+    }
+
+    // --- fungsi perbarui seluruh kartu statistik dan tombol pengaturan ---
+    function renderDatabaseStatistics(databaseObject) {
+      if (!databaseObject) return;
+      animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
+      animateMetricCounter('statMessagesSent', databaseObject.totalMessagesSent || 0);
+      animateMetricCounter('statUniqueUsers', Array.isArray(databaseObject.uniqueUsers) ? databaseObject.uniqueUsers.length : 0);
+
+      if (databaseObject.startTime) {
+        botStartTimeMs = databaseObject.startTime;
+      }
+
+      const autoReadBtn = document.getElementById('toggleAutoReadBtn');
+      const publicModeBtn = document.getElementById('togglePublicModeBtn');
+
+      const isAutoRead = databaseObject.settings?.autoRead ?? true;
+      const isPublicMode = databaseObject.settings?.publicMode ?? true;
+
+      autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
+      autoReadBtn.className = isAutoRead
+        ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+        : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+
+      publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
+      publicModeBtn.className = isPublicMode
+        ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+        : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+    }
+
+    // --- pewaktu live untuk menghitung uptime bot setiap detik ---
+    setInterval(() => {
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - botStartTimeMs) / 1000));
+      const hours = String(Math.floor(elapsedSeconds / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, '0');
+      const seconds = String(elapsedSeconds % 60).padStart(2, '0');
+      document.getElementById('statBotUptime').textContent = `${hours}:${minutes}:${seconds}`;
+    }, 1000);
+
+    // --- fungsi perbarui indikator visual status koneksi dan profil bot ---
+    function updateConnectionInterface(status, profileData) {
+      currentConnectionStatus = status;
+      const badgeEl = document.getElementById('connectionStatusBadge');
+      const iconEl = document.getElementById('connectionStatusIcon');
+      const textEl = document.getElementById('connectionStatusText');
+      const profileCard = document.getElementById('connectedProfileCard');
+      const authBox = document.getElementById('authenticationBox');
+
+      if (status === 'CONNECTED') {
+        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-semibold shadow-[0_0_15px_rgba(16,185,129,0.25)]';
+        iconEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]';
+        textEl.textContent = 'Connected';
+
+        if (profileData) {
+          document.getElementById('botProfileName').textContent = profileData.name;
+          document.getElementById('botProfileNumber').textContent = '+' + profileData.number;
+          document.getElementById('botProfileAvatar').src = profileData.avatarUrl;
+          profileCard.classList.remove('hidden');
+        }
+        authBox.classList.add('hidden');
+      } else if (status === 'CONNECTING') {
+        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-semibold';
+        iconEl.className = 'w-2.5 h-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin';
+        textEl.textContent = 'Connecting...';
+        profileCard.classList.add('hidden');
+        authBox.classList.remove('hidden');
+      } else {
+        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold';
+        iconEl.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
+        textEl.textContent = 'Disconnected';
+        profileCard.classList.add('hidden');
+        authBox.classList.remove('hidden');
+      }
+    }
+
+    // --- fungsi untuk memulai permintaan koneksi qr atau pairing ---
+    function initiateConnection(method) {
+      if (method === 'pairing') {
+        const phoneInput = document.getElementById('pairingPhoneInput').value.trim();
+        if (!phoneInput) {
+          showTopToast('Masukkan nomor WhatsApp internasional terlebih dahulu', true);
+          return;
+        }
+        document.getElementById('pairingCodeDisplayWrapper').classList.add('hidden');
+        socketClient.emit('session:connect', { method: 'pairing', phoneNumber: phoneInput });
+        showTopToast('Meminta 8-digit kode pairing ke server Baileys...');
+      } else {
+        document.getElementById('qrCodeStatusText').textContent = 'Menyiapkan QR Code baru dari Baileys...';
+        socketClient.emit('session:connect', { method: 'qr' });
+        showTopToast('Menginisialisasi ulang QR Code...');
+      }
+    }
+
+    // --- fungsi pengubah pengaturan bot ---
+    function toggleBotSetting(settingKey) {
+      socketClient.emit('settings:toggle', { key: settingKey });
+    }
+
+    // --- fungsi kontrol modal konfirmasi hapus sesi ---
+    function openLogoutConfirmationModal() {
+      const modal = document.getElementById('logoutConfirmModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeLogoutConfirmationModal() {
+      const modal = document.getElementById('logoutConfirmModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function confirmSessionLogout() {
+      closeLogoutConfirmationModal();
+      document.getElementById('qrCodeImageElement').classList.add('hidden');
+      document.getElementById('pairingCodeDisplayWrapper').classList.add('hidden');
+      socketClient.emit('session:logout');
+      showTopToast('Sesi dan database.json berhasil dihapus');
+    }
+
+    // --- fungsi tambah baris baru pada terminal log dengan auto-scroll ---
+    function appendTerminalLogLine(logPayload) {
+      const terminalContainer = document.getElementById('terminalLogOutput');
+      const lineElement = document.createElement('div');
+
+      let badgeColorClass = 'text-emerald-400';
+      if (logPayload.level === 'ERROR') badgeColorClass = 'text-rose-400 font-bold';
+      if (logPayload.level === 'WARN') badgeColorClass = 'text-amber-300';
+      if (logPayload.level === 'MSG') badgeColorClass = 'text-cyan-400';
+
+      lineElement.innerHTML = `<span class="text-slate-600">[${logPayload.timestamp}]</span> <span class="${badgeColorClass}">[${logPayload.level}]</span> <span class="text-slate-200">${escapeHtmlText(logPayload.message)}</span>`;
+      terminalContainer.appendChild(lineElement);
+      terminalContainer.scrollTop = terminalContainer.scrollHeight;
+    }
+
+    function clearTerminalLogs() {
+      document.getElementById('terminalLogOutput').innerHTML = '';
+      showTopToast('Terminal log dibersihkan');
+    }
+
+    function escapeHtmlText(rawString) {
+      return String(rawString)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    // --- fungsi render daftar plugin di developer ide ---
+    function renderPluginsList(pluginsArray) {
+      loadedPluginsCache = Array.isArray(pluginsArray) ? pluginsArray : [];
+      const listContainer = document.getElementById('pluginsFileListContainer');
+      listContainer.innerHTML = '';
+
+      if (loadedPluginsCache.length === 0) {
+        listContainer.innerHTML = '<p class="text-xs text-slate-500">Belum ada file plugin di folder ./plugins</p>';
+        return;
+      }
+
+      loadedPluginsCache.forEach((pluginItem, index) => {
+        const itemRow = document.createElement('div');
+        itemRow.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-slate-700 transition-all';
+        itemRow.innerHTML = `
+          <button onclick="loadPluginIntoEditor(${index})" class="flex-1 text-left truncate">
+            <p class="text-xs font-bold text-slate-200 font-mono-code truncate">${escapeHtmlText(pluginItem.fileName)}</p>
+            <p class="text-[10px] text-slate-500">Hot-Reload Ready</p>
+          </button>
+          <button onclick="deletePluginFile('${escapeHtmlText(pluginItem.fileName)}')" class="ml-2 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 text-[11px] font-semibold">
+            Hapus
+          </button>
+        `;
+        listContainer.appendChild(itemRow);
+      });
+
+      const currentFileNameInput = document.getElementById('pluginFileNameInput').value.trim();
+      if (!currentFileNameInput && loadedPluginsCache.length > 0) {
+        loadPluginIntoEditor(0);
+      }
+    }
+
+    // --- muat isi kode plugin ke dalam code editor ---
+    function loadPluginIntoEditor(pluginIndex) {
+      const targetPlugin = loadedPluginsCache[pluginIndex];
+      if (!targetPlugin) return;
+      document.getElementById('pluginFileNameInput').value = targetPlugin.fileName;
+      document.getElementById('pluginCodeEditorTextarea').value = targetPlugin.codeContent;
+    }
+
+    // --- buat template kerangka plugin baru di editor ---
+    function prepareNewPluginTemplate() {
+      document.getElementById('pluginFileNameInput').value = `fitur-${Math.floor(100 + Math.random() * 900)}.js`;
+      document.getElementById('pluginCodeEditorTextarea').value = `// --- plugin custom jadibot ---
+export default async function executePlugin(context) {
+  const { messageText, replyMessage } = context;
+
+  if (messageText.trim().toLowerCase() === '.halo') {
+    await replyMessage('Halo! Plugin baru berhasil dijalankan secara real-time tanpa restart.');
+  }
+}
+`;
+      showTopToast('Template plugin baru disiapkan di editor');
+    }
+
+    // --- kirim kode plugin ke backend untuk validasi dan hot-reload ---
+    function saveAndApplyPlugin() {
+      const fileName = document.getElementById('pluginFileNameInput').value.trim();
+      const codeContent = document.getElementById('pluginCodeEditorTextarea').value;
+
+      if (!fileName) {
+        showTopToast('Nama file plugin wajib diisi', true);
+        return;
+      }
+
+      socketClient.emit('plugin:save', { fileName, codeContent });
+    }
+
+    // --- hapus file plugin tertentu ---
+    function deletePluginFile(fileName) {
+      socketClient.emit('plugin:delete', { fileName });
+    }
+
+    // --- tampilkan laporan error sintaks atau runtime pada developer inspector ---
+    function displayDeveloperErrorReport(errorPayload) {
+      const badgeElement = document.getElementById('inspectorStatusBadge');
+      const detailElement = document.getElementById('inspectorErrorDetailOutput');
+      const boxElement = document.getElementById('developerErrorReportBox');
+
+      if (!errorPayload) {
+        boxElement.className = 'rounded-xl bg-slate-950 border border-slate-800 p-4';
+        badgeElement.className = 'text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono-code';
+        badgeElement.textContent = 'Status: Aman / Ready';
+        detailElement.className = 'text-xs font-mono-code text-slate-400 whitespace-pre-wrap break-words';
+        detailElement.textContent = 'Validasi Sintaks & Struktur ESM berhasil. Plugin telah aktif di memori.';
+        return;
+      }
+
+      boxElement.className = 'rounded-xl bg-rose-950/20 border border-rose-500/40 p-4';
+      badgeElement.className = 'text-[11px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono-code';
+      badgeElement.textContent = `${errorPayload.errorType || 'Error'}${errorPayload.lineNumber ? ` (Baris ${errorPayload.lineNumber})` : ''}`;
+      detailElement.className = 'text-xs font-mono-code text-rose-300 whitespace-pre-wrap break-words';
+      detailElement.textContent = errorPayload.errorMessage || 'Terjadi kesalahan pada kode plugin.';
+    }
+
+    // --- event listener socket.io dari backend ---
+    socketClient.on('connect', () => {
+      document.getElementById('sessionIdentifierDisplay').textContent = `ID Sesi: ${activeSessionId}`;
+      socketClient.emit('session:init', { sessionId: activeSessionId });
+    });
+
+    socketClient.on('session:ready', (payload) => {
+      document.getElementById('skeletonLoaderSection').classList.add('hidden');
+      document.getElementById('liveApplicationContainer').classList.remove('hidden');
+
+      updateConnectionInterface(payload.status, payload.profile);
+      renderDatabaseStatistics(payload.database);
+      renderPluginsList(payload.plugins);
+    });
+
+    socketClient.on('connection:status', (payload) => {
+      updateConnectionInterface(payload.status, payload.profile);
+    });
+
+    socketClient.on('qr:update', (qrDataUrl) => {
+      const qrImg = document.getElementById('qrCodeImageElement');
+      qrImg.src = qrDataUrl;
+      qrImg.classList.remove('hidden');
+      document.getElementById('qrCodeStatusText').textContent = 'Pindai QR Code ini menggunakan WhatsApp (Perangkat Tertaut).';
+    });
+
+    socketClient.on('pairing:code', (formattedCode) => {
+      const wrapper = document.getElementById('pairingCodeDisplayWrapper');
+      const codeEl = document.getElementById('pairingCodeValue');
+      codeEl.textContent = formattedCode;
+      wrapper.classList.remove('hidden');
+      showTopToast(`Kode Pairing diterima: ${formattedCode}`);
+    });
+
+    socketClient.on('pairing:error', (errorMessage) => {
+      showTopToast(errorMessage, true);
+    });
+
+    socketClient.on('stats:update', (databaseObject) => {
+      renderDatabaseStatistics(databaseObject);
+    });
+
+    socketClient.on('terminal:log', (logPayload) => {
+      appendTerminalLogLine(logPayload);
+    });
+
+    socketClient.on('plugin:list', (pluginsArray) => {
+      renderPluginsList(pluginsArray);
+    });
+
+    socketClient.on('plugin:save:result', (resultPayload) => {
+      if (resultPayload.isSuccess) {
+        displayDeveloperErrorReport(null);
+        showTopToast(`Plugin ${resultPayload.fileName} berhasil diterapkan secara hot-reload!`);
+      } else {
+        displayDeveloperErrorReport(resultPayload);
+        showTopToast(`Gagal menerapkan plugin: ${resultPayload.errorType}`, true);
+      }
+    });
+
+    socketClient.on('plugin:error', (runtimeErrorPayload) => {
+      displayDeveloperErrorReport({
+        errorType: `${runtimeErrorPayload.errorType} [${runtimeErrorPayload.fileName}]`,
+        lineNumber: runtimeErrorPayload.lineNumber,
+        errorMessage: runtimeErrorPayload.errorMessage
+      });
+      showTopToast(`Runtime Error di ${runtimeErrorPayload.fileName}`, true);
+    });
+  </script>
+</body>
+</html>
