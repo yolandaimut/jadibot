@@ -1,0 +1,9 @@
+# --- konfigurasi environment nixpacks untuk railway ---
+[phases.setup]
+nixPkgs = ["nodejs_20", "git"]
+
+[phases.install]
+cmds = ["npm install --no-audit --no-fund"]
+
+[start]
+cmd = "node server.js"

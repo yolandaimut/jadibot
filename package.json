@@ -1,0 +1,21 @@
+{
+  "name": "whatsapp-jadibot-enterprise-platform",
+  "version": "2.0.0",
+  "description": "WhatsApp JadiBot Platform with Real-Time Plugin Hot-Reload and Isolated Atomic JSON Database",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "express": "^4.21.1",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
