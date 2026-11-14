@@ -13,7 +13,6 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800;1,900&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-    /* --- variabel tema dinamis untuk theme changer --- */
     :root[data-theme="emerald"] {
       --accent-main: #10b981;
       --accent-hover: #059669;
@@ -50,11 +49,12 @@
       color: #f1f5f9;
     }
 
-    /* Kunci mutlak 1 layar penuh (anti-scroll) khusus saat di halaman login */
+    html:has(#googleAuthGateSection:not(.hidden)),
     body:has(#googleAuthGateSection:not(.hidden)) {
-      height: 100dvh;
-      max-height: 100dvh;
-      overflow: hidden;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
     }
 
     .font-heading-modern {
@@ -65,7 +65,6 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
-    /* Gaya teks logo header tebal-miring seperti referensi */
     .brand-display-style {
       font-family: 'Kanit', sans-serif;
       font-weight: 900;
@@ -74,7 +73,6 @@
       padding-right: 0.25rem;
     }
 
-    /* Ukuran Brand Header otomatis lebih besar di halaman Login & mengecil di Dashboard */
     body:has(#googleAuthGateSection:not(.hidden)) #headerBrandTitle {
       font-size: 1.35rem;
       line-height: 1.75rem;
@@ -85,15 +83,6 @@
       line-height: 1.2rem;
     }
 
-    /* --- kunci mutlak 1 layar penuh pas dengan address bar browser hp --- */
-    html:has(#googleAuthGateSection:not(.hidden)),
-    body:has(#googleAuthGateSection:not(.hidden)) {
-      height: 100dvh !important;
-      max-height: 100dvh !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
-    }
-
     @media (min-width: 640px) {
       body:has(#googleAuthGateSection.hidden) #headerBrandTitle {
         font-size: 1.2rem;
@@ -101,7 +90,6 @@
       }
     }
 
-    /* --- animasi teks judul futuristik pada header --- */
     @keyframes futuristicFlow {
       0% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
       50% { background-position: 100% 50%; filter: drop-shadow(0 0 16px var(--accent-border)); }
@@ -116,7 +104,6 @@
       animation: futuristicFlow 6s ease infinite;
     }
 
-    /* --- background grid modern untuk halaman login --- */
     .bg-cyber-grid {
       background-image: 
         linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
@@ -124,29 +111,25 @@
       background-size: 28px 28px;
     }
 
-    /* --- utilitas warna berbasis variabel css --- */
     .accent-bg { background-color: var(--accent-main); }
     .accent-bg:hover { background-color: var(--accent-hover); }
     .accent-text { color: var(--accent-main); }
     .accent-border { border-color: var(--accent-border); }
     .accent-soft-bg { background-color: var(--accent-soft); }
 
-    /* --- kustomisasi scrollbar modern --- */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
   </style>
-
 </head>
 <body class="min-h-screen flex flex-col selection:bg-slate-700 selection:text-white">
 
-  <header class="sticky top-0 z-40 flex items-center justify-between gap-1 w-full overflow-x-hidden px-3 py-2.5 sm:px-6 sm:py-3 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
+  <header class="sticky top-0 z-40 flex items-center justify-between gap-1 w-full overflow-visible px-3 py-2.5 sm:px-6 sm:py-3 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
     <div class="flex items-center gap-2 min-w-0 flex-shrink-0">
-      <!-- --- komponen ikon jadibot core premium cyber hexagon ultra clear --- -->
       <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 border accent-border flex items-center justify-center flex-shrink-0 relative group/cyber shadow-lg">
         <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-30 transition-opacity duration-300 group-hover/cyber:opacity-60"></div>
-        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent-main)] relative z-10 transition-transform duration-500 group-hover/cyber:rotate-90" viewBox="0 0 24 24" fill="none" xmlns="http://w3.org">
+        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent-main)] relative z-10 transition-transform duration-500 group-hover/cyber:rotate-90" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 2L20.7 7V17L12 22L3.3 17V7L12 2Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" fill="currentColor" fill-opacity="0.08" />
           <path d="M12 6L17.2 9V15L12 18L6.8 15V9L12 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" opacity="0.4" />
           <circle cx="12" cy="12" r="2.5" fill="#ffffff" class="filter drop-shadow-[0_0_5px_var(--accent-main)]" />
@@ -159,7 +142,6 @@
       </h1>
     </div>
 
-    <!-- Menu Navigasi Tengah (Dash & IDE) -->
     <div id="navbarMenuTabs" class="hidden bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 items-center gap-0.5 flex-shrink-0">
       <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
         <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
@@ -171,26 +153,25 @@
       </button>
     </div>
 
-    <!-- Kontainer Kanan & Tombol Menu Dropdown Profil/Aksi -->
     <div class="flex items-center gap-1.5 flex-shrink-0">
-      
-      <!-- Tombol Trigger Menu Dropdown Navigasi / Akun -->
       <div id="navbarGoogleUserBox" class="relative hidden items-center">
         <button onclick="toggleUserDropdownMenu(event)" class="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-all active:scale-95">
           <img id="navGoogleAvatar" src="" alt="U" class="h-7 w-7 rounded-full object-cover border accent-border" />
           <svg class="w-3.5 h-3.5 text-slate-400 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
 
-        <!-- Dropdown Pop-up Menu (Posisi disesuaikan agar pas di layar HP) -->
         <div id="userDropdownMenuPopup" class="hidden absolute right-0 top-10 w-44 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50 text-xs divide-y divide-slate-800/80">
           <div class="px-3 py-2">
             <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Akun</p>
             <p id="navGoogleGivenName" class="font-bold text-white truncate mt-0.5">User Account</p>
           </div>
           <div class="py-1">
-            <button onclick="cycleAccentTheme(); toggleUserDropdownMenu();" class="w-full text-left px-3 py-2 flex items-center gap-2 text-slate-300 hover:bg-slate-800 transition-colors">
-              <span class="w-2.5 h-2.5 rounded-full accent-bg shrink-0"></span>
-              <span>Ubah Tema</span>
+            <button onclick="cycleAccentTheme(); toggleUserDropdownMenu();" class="w-full text-left px-3 py-2 flex items-center justify-between text-slate-300 hover:bg-slate-800 transition-colors">
+              <span class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full accent-bg shrink-0"></span>
+                <span>Ubah Tema</span>
+              </span>
+              <span id="currentThemeLabel" class="text-[10px] font-mono-code text-slate-400">Emerald</span>
             </button>
           </div>
           <div class="py-1">
@@ -201,7 +182,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </header>
 
@@ -212,13 +192,10 @@
     </div>
   </div>
 
-  <section id="googleAuthGateSection" class="flex-1 flex flex-col justify-between overflow-hidden px-4 py-5 sm:p-6 bg-[#060911] bg-cyber-grid relative z-10">
-    
-    <!-- Efek Cahaya Ambient Modern -->
+  <section id="googleAuthGateSection" class="flex-1 flex flex-col justify-between overflow-hidden px-4 py-3.5 sm:p-6 bg-[#060911] bg-cyber-grid relative z-10">
     <div class="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-80 h-44 rounded-full accent-soft-bg blur-3xl opacity-40"></div>
     <div class="pointer-events-none absolute -bottom-20 left-1/2 -translate-x-1/2 w-80 h-44 rounded-full accent-soft-bg blur-3xl opacity-20"></div>
 
-    <!-- Bagian Atas: Hero Text (Terkunci Pas 2 Baris) -->
     <div class="text-center space-y-2 pt-1 relative z-10 max-w-md mx-auto w-full">
       <h2 class="font-heading-modern text-[clamp(1.45rem,6vw,2rem)] font-extrabold tracking-tight text-white leading-[1.2]">
         <span class="block whitespace-nowrap">Bangun Bot WhatsApp Tanpa</span>
@@ -230,12 +207,9 @@
       </p>
     </div>
 
-    <!-- --- bagian tengah: garis timeline 1 sampai 4 diperbesar lagi ukuran elemen --- -->
-    <div class="w-full max-w-sm mx-auto flex flex-col gap-4 my-2 relative z-10 before:absolute before:top-3 before:bottom-3 before:left-[17px] before:w-[2px] before:bg-slate-800/80">
-
-      <!-- --- step 1 --- -->
+    <div class="w-full max-w-sm mx-auto flex flex-col gap-3.5 my-1 relative z-10 before:absolute before:top-3 before:bottom-3 before:left-[17px] before:w-[2px] before:bg-slate-800/80">
       <div class="flex items-start gap-4 pl-0.5 relative group">
-        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40">
+        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40 shrink-0">
           01
         </div>
         <div class="flex flex-col min-w-0 pt-0.5">
@@ -243,10 +217,9 @@
           <span class="text-xs text-slate-400 leading-normal mt-0.5">Masuk cepat dengan Google Single Sign-On Access.</span>
         </div>
       </div>
-      
-      <!-- --- step 2 --- -->
+
       <div class="flex items-start gap-4 pl-0.5 relative group">
-        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40">
+        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40 shrink-0">
           02
         </div>
         <div class="flex flex-col min-w-0 pt-0.5">
@@ -254,10 +227,9 @@
           <span class="text-xs text-slate-400 leading-normal mt-0.5">Sesi & database JSON terisolasi otomatis di volume.</span>
         </div>
       </div>
-      
-      <!-- --- step 3 --- -->
+
       <div class="flex items-start gap-4 pl-0.5 relative group">
-        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40">
+        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40 shrink-0">
           03
         </div>
         <div class="flex flex-col min-w-0 pt-0.5">
@@ -265,10 +237,9 @@
           <span class="text-xs text-slate-400 leading-normal mt-0.5">Tautkan via Scan QR atau 8-digit kode pairing.</span>
         </div>
       </div>
-      
-      <!-- --- step 4 --- -->
+
       <div class="flex items-start gap-4 pl-0.5 relative group">
-        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40">
+        <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40 shrink-0">
           04
         </div>
         <div class="flex flex-col min-w-0 pt-0.5">
@@ -276,19 +247,18 @@
           <span class="text-xs text-slate-400 leading-normal mt-0.5">Kelola fitur langsung lewat Live Editor IDE panel.</span>
         </div>
       </div>
-
     </div>
 
-    <!-- Bagian Bawah: Dock Login Google Modern -->
     <div class="w-full max-w-sm mx-auto pt-1 pb-1 relative z-10">
       <div class="p-3.5 rounded-2xl bg-slate-900/70 backdrop-blur-md border border-slate-800/90 flex flex-col items-center justify-center space-y-2.5 shadow-xl">
         <p class="text-[11px] sm:text-xs font-medium text-slate-300 tracking-wide text-center">
           Silakan masuk menggunakan akun Google
         </p>
-        <div id="googleSignInButtonContainer" class="w-full flex justify-center min-h-[40px]"></div>
+        <div id="googleSignInButtonContainer" class="w-full flex items-center justify-center min-h-[44px]">
+          <span id="googleBtnLoadingHint" class="text-[11px] font-mono-code text-slate-500 animate-pulse">Memuat tombol Google...</span>
+        </div>
       </div>
     </div>
-
   </section>
 
   <main id="protectedMainWorkspace" class="hidden flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -604,7 +574,6 @@
   </div>
 
   <script>
-    // --- konfigurasi google client id dan state utama frontend ---
     let configuredGoogleClientId = '404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com';
     const availableThemes = ['emerald', 'cyan', 'violet'];
     let currentThemeIndex = 0;
@@ -620,11 +589,12 @@
       reconnectionAttempts: Infinity
     });
 
-    // --- fungsi notifikasi toast satu baris tepat di bawah header ---
     function showTopToast(messageText, isError = false) {
       const bannerElement = document.getElementById('topToastBanner');
       const dotElement = document.getElementById('topToastDot');
       const textElement = document.getElementById('topToastText');
+
+      if (!bannerElement || !dotElement || !textElement) return;
 
       textElement.textContent = messageText;
       dotElement.className = isError
@@ -641,30 +611,30 @@
       }, 3200);
     }
 
-    // --- fungsi pengubah aksen tema warna instan ---
     function cycleAccentTheme() {
       currentThemeIndex = (currentThemeIndex + 1) % availableThemes.length;
       const selectedTheme = availableThemes[currentThemeIndex];
       document.documentElement.setAttribute('data-theme', selectedTheme);
 
       const formattedLabel = selectedTheme.charAt(0).toUpperCase() + selectedTheme.slice(1);
-      document.getElementById('currentThemeLabel').textContent = formattedLabel;
+      const labelEl = document.getElementById('currentThemeLabel');
+      if (labelEl) labelEl.textContent = formattedLabel;
       localStorage.setItem('jadibot_theme_pref', selectedTheme);
       showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
     }
 
-    // --- muat preferensi tema tersimpan saat halaman dibuka ---
     (function initializeSavedTheme() {
       const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
       const foundIndex = availableThemes.indexOf(savedTheme);
       currentThemeIndex = foundIndex >= 0 ? foundIndex : 0;
       const themeName = availableThemes[currentThemeIndex];
       document.documentElement.setAttribute('data-theme', themeName);
-      document.getElementById('currentThemeLabel').textContent =
-        themeName.charAt(0).toUpperCase() + themeName.slice(1);
+      const labelEl = document.getElementById('currentThemeLabel');
+      if (labelEl) {
+        labelEl.textContent = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+      }
     })();
 
-    // --- Fungsi toggle menu dropdown profil & opsi di header ---
     function toggleUserDropdownMenu(event) {
       if (event) event.stopPropagation();
       const popupMenu = document.getElementById('userDropdownMenuPopup');
@@ -673,7 +643,6 @@
       }
     }
 
-    // Tutup dropdown jika pengguna mengklik di luar area menu
     window.addEventListener('click', () => {
       const popupMenu = document.getElementById('userDropdownMenuPopup');
       if (popupMenu && !popupMenu.classList.contains('hidden')) {
@@ -681,7 +650,30 @@
       }
     });
 
-    // --- inisialisasi konfigurasi google identity services dari backend ---
+    function renderGoogleSignInWidget() {
+      const container = document.getElementById('googleSignInButtonContainer');
+      if (!container) return false;
+
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.initialize({
+          client_id: configuredGoogleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false
+        });
+
+        container.innerHTML = '';
+        window.google.accounts.id.renderButton(container, {
+          theme: 'filled_blue',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          width: 280
+        });
+        return true;
+      }
+      return false;
+    }
+
     async function initializeGoogleOAuthPortal() {
       try {
         const configResponse = await fetch('/api/auth/config');
@@ -690,38 +682,30 @@
           configuredGoogleClientId = configData.googleClientId;
         }
       } catch {
-        // --- gunakan client id default jika gagal mengambil config ---
       }
 
       if (activeGoogleCredentialToken) {
         await verifyAndUnlockDashboard(activeGoogleCredentialToken, true);
       }
 
-      const checkGoogleLibraryInterval = setInterval(() => {
-        if (window.google && window.google.accounts && window.google.accounts.id) {
-          clearInterval(checkGoogleLibraryInterval);
-
-          window.google.accounts.id.initialize({
-            client_id: configuredGoogleClientId,
-            callback: handleGoogleCredentialResponse,
-            auto_select: false
-          });
-
-          window.google.accounts.id.renderButton(
-            document.getElementById('googleSignInButtonContainer'),
-            {
-              theme: 'filled_blue',
-              size: 'large',
-              text: 'signin_with',
-              shape: 'pill',
-              width: 280
+      if (!renderGoogleSignInWidget()) {
+        let retryAttempts = 0;
+        const checkGoogleLibraryInterval = setInterval(() => {
+          retryAttempts += 1;
+          if (renderGoogleSignInWidget()) {
+            clearInterval(checkGoogleLibraryInterval);
+          } else if (retryAttempts >= 40) {
+            clearInterval(checkGoogleLibraryInterval);
+            const hint = document.getElementById('googleBtnLoadingHint');
+            if (hint) {
+              hint.classList.remove('animate-pulse');
+              hint.textContent = 'Gagal memuat SDK Google. Periksa koneksi / nonaktifkan AdBlock.';
             }
-          );
-        }
-      }, 250);
+          }
+        }, 250);
+      }
     }
 
-    // --- callback saat pengguna memilih akun google ---
     async function handleGoogleCredentialResponse(googleResponse) {
       if (!googleResponse || !googleResponse.credential) {
         showTopToast('Gagal menerima token dari Google', true);
@@ -730,7 +714,6 @@
       await verifyAndUnlockDashboard(googleResponse.credential, false);
     }
 
-    // --- kirim token jwt google ke backend untuk diverifikasi ---
     async function verifyAndUnlockDashboard(credentialToken, isSilentRestore) {
       try {
         const verifyResponse = await fetch('/api/auth/google', {
@@ -779,7 +762,6 @@
       }
     }
 
-    // --- keluar dari akun google dan kunci kembali halaman dashboard ---
     function logoutGoogleAccount() {
       localStorage.removeItem('jadibot_google_jwt_token');
       activeGoogleCredentialToken = null;
@@ -797,18 +779,18 @@
       document.getElementById('navbarGoogleUserBox').classList.remove('flex');
       document.getElementById('googleAuthGateSection').classList.remove('hidden');
 
+      renderGoogleSignInWidget();
       showTopToast('Anda telah keluar dari akun Google');
     }
 
-    // --- fungsi perpindahan tab utama antara dashboard dan developer ide ---
     function switchWorkspaceTab(targetTab) {
       const dashboardView = document.getElementById('workspaceDashboardView');
       const developerView = document.getElementById('workspaceDeveloperView');
       const tabDashboardBtn = document.getElementById('navTabDashboard');
       const tabDeveloperBtn = document.getElementById('navTabDeveloper');
 
-      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
-      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
+      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
+      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
 
       if (targetTab === 'developer') {
         dashboardView.classList.add('hidden');
@@ -827,7 +809,6 @@
       }
     }
 
-    // --- fungsi perpindahan tab metode autentikasi qr dan pairing ---
     function switchAuthMode(mode) {
       const qrPanel = document.getElementById('qrCodeAuthPanel');
       const pairingPanel = document.getElementById('pairingCodeAuthPanel');
@@ -847,9 +828,9 @@
       }
     }
 
-    // --- fungsi animasi perubahan angka statistik ---
     function animateMetricCounter(elementId, newValue) {
       const targetElement = document.getElementById(elementId);
+      if (!targetElement) return;
       const currentValue = parseInt(targetElement.textContent.replace(/[^0-9]/g, ''), 10) || 0;
       const targetNumber = parseInt(newValue, 10) || 0;
 
@@ -874,7 +855,6 @@
       }, 25);
     }
 
-    // --- fungsi render statistik database.json user dan ringkasan global ---
     function renderDatabaseStatistics(databaseObject, globalStatsObject) {
       if (databaseObject) {
         animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
@@ -909,16 +889,15 @@
       }
     }
 
-    // --- pewaktu live untuk menghitung uptime bot setiap detik ---
     setInterval(() => {
       const elapsedSeconds = Math.max(0, Math.floor((Date.now() - botStartTimeMs) / 1000));
       const hours = String(Math.floor(elapsedSeconds / 3600)).padStart(2, '0');
       const minutes = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, '0');
       const seconds = String(elapsedSeconds % 60).padStart(2, '0');
-      document.getElementById('statBotUptime').textContent = `${hours}:${minutes}:${seconds}`;
+      const uptimeEl = document.getElementById('statBotUptime');
+      if (uptimeEl) uptimeEl.textContent = `${hours}:${minutes}:${seconds}`;
     }, 1000);
 
-    // --- fungsi reset tampilan kotak qr dan pairing ke kondisi awal ---
     function resetAuthenticationPanelsUI() {
       const qrImg = document.getElementById('qrCodeImageElement');
       const qrStatusText = document.getElementById('qrCodeStatusText');
@@ -940,66 +919,92 @@
       }
     }
 
-    // --- fungsi perbarui indikator visual status koneksi dan profil bot ---
-    function updateConnectionInterface(status, profileData) {
-      const badgeEl = document.getElementById('connectionStatusBadge');
-      const iconEl = document.getElementById('connectionStatusIcon');
-      const textEl = document.getElementById('connectionStatusText');
+    function updateConnectionUIState(statusState, profileObject) {
+      const badge = document.getElementById('connectionStatusBadge');
+      const icon = document.getElementById('connectionStatusIcon');
+      const text = document.getElementById('connectionStatusText');
       const profileCard = document.getElementById('connectedProfileCard');
       const authBox = document.getElementById('authenticationBox');
 
-      if (status === 'CONNECTED') {
-        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-semibold shadow-[0_0_15px_rgba(16,185,129,0.25)] shrink-0';
-        iconEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]';
-        textEl.textContent = 'Connected';
+      if (statusState === 'connected') {
+        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold shrink-0';
+        icon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        text.textContent = 'Connected';
 
-        if (profileData) {
-          document.getElementById('botProfileName').textContent = profileData.name;
-          document.getElementById('botProfileNumber').textContent = '+' + profileData.number;
-          document.getElementById('botProfileAvatar').src = profileData.avatarUrl;
-          profileCard.classList.remove('hidden');
-        }
+        profileCard.classList.remove('hidden');
         authBox.classList.add('hidden');
-      } else if (status === 'CONNECTING') {
-        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-semibold shrink-0';
-        iconEl.className = 'w-2.5 h-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin';
-        textEl.textContent = 'Connecting...';
-        profileCard.classList.add('hidden');
-        authBox.classList.remove('hidden');
-      } else {
-        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0';
-        iconEl.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
-        textEl.textContent = 'Disconnected';
-        profileCard.classList.add('hidden');
-        authBox.classList.remove('hidden');
         resetAuthenticationPanelsUI();
+
+        if (profileObject) {
+          document.getElementById('botProfileName').textContent = profileObject.name || 'WhatsApp Bot';
+          document.getElementById('botProfileNumber').textContent = `+${profileObject.number || '-'}`;
+          document.getElementById('botProfileAvatar').src =
+            profileObject.avatarUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(profileObject.name || 'Bot')}&background=10b981&color=fff`;
+        }
+      } else if (statusState === 'connecting') {
+        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold shrink-0';
+        icon.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
+        text.textContent = 'Connecting...';
+      } else {
+        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0';
+        icon.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
+        text.textContent = 'Disconnected';
+
+        profileCard.classList.add('hidden');
+        authBox.classList.remove('hidden');
       }
     }
 
-    // --- fungsi memulai koneksi qr atau phone pairing ---
+    function appendTerminalLine(logEntry) {
+      const terminalBox = document.getElementById('terminalLogOutput');
+      if (!terminalBox) return;
+      const lineElement = document.createElement('div');
+
+      let levelColorClass = 'text-slate-300';
+      if (logEntry.level === 'success') levelColorClass = 'text-emerald-400';
+      if (logEntry.level === 'warn') levelColorClass = 'text-amber-300';
+      if (logEntry.level === 'error') levelColorClass = 'text-rose-400';
+
+      lineElement.className = `flex items-start gap-2 ${levelColorClass}`;
+      lineElement.innerHTML = `<span class="text-slate-600 select-none shrink-0">[${logEntry.timestamp || '--:--:--'}]</span><span class="break-all">${escapeHtmlString(logEntry.message || '')}</span>`;
+
+      terminalBox.appendChild(lineElement);
+      terminalBox.scrollTop = terminalBox.scrollHeight;
+    }
+
+    function escapeHtmlString(rawString) {
+      return String(rawString)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function clearTerminalLogs() {
+      document.getElementById('terminalLogOutput').innerHTML = '';
+      showTopToast('Tampilan terminal dibersihkan');
+    }
+
     function initiateConnection(method) {
       if (method === 'pairing') {
         const phoneInput = document.getElementById('pairingPhoneInput').value.trim();
         if (!phoneInput) {
-          showTopToast('Masukkan nomor WhatsApp internasional terlebih dahulu', true);
+          showTopToast('Masukkan nomor WhatsApp terlebih dahulu', true);
           return;
         }
-        document.getElementById('pairingCodeDisplayWrapper').classList.add('hidden');
         socketClient.emit('session:connect', { method: 'pairing', phoneNumber: phoneInput });
-        showTopToast('Meminta 8-digit kode pairing ke server Baileys...');
+        showTopToast('Meminta 8-digit pairing code...');
       } else {
-        document.getElementById('qrCodeStatusText').textContent = 'Menyiapkan QR Code baru dari Baileys...';
         socketClient.emit('session:connect', { method: 'qr' });
-        showTopToast('Menginisialisasi ulang QR Code...');
+        document.getElementById('qrCodeStatusText').textContent = 'Menghubungkan ke server WhatsApp, mohon tunggu QR Code...';
+        showTopToast('Menginisialisasi sesi QR Code...');
       }
     }
 
-    // --- fungsi pengubah pengaturan bot ---
     function toggleBotSetting(settingKey) {
       socketClient.emit('settings:toggle', { key: settingKey });
     }
 
-    // --- fungsi kontrol modal konfirmasi hapus sesi ---
     function openLogoutConfirmationModal() {
       const modal = document.getElementById('logoutConfirmModal');
       modal.classList.remove('hidden');
@@ -1014,214 +1019,146 @@
 
     function confirmSessionLogout() {
       closeLogoutConfirmationModal();
-      updateConnectionInterface('DISCONNECTED', null);
-      switchAuthMode('qr');
       socketClient.emit('session:logout');
-      showTopToast('Sesi bot dan database.json berhasil dihapus');
+      resetAuthenticationPanelsUI();
+      showTopToast('Menghapus sesi dan database.json Anda...');
     }
 
-    // --- fungsi tambah baris baru pada terminal log dengan auto-scroll ---
-    function appendTerminalLogLine(logPayload) {
-      const terminalContainer = document.getElementById('terminalLogOutput');
-      const lineElement = document.createElement('div');
-
-      let badgeColorClass = 'text-emerald-400';
-      if (logPayload.level === 'ERROR') badgeColorClass = 'text-rose-400 font-bold';
-      if (logPayload.level === 'WARN') badgeColorClass = 'text-amber-300';
-      if (logPayload.level === 'MSG') badgeColorClass = 'text-cyan-400';
-
-      lineElement.innerHTML = `<span class="text-slate-600">[${logPayload.timestamp}]</span> <span class="${badgeColorClass}">[${logPayload.level}]</span> <span class="text-slate-200">${escapeHtmlText(logPayload.message)}</span>`;
-      terminalContainer.appendChild(lineElement);
-      terminalContainer.scrollTop = terminalContainer.scrollHeight;
-    }
-
-    function clearTerminalLogs() {
-      document.getElementById('terminalLogOutput').innerHTML = '';
-      showTopToast('Terminal log dibersihkan');
-    }
-
-    function escapeHtmlText(rawString) {
-      return String(rawString)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-    }
-
-    // --- fungsi menyalin isi kode di textarea ke clipboard via navigator.clipboard.writeText ---
-    async function copyEditorCode() {
-      const editorTextarea = document.getElementById('pluginCodeEditorTextarea');
-      const codeString = editorTextarea.value;
-
-      if (!codeString.trim()) {
-        showTopToast('Editor masih kosong, tidak ada kode yang disalin', true);
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(codeString);
-        showTopToast('Kode plugin berhasil disalin ke clipboard');
-      } catch {
-        editorTextarea.select();
-        document.execCommand('copy');
-        window.getSelection().removeAllRanges();
-        showTopToast('Kode plugin berhasil disalin ke clipboard');
-      }
-    }
-
-    // --- fungsi menempel teks dari clipboard ke textarea via navigator.clipboard.readText ---
-    async function pasteEditorCode() {
-      const editorTextarea = document.getElementById('pluginCodeEditorTextarea');
-
-      try {
-        const clipboardText = await navigator.clipboard.readText();
-        if (!clipboardText) {
-          showTopToast('Clipboard kosong atau tidak berisi teks', true);
-          return;
-        }
-        editorTextarea.value = clipboardText;
-        editorTextarea.focus();
-        showTopToast('Kode dari clipboard berhasil ditempel ke editor');
-      } catch {
-        showTopToast('Izin baca clipboard ditolak browser. Tempel manual di editor.', true);
-        editorTextarea.focus();
-      }
-    }
-
-    // --- fungsi mengosongkan seluruh isi textarea dalam satu klik ---
-    function clearEditorCode() {
-      const editorTextarea = document.getElementById('pluginCodeEditorTextarea');
-      if (!editorTextarea.value) {
-        showTopToast('Editor sudah dalam keadaan kosong');
-        return;
-      }
-      editorTextarea.value = '';
-      editorTextarea.focus();
-      showTopToast('Isi code editor berhasil dibersihkan');
-    }
-
-    // --- fungsi render daftar plugin di developer ide ---
     function renderPluginsList(pluginsArray) {
-      loadedPluginsCache = Array.isArray(pluginsArray) ? pluginsArray : [];
-      const listContainer = document.getElementById('pluginsFileListContainer');
-      listContainer.innerHTML = '';
+      loadedPluginsCache = pluginsArray || [];
+      const container = document.getElementById('pluginsFileListContainer');
+      if (!container) return;
+      container.innerHTML = '';
 
       if (loadedPluginsCache.length === 0) {
-        listContainer.innerHTML = '<p class="text-xs text-slate-500">Belum ada file plugin di folder ./plugins</p>';
+        container.innerHTML = '<p class="text-xs text-slate-500">Belum ada berkas plugin.</p>';
         return;
       }
 
-      loadedPluginsCache.forEach((pluginItem, index) => {
-        const itemRow = document.createElement('div');
-        itemRow.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-slate-700 transition-all';
-        itemRow.innerHTML = `
-          <button onclick="loadPluginIntoEditor(${index})" class="flex-1 text-left truncate">
-            <p class="text-xs font-bold text-slate-200 font-mono-code truncate">${escapeHtmlText(pluginItem.fileName)}</p>
-            <p class="text-[10px] text-slate-500">Hot-Reload Ready</p>
+      loadedPluginsCache.forEach((pluginItem) => {
+        const card = document.createElement('div');
+        card.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all';
+        card.innerHTML = `
+          <button onclick="selectPluginForEditing('${pluginItem.fileName}')" class="text-left flex-1 truncate pr-2">
+            <p class="text-xs font-bold text-slate-200 font-mono-code truncate">${escapeHtmlString(pluginItem.fileName)}</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Klik untuk menyunting</p>
           </button>
-          <button onclick="deletePluginFile('${escapeHtmlText(pluginItem.fileName)}')" class="ml-2 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 text-[11px] font-semibold">
-            Hapus
+          <button onclick="deletePluginFile('${pluginItem.fileName}')" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="Hapus Plugin">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
           </button>
         `;
-        listContainer.appendChild(itemRow);
+        container.appendChild(card);
       });
-
-      const currentFileNameInput = document.getElementById('pluginFileNameInput').value.trim();
-      if (!currentFileNameInput && loadedPluginsCache.length > 0) {
-        loadPluginIntoEditor(0);
-      }
     }
 
-    // --- muat kode plugin yang dipilih ke dalam editor ---
-    function loadPluginIntoEditor(pluginIndex) {
-      const targetPlugin = loadedPluginsCache[pluginIndex];
-      if (!targetPlugin) return;
-      document.getElementById('pluginFileNameInput').value = targetPlugin.fileName;
-      document.getElementById('pluginCodeEditorTextarea').value = targetPlugin.codeContent;
+    function selectPluginForEditing(fileName) {
+      const found = loadedPluginsCache.find((item) => item.fileName === fileName);
+      if (!found) return;
+      document.getElementById('pluginFileNameInput').value = found.fileName;
+      document.getElementById('pluginCodeEditorTextarea').value = found.code;
+      showTopToast(`Membuka ${found.fileName}`);
     }
 
-    // --- siapkan template kerangka plugin baru di editor ---
     function prepareNewPluginTemplate() {
-      document.getElementById('pluginFileNameInput').value = `fitur-${Math.floor(100 + Math.random() * 900)}.js`;
-      document.getElementById('pluginCodeEditorTextarea').value = `// --- plugin custom jadibot ---
-export default async function executePlugin(context) {
+      document.getElementById('pluginFileNameInput').value = 'custom-command.js';
+      document.getElementById('pluginCodeEditorTextarea').value =
+`export default async function customCommandHandler(context) {
   const { messageText, replyMessage } = context;
 
-  if (messageText.trim().toLowerCase() === '.halo') {
-    await replyMessage('Halo! Plugin baru aktif secara real-time tanpa restart.');
+  if (messageText.toLowerCase() === '!halo') {
+    await replyMessage('Halo! Plugin kustom Anda aktif secara real-time.');
   }
-}
-`;
-      showTopToast('Template plugin baru disiapkan di editor');
+}`;
+      showTopToast('Template plugin baru siap disunting');
     }
 
-    // --- kirim kode plugin ke backend untuk validasi dan hot-reload ---
     function saveAndApplyPlugin() {
       const fileName = document.getElementById('pluginFileNameInput').value.trim();
-      const codeContent = document.getElementById('pluginCodeEditorTextarea').value;
+      const code = document.getElementById('pluginCodeEditorTextarea').value;
 
       if (!fileName) {
         showTopToast('Nama file plugin wajib diisi', true);
         return;
       }
 
-      socketClient.emit('plugin:save', { fileName, codeContent });
+      socketClient.emit('plugins:save', { fileName, code });
     }
 
-    // --- hapus file plugin dari folder plugins ---
     function deletePluginFile(fileName) {
-      socketClient.emit('plugin:delete', { fileName });
+      socketClient.emit('plugins:delete', { fileName });
     }
 
-    // --- tampilkan laporan error sintaks atau runtime pada mini-terminal inspector ---
-    function displayDeveloperErrorReport(errorPayload) {
-      const boxElement = document.getElementById('developerErrorReportBox');
-      const dotElement = document.getElementById('inspectorIndicatorDot');
-      const badgeElement = document.getElementById('inspectorStatusBadge');
-      const viewportElement = document.getElementById('inspectorTerminalViewport');
-      const detailElement = document.getElementById('inspectorErrorDetailOutput');
-
-      if (!errorPayload) {
-        boxElement.className = 'rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
-        dotElement.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
-        badgeElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold font-mono-code shrink-0';
-        badgeElement.textContent = 'Status: Aman / Ready';
-        viewportElement.className = 'rounded-lg bg-black/80 border border-emerald-500/20 p-3 overflow-x-auto';
-        detailElement.className = 'text-[11px] sm:text-xs font-mono-code text-emerald-300/90 leading-relaxed whitespace-pre-wrap break-words';
-        detailElement.textContent = '✓ Validasi Sintaks & Struktur ESM berhasil.\n✓ Plugin telah dimuat ke memori (Hot-Reload Active).';
-        return;
+    async function copyEditorCode() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      if (!textarea || !textarea.value) return showTopToast('Editor masih kosong', true);
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        showTopToast('Kode berhasil disalin ke clipboard');
+      } catch {
+        textarea.select();
+        document.execCommand('copy');
+        showTopToast('Kode disalin');
       }
-
-      const formattedLineInfo = errorPayload.lineNumber ? ` • Baris ${errorPayload.lineNumber}` : '';
-      const errorHeaderLabel = `${errorPayload.errorType || 'SyntaxError'}${formattedLineInfo}`;
-
-      boxElement.className = 'rounded-xl bg-red-950/20 border border-red-500/40 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
-      dotElement.className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0';
-      badgeElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-red-500/20 text-red-300 border border-red-500/40 text-[11px] font-bold font-mono-code shrink-0';
-      badgeElement.textContent = errorHeaderLabel;
-      viewportElement.className = 'rounded-lg bg-black border border-red-500/30 p-3.5 overflow-x-auto shadow-inner';
-      detailElement.className = 'text-[11px] sm:text-xs font-mono-code font-bold text-red-400 leading-relaxed whitespace-pre-wrap';
-      detailElement.textContent = errorPayload.errorMessage || 'Terjadi kesalahan sintaks atau runtime pada kode plugin.';
     }
 
-    // --- otomatis gabung ulang ke room user setiap kali socket terhubung ulang ---
+    async function pasteEditorCode() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      if (!textarea) return;
+      try {
+        const clipText = await navigator.clipboard.readText();
+        textarea.value = clipText;
+        showTopToast('Kode ditempel dari clipboard');
+      } catch {
+        showTopToast('Izin clipboard ditolak browser, silakan tempel manual', true);
+      }
+    }
+
+    function clearEditorCode() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      if (textarea) {
+        textarea.value = '';
+        showTopToast('Editor dibersihkan');
+      }
+    }
+
+    function updateCodeInspectorReport(errorMessageText, hasError) {
+      const box = document.getElementById('developerErrorReportBox');
+      const dot = document.getElementById('inspectorIndicatorDot');
+      const badge = document.getElementById('inspectorStatusBadge');
+      const viewport = document.getElementById('inspectorTerminalViewport');
+      const output = document.getElementById('inspectorErrorDetailOutput');
+      if (!box || !output) return;
+
+      if (hasError) {
+        box.className = 'rounded-xl bg-rose-950/20 border border-rose-500/40 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
+        dot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0';
+        badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-semibold font-mono-code shrink-0';
+        badge.textContent = 'Status: Error Terdeteksi';
+        viewport.className = 'rounded-lg bg-black/80 border border-rose-500/30 p-3 overflow-x-auto';
+        output.className = 'text-[11px] sm:text-xs font-mono-code text-rose-300 leading-relaxed whitespace-pre-wrap break-words';
+        output.textContent = errorMessageText;
+      } else {
+        box.className = 'rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+        badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold font-mono-code shrink-0';
+        badge.textContent = 'Status: Aman / Ready';
+        viewport.className = 'rounded-lg bg-black/80 border border-emerald-500/20 p-3 overflow-x-auto';
+        output.className = 'text-[11px] sm:text-xs font-mono-code text-emerald-300/90 leading-relaxed whitespace-pre-wrap break-words';
+        output.textContent = errorMessageText || 'Belum ada error sintaks maupun runtime yang terdeteksi.';
+      }
+    }
+
     socketClient.on('connect', () => {
       if (activeGoogleCredentialToken) {
         socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
       }
     });
 
-    // --- sinkronisasi ulang saat pengguna kembali ke browser dari aplikasi whatsapp ---
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && activeGoogleCredentialToken) {
-        if (!socketClient.connected) {
-          socketClient.connect();
-        } else {
-          socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
-        }
-      }
+    socketClient.on('session:auth-error', (payload) => {
+      showTopToast(payload?.message || 'Autentikasi Socket gagal', true);
+      logoutGoogleAccount();
     });
 
-    // --- event listener socket.io real-time ---
     socketClient.on('session:ready', (payload) => {
       document.getElementById('skeletonLoaderSection').classList.add('hidden');
       document.getElementById('liveApplicationContainer').classList.remove('hidden');
@@ -1230,77 +1167,68 @@ export default async function executePlugin(context) {
         document.getElementById('volumeStoragePathText').textContent = `Volume: ${payload.volumePath}`;
       }
 
-      updateConnectionInterface(payload.status, payload.profile);
       renderDatabaseStatistics(payload.database, payload.globalStats);
-      renderPluginsList(payload.plugins);
-    });
+      updateConnectionUIState(payload.status, payload.profile);
+      renderPluginsList(payload.plugins || []);
 
-    socketClient.on('session:reset', (payload) => {
-      updateConnectionInterface('DISCONNECTED', null);
-      renderDatabaseStatistics(payload.database, payload.globalStats);
-      switchAuthMode('qr');
-    });
+      if (Array.isArray(payload.logs)) {
+        document.getElementById('terminalLogOutput').innerHTML = '';
+        payload.logs.forEach(appendTerminalLine);
+      }
 
-    socketClient.on('auth:expired', (payload) => {
-      showTopToast(payload?.errorMessage || 'Sesi Google berakhir, silakan masuk kembali', true);
-      logoutGoogleAccount();
-    });
-
-    socketClient.on('connection:status', (payload) => {
-      updateConnectionInterface(payload.status, payload.profile);
-    });
-
-    socketClient.on('qr:update', (qrDataUrl) => {
-      const qrImg = document.getElementById('qrCodeImageElement');
-      qrImg.src = qrDataUrl;
-      qrImg.classList.remove('hidden');
-      document.getElementById('qrCodeStatusText').textContent = 'Pindai QR Code ini menggunakan WhatsApp (Perangkat Tertaut).';
-    });
-
-    socketClient.on('pairing:code', (formattedCode) => {
-      const wrapper = document.getElementById('pairingCodeDisplayWrapper');
-      const codeEl = document.getElementById('pairingCodeValue');
-      codeEl.textContent = formattedCode;
-      wrapper.classList.remove('hidden');
-      showTopToast(`Kode Pairing diterima: ${formattedCode}`);
-    });
-
-    socketClient.on('pairing:error', (errorMessage) => {
-      showTopToast(errorMessage, true);
-    });
-
-    socketClient.on('stats:update', (payload) => {
-      renderDatabaseStatistics(payload.userStats, payload.globalStats);
-    });
-
-    socketClient.on('terminal:log', (logPayload) => {
-      appendTerminalLogLine(logPayload);
-    });
-
-    socketClient.on('plugin:list', (pluginsArray) => {
-      renderPluginsList(pluginsArray);
-    });
-
-    socketClient.on('plugin:save:result', (resultPayload) => {
-      if (resultPayload.isSuccess) {
-        displayDeveloperErrorReport(null);
-        showTopToast(`Plugin ${resultPayload.fileName} berhasil diterapkan secara hot-reload!`);
-      } else {
-        displayDeveloperErrorReport(resultPayload);
-        showTopToast(`Gagal menerapkan plugin: ${resultPayload.errorType}`, true);
+      if (payload.plugins && payload.plugins.length > 0 && !document.getElementById('pluginFileNameInput').value) {
+        selectPluginForEditing(payload.plugins[0].fileName);
       }
     });
 
-    socketClient.on('plugin:error', (runtimeErrorPayload) => {
-      displayDeveloperErrorReport({
-        errorType: `${runtimeErrorPayload.errorType} [${runtimeErrorPayload.fileName}]`,
-        lineNumber: runtimeErrorPayload.lineNumber,
-        errorMessage: runtimeErrorPayload.errorMessage
-      });
-      showTopToast(`Runtime Error di ${runtimeErrorPayload.fileName}`, true);
+    socketClient.on('session:status', (payload) => {
+      updateConnectionUIState(payload.status, payload.profile);
     });
 
-    // --- jalankan inisialisasi oauth saat halaman selesai dimuat ---
+    socketClient.on('session:qr', (payload) => {
+      const qrImg = document.getElementById('qrCodeImageElement');
+      const qrText = document.getElementById('qrCodeStatusText');
+      if (payload && payload.qrDataUrl) {
+        qrImg.src = payload.qrDataUrl;
+        qrImg.classList.remove('hidden');
+        qrText.textContent = 'Scan QR Code ini menggunakan aplikasi WhatsApp Anda (Perangkat Tertaut).';
+      }
+    });
+
+    socketClient.on('session:pairing', (payload) => {
+      if (payload && payload.pairingCode) {
+        document.getElementById('pairingCodeDisplayWrapper').classList.remove('hidden');
+        document.getElementById('pairingCodeValue').textContent = payload.pairingCode;
+        showTopToast('Pairing code diterima!');
+      }
+    });
+
+    socketClient.on('database:update', (payload) => {
+      renderDatabaseStatistics(payload.database, payload.globalStats);
+    });
+
+    socketClient.on('terminal:log', (logEntry) => {
+      appendTerminalLine(logEntry);
+    });
+
+    socketClient.on('plugins:list', (pluginsArray) => {
+      renderPluginsList(pluginsArray);
+    });
+
+    socketClient.on('plugins:save-result', (result) => {
+      if (result.success) {
+        updateCodeInspectorReport(`Plugin "${result.fileName}" berhasil disimpan & dimuat ulang tanpa error.`, false);
+        showTopToast(`Plugin ${result.fileName} diterapkan!`);
+      } else {
+        updateCodeInspectorReport(result.error || 'Terjadi kesalahan sintaks pada plugin.', true);
+        showTopToast('Gagal menerapkan plugin, cek inspector!', true);
+      }
+    });
+
+    socketClient.on('plugins:runtime-error', (payload) => {
+      updateCodeInspectorReport(`[Runtime Error - ${payload.fileName || 'Plugin'}]\n${payload.error}`, true);
+    });
+
     window.addEventListener('DOMContentLoaded', initializeGoogleOAuthPortal);
   </script>
 </body>
