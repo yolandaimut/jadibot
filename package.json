@@ -10,11 +10,14 @@
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "^6.7.9",
+    "child_process": "^1.0.2",
     "express": "^4.21.1",
     "google-auth-library": "^9.14.2",
     "pino": "^9.5.0",
     "qrcode": "^1.5.4",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "syntax-error": "^1.4.0",
+    "util": "^0.12.5"
   },
   "engines": {
     "node": ">=18.0.0"
