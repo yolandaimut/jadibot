@@ -273,6 +273,7 @@ function getGlobalPlatformStatistics() {
 }
 
 // --- fungsi utama koneksi whatsapp baileys dengan dynamic session mapping ---
+// --- fungsi utama koneksi whatsapp baileys dengan dynamic session mapping ---
 async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phoneNumberInput = '') {
   const existingSession = activeBotSessions.get(googleUserId);
 
@@ -305,45 +306,33 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
   const cleanedPhoneInput = String(phoneNumberInput || '').replace(/[^0-9]/g, '');
   let activeSessionName = botDatabase.sessionName;
 
-  if (connectionMethod === 'pairing') {
-    // --- metode pairing langsung membuat folder sesi sesuai input nomor telepon ---
-    if (cleanedPhoneInput.length < 8) {
-      emitTerminalLog(googleUserId, 'ERROR', 'Format nomor telepon tidak valid.');
-      io.to(`user_${googleUserId}`).emit('pairing:error', 'Gunakan format nomor internasional (contoh: 628123456789).');
-      return;
-    }
+  if (connectionMethod === 'pairing' && cleanedPhoneInput) {
+    // --- Jika nomor telepon diinput, cek apakah folder sesi dengan nama nomor tersebut sudah ada ---
+    const targetFolder = getUserSessionFolderPath(googleUserId, cleanedPhoneInput);
+    const hasExistingCreds = fs.existsSync(path.join(targetFolder, 'creds.json'));
 
-    if (activeSessionName && activeSessionName !== cleanedPhoneInput) {
-      const previousFolder = getUserSessionFolderPath(googleUserId, activeSessionName);
-      if (fs.existsSync(previousFolder)) {
-        fs.rmSync(previousFolder, { recursive: true, force: true });
+    if (hasExistingCreds) {
+      activeSessionName = cleanedPhoneInput;
+      botDatabase.phoneNumber = cleanedPhoneInput;
+      botDatabase.sessionName = activeSessionName;
+      writeBotDatabaseAtomic(googleUserId, botDatabase);
+      emitTerminalLog(googleUserId, 'INFO', `Menemukan sesi tersimpan untuk nomor ${cleanedPhoneInput}. Memuat ulang sesi...`);
+    } else {
+      if (activeSessionName && activeSessionName !== cleanedPhoneInput) {
+        const previousFolder = getUserSessionFolderPath(googleUserId, activeSessionName);
+        if (fs.existsSync(previousFolder)) {
+          fs.rmSync(previousFolder, { recursive: true, force: true });
+        }
       }
+      activeSessionName = cleanedPhoneInput;
+      botDatabase.phoneNumber = cleanedPhoneInput;
+      botDatabase.sessionName = activeSessionName;
+      writeBotDatabaseAtomic(googleUserId, botDatabase);
     }
-
-    activeSessionName = cleanedPhoneInput;
-    botDatabase.phoneNumber = cleanedPhoneInput;
+  } else if (!activeSessionName) {
+    activeSessionName = botDatabase.phoneNumber || `qr_${googleUserId}`;
     botDatabase.sessionName = activeSessionName;
     writeBotDatabaseAtomic(googleUserId, botDatabase);
-  } else if (connectionMethod === 'reconnect') {
-    // --- metode reconnect membaca mapping session lama dari database.json ---
-    if (!activeSessionName) {
-      activeSessionName = botDatabase.phoneNumber || `qr_${crypto.randomBytes(4).toString('hex')}`;
-      botDatabase.sessionName = activeSessionName;
-      writeBotDatabaseAtomic(googleUserId, botDatabase);
-    }
-  } else {
-    // --- metode qr menggunakan id unik sementara jika belum ada sesi terdaftar ---
-    const mappedFolder = activeSessionName ? getUserSessionFolderPath(googleUserId, activeSessionName) : null;
-    const hasRegisteredCreds = mappedFolder && fs.existsSync(path.join(mappedFolder, 'creds.json'));
-
-    if (!activeSessionName || !hasRegisteredCreds) {
-      if (mappedFolder && fs.existsSync(mappedFolder)) {
-        fs.rmSync(mappedFolder, { recursive: true, force: true });
-      }
-      activeSessionName = `qr_${crypto.randomBytes(4).toString('hex')}_${Date.now().toString(36)}`;
-      botDatabase.sessionName = activeSessionName;
-      writeBotDatabaseAtomic(googleUserId, botDatabase);
-    }
   }
 
   const userSessionFolder = getUserSessionFolderPath(googleUserId, activeSessionName);
@@ -396,8 +385,8 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
       isDeletingSession: false
     });
 
-    // --- terbitkan kode pairing jika metode pairing dipilih dan sesi belum tertaut ---
-    if (connectionMethod === 'pairing' && !whatsappSocket.authState.creds.registered) {
+    // --- Jika credentials sudah ter-register (sesi lama ada), jangan minta pairing code baru, biarkan langsung connect ---
+    if (connectionMethod === 'pairing' && cleanedPhoneInput && !whatsappSocket.authState.creds.registered) {
       setTimeout(async () => {
         try {
           const currentRecord = activeBotSessions.get(googleUserId);
@@ -435,14 +424,13 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
             color: { dark: '#090d16', light: '#ffffff' }
           });
           io.to(`user_${googleUserId}`).emit('qr:update', qrImageDataUrl);
-          emitTerminalLog(googleUserId, 'INFO', `QR Code dimuat untuk sesi sementara: ${activeSessionName}`);
+          emitTerminalLog(googleUserId, 'INFO', `QR Code dimuat untuk sesi: ${activeSessionName}`);
         } catch (qrRenderError) {
           emitTerminalLog(googleUserId, 'ERROR', `Gagal membuat QR Code: ${qrRenderError.message}`);
         }
       }
 
       if (connection === 'open') {
-        // --- ambil nomor telepon asli bot menggunakan jidNormalizedUser dan simpan mapping ---
         const normalizedBotJid = jidNormalizedUser(whatsappSocket.user?.id || '');
         const cleanPhoneNumber = normalizedBotJid.split('@')[0];
         const whatsappName = whatsappSocket.user?.name || whatsappSocket.user?.verifiedName || 'JadiBot Active';
@@ -474,6 +462,7 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
         currentRecord.status = 'CONNECTED';
         currentRecord.profile = connectedProfile;
 
+        // --- Kirim event status connected dan update stats ke frontend secara instan ---
         io.to(`user_${googleUserId}`).emit('connection:status', {
           status: 'CONNECTED',
           profile: connectedProfile
@@ -506,7 +495,6 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
           return;
         }
 
-        // --- ambil data mapping dari database.json untuk reconnect tanpa mereset statistik ---
         const persistedDatabase = readBotDatabase(googleUserId);
         const isPostPairingRestart = disconnectCode === DisconnectReason.restartRequired || disconnectCode === 515;
         const reconnectDelayMs = isPostPairingRestart ? 800 : 3000;
@@ -856,17 +844,53 @@ async function executeDynamicPlugins(googleUserId, contextPayload) {
 
 // --- pulihkan otomatis sesi yang tersimpan di volume saat server menyala ---
 function restoreExistingSessionsOnBoot() {
-  if (!fs.existsSync(SESSIONS_VOLUME_ROOT)) return;
-  const userFolders = fs.readdirSync(SESSIONS_VOLUME_ROOT, { withFileTypes: true });
+  // Cek direktori utama tempat folder-folder sesi disimpan
+  const targetSessionsDir = SESSIONS_ROOT_FOLDER_PATH;
+  
+  if (!fs.existsSync(targetSessionsDir)) {
+    fs.mkdirSync(targetSessionsDir, { recursive: true });
+    return;
+  }
 
-  for (const folderEntry of userFolders) {
-    if (folderEntry.isDirectory() && folderEntry.name.startsWith('user_')) {
-      const extractedGoogleId = folderEntry.name.replace(/^user_/, '');
-      const credsFilePath = path.join(SESSIONS_VOLUME_ROOT, folderEntry.name, 'creds.json');
-      if (fs.existsSync(credsFilePath)) {
-        startWhatsAppSession(extractedGoogleId, 'qr', '');
+  try {
+    const sessionEntries = fs.readdirSync(targetSessionsDir, { withFileTypes: true });
+
+    for (const entry of sessionEntries) {
+      if (entry.isDirectory()) {
+        const sessionFolderName = entry.name;
+        const sessionFolderPath = path.join(targetSessionsDir, sessionFolderName);
+        const credsFilePath = path.join(sessionFolderPath, 'creds.json');
+
+        // Jika file creds.json ada (artinya sesi aktif dan tidak logout)
+        if (fs.existsSync(credsFilePath)) {
+          // Cari tahu googleUserId mana yang memiliki sesi ini dari master database.json
+          const masterDb = readMasterDatabaseFile();
+          let matchedGoogleId = null;
+
+          for (const userIdKey of Object.keys(masterDb.users)) {
+            const userRecord = masterDb.users[userIdKey];
+            if (userRecord.sessionName === sessionFolderName || sessionFolderName.includes(userIdKey)) {
+              matchedGoogleId = userIdKey;
+              break;
+            }
+          }
+
+          // Jika tidak ketemu di database tapi foldernya ada, ekstrak dari nama folder jika formatnya cocok
+          if (!matchedGoogleId && sessionFolderName.includes('_')) {
+            // Contoh jika sessionName atau folder dinamai dari nomor atau ID
+            matchedGoogleId = sessionFolderName; 
+          }
+
+          if (matchedGoogleId) {
+            console.log(`[BOOT AUTO-START] Memulihkan sesi WhatsApp otomatis untuk User ID: ${matchedGoogleId} (Sesi: ${sessionFolderName})`);
+            // Jalankan ulang koneksi sesi di background tanpa intervensi QR
+            startWhatsAppSession(matchedGoogleId, 'reconnect', '');
+          }
+        }
       }
     }
+  } catch (bootScanError) {
+    console.error('[BOOT ERROR] Gagal memindai sesi tersimpan saat startup:', bootScanError.message);
   }
 }
 
@@ -918,7 +942,15 @@ io.on('connection', (clientSocket) => {
       clientSocket.join(userRoomName);
 
       const userDatabase = readBotDatabase(authenticatedGoogleId);
-      const currentBotState = activeBotSessions.get(authenticatedGoogleId);
+      let currentBotState = activeBotSessions.get(authenticatedGoogleId);
+      
+      const sessionFolder = getUserSessionFolderPath(authenticatedGoogleId);
+      // Jika session belum aktif di memori tapi file creds.json ada di volume (belum logout), langsung auto-start reconnect!
+      if ((!currentBotState || currentBotState.status !== 'CONNECTED') && fs.existsSync(path.join(sessionFolder, 'creds.json'))) {
+        startWhatsAppSession(authenticatedGoogleId, 'reconnect', userDatabase.phoneNumber || '');
+        currentBotState = activeBotSessions.get(authenticatedGoogleId);
+      }
+
       const pluginsList = getAvailablePluginsList();
 
       clientSocket.emit('session:ready', {
@@ -934,7 +966,7 @@ io.on('connection', (clientSocket) => {
       emitTerminalLog(
         authenticatedGoogleId,
         'INFO',
-        `OAuth Terverifikasi: ${verifiedUser.givenName} (Folder Volume: user_${authenticatedGoogleId})`
+        `OAuth Terverifikasi: ${verifiedUser.givenName} (Sesi aktif dimuat)`
       );
     } catch (socketAuthError) {
       clientSocket.emit('auth:expired', {
