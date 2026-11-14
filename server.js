@@ -160,8 +160,8 @@ function emitTerminalLog(googleUserId, logLevel, logMessage) {
 }
 
 // --- lokasi file database.json utama dan direktori sesi di dalam volume ---
-const MAIN_DATABASE_FILE_PATH = path.join(VOLUME_STORAGE_PATH, 'database.json');
-const SESSIONS_ROOT_FOLDER_PATH = path.join(VOLUME_STORAGE_PATH, 'sessions');
+const MAIN_DATABASE_FILE_PATH = path.join(currentDirectoryPath, 'database.json');
+const SESSIONS_ROOT_FOLDER_PATH = path.join(currentDirectoryPath, 'sessions');
 
 // --- fungsi baca seluruh data dari database.json utama secara aman ---
 function readMasterDatabaseFile() {
@@ -182,7 +182,7 @@ function readMasterDatabaseFile() {
 
 // --- fungsi tulis ke database.json utama dengan metode atomic write anti-corrupt ---
 function writeMasterDatabaseFileAtomic(masterDatabaseObject) {
-  fs.mkdirSync(VOLUME_STORAGE_PATH, { recursive: true });
+  fs.mkdirSync(currentDirectoryPath, { recursive: true });
   const tempFilePath = `${MAIN_DATABASE_FILE_PATH}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tempFilePath, JSON.stringify(masterDatabaseObject, null, 2), 'utf-8');
   fs.renameSync(tempFilePath, MAIN_DATABASE_FILE_PATH);
