@@ -465,9 +465,30 @@ async function executeDynamicPlugins(googleUserId, contextPayload) {
 // --- fungsi utama koneksi whatsapp baileys per user google ---
 async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phoneNumberInput = '') {
   const existingSession = activeBotSessions.get(googleUserId);
-  if (existingSession?.socketInstance && existingSession.status === 'CONNECTED') {
-    emitTerminalLog(googleUserId, 'INFO', 'Bot Anda sudah terhubung dan aktif.');
-    return;
+
+  if (existingSession) {
+    if (existingSession.status === 'CONNECTED' && existingSession.socketInstance) {
+      io.to(`user_${googleUserId}`).emit('connection:status', {
+        status: 'CONNECTED',
+        profile: existingSession.profile
+      });
+      return;
+    }
+
+    if (existingSession.reconnectTimer) {
+      clearTimeout(existingSession.reconnectTimer);
+    }
+
+    if (existingSession.socketInstance) {
+      try {
+        existingSession.socketInstance.ev.removeAllListeners('connection.update');
+        existingSession.socketInstance.ev.removeAllListeners('creds.update');
+        existingSession.socketInstance.ev.removeAllListeners('messages.upsert');
+        existingSession.socketInstance.end(undefined);
+      } catch {
+        // --- abaikan error saat membersihkan socket lama ---
+      }
+    }
   }
 
   const userSessionFolder = getUserSessionFolderPath(googleUserId);
@@ -511,7 +532,8 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
       socketInstance: whatsappSocket,
       status: 'CONNECTING',
       profile: null,
-      reconnectTimer: null
+      reconnectTimer: null,
+      isDeletingSession: false
     });
 
     // --- request 8-digit pairing code jika metode pairing dipilih ---
@@ -523,6 +545,10 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
       } else {
         setTimeout(async () => {
           try {
+            const currentRecord = activeBotSessions.get(googleUserId);
+            if (!currentRecord || currentRecord.isDeletingSession || whatsappSocket.authState.creds.registered) {
+              return;
+            }
             const rawCode = await whatsappSocket.requestPairingCode(cleanedPhoneNumber);
             const formattedCode = rawCode?.match(/.{1,4}/g)?.join('-') || rawCode;
             io.to(`user_${googleUserId}`).emit('pairing:code', formattedCode);
@@ -531,7 +557,7 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
             emitTerminalLog(googleUserId, 'ERROR', `Gagal meminta kode pairing: ${pairingError.message}`);
             io.to(`user_${googleUserId}`).emit('pairing:error', 'Gagal menerbitkan kode pairing. Periksa nomor Anda.');
           }
-        }, 3000);
+        }, 2500);
       }
     }
 
@@ -540,9 +566,14 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
 
     // --- kelola siklus hidup koneksi baileys dan auto-reconnect ---
     whatsappSocket.ev.on('connection.update', async (connectionState) => {
+      const currentRecord = activeBotSessions.get(googleUserId);
+      if (!currentRecord || currentRecord.isDeletingSession) {
+        return;
+      }
+
       const { connection, lastDisconnect, qr } = connectionState;
 
-      if (qr && connectionMethod === 'qr') {
+      if (qr && connectionMethod === 'qr' && !whatsappSocket.authState.creds.registered) {
         try {
           const qrImageDataUrl = await QRCode.toDataURL(qr, {
             margin: 2,
@@ -563,12 +594,16 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
 
         let avatarImageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(whatsappName)}&background=10b981&color=fff&size=128`;
         try {
-          const fetchedAvatar = await whatsappSocket.profilePictureUrl(`${cleanPhoneNumber}@s.whatsapp.net`, 'image');
+          // --- gunakan batas waktu 3 detik agar pengambilan foto profil tidak membuat status macet ---
+          const fetchedAvatar = await Promise.race([
+            whatsappSocket.profilePictureUrl(`${cleanPhoneNumber}@s.whatsapp.net`, 'image'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('AvatarTimeout')), 3000))
+          ]);
           if (fetchedAvatar) {
             avatarImageUrl = fetchedAvatar;
           }
         } catch {
-          // --- gunakan avatar default jika foto profil tidak tersedia ---
+          // --- gunakan avatar default jika foto profil lambat atau tidak tersedia ---
         }
 
         const connectedProfile = {
@@ -577,24 +612,27 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
           avatarUrl: avatarImageUrl
         };
 
-        const sessionRecord = activeBotSessions.get(googleUserId);
-        if (sessionRecord) {
-          sessionRecord.status = 'CONNECTED';
-          sessionRecord.profile = connectedProfile;
-        }
+        currentRecord.status = 'CONNECTED';
+        currentRecord.profile = connectedProfile;
 
+        const latestDatabase = readBotDatabase(googleUserId);
         io.to(`user_${googleUserId}`).emit('connection:status', {
           status: 'CONNECTED',
           profile: connectedProfile
         });
         io.to(`user_${googleUserId}`).emit('stats:update', {
-          userStats: botDatabase,
+          userStats: latestDatabase,
           globalStats: getGlobalPlatformStatistics()
         });
         emitTerminalLog(googleUserId, 'SUCCESS', `Sesi aktif sebagai ${whatsappName} (+${cleanPhoneNumber}).`);
       }
 
       if (connection === 'close') {
+        const activeRecordNow = activeBotSessions.get(googleUserId);
+        if (!activeRecordNow || activeRecordNow.isDeletingSession) {
+          return;
+        }
+
         const disconnectCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
         const disconnectLabel = DisconnectReason[disconnectCode] || `Code ${disconnectCode || 'Unknown'}`;
 
@@ -603,37 +641,28 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
         if (disconnectCode === DisconnectReason.loggedOut || disconnectCode === DisconnectReason.badSession) {
           emitTerminalLog(googleUserId, 'ERROR', 'Sesi keluar (Logged Out). Menghapus kredensial sesi...');
           await destroyBotSession(googleUserId, false);
-        } else {
-          const isRecoverableDisconnect = [
-            DisconnectReason.connectionClosed,
-            DisconnectReason.connectionLost,
-            DisconnectReason.connectionReplaced,
-            DisconnectReason.restartRequired,
-            DisconnectReason.timedOut,
-            DisconnectReason.unavailableService
-          ].includes(disconnectCode) || !disconnectCode;
-
-          if (isRecoverableDisconnect) {
-            io.to(`user_${googleUserId}`).emit('connection:status', {
-              status: 'CONNECTING',
-              profile: null
-            });
-            emitTerminalLog(googleUserId, 'INFO', 'Menghubungkan ulang otomatis dalam 4 detik...');
-
-            const currentRecord = activeBotSessions.get(googleUserId);
-            if (currentRecord?.reconnectTimer) {
-              clearTimeout(currentRecord.reconnectTimer);
-            }
-
-            const timerReference = setTimeout(() => {
-              startWhatsAppSession(googleUserId, 'qr', '');
-            }, 4000);
-
-            if (currentRecord) {
-              currentRecord.reconnectTimer = timerReference;
-            }
-          }
+          return;
         }
+
+        // --- percepat sambung ulang otomatis setelah berhasil memasukkan kode pairing ---
+        const isPostPairingRestart = disconnectCode === DisconnectReason.restartRequired || disconnectCode === 515;
+        const reconnectDelayMs = isPostPairingRestart ? 800 : 3000;
+
+        activeRecordNow.status = 'CONNECTING';
+        activeRecordNow.profile = null;
+
+        io.to(`user_${googleUserId}`).emit('connection:status', {
+          status: 'CONNECTING',
+          profile: null
+        });
+
+        if (activeRecordNow.reconnectTimer) {
+          clearTimeout(activeRecordNow.reconnectTimer);
+        }
+
+        activeRecordNow.reconnectTimer = setTimeout(() => {
+          startWhatsAppSession(googleUserId, 'qr', '');
+        }, reconnectDelayMs);
       }
     });
 
@@ -717,25 +746,42 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
   }
 }
 
-// --- fungsi hapus folder sesi dan database.json secara permanen ---
+// --- fungsi hapus folder sesi dan database.json secara permanen tanpa nge-hang ---
 async function destroyBotSession(googleUserId, triggerLogout = true) {
   const existingSession = activeBotSessions.get(googleUserId);
 
   if (existingSession) {
+    // --- kunci flag penghapusan agar event close tidak memicu auto-reconnect ---
+    existingSession.isDeletingSession = true;
+
     if (existingSession.reconnectTimer) {
       clearTimeout(existingSession.reconnectTimer);
+      existingSession.reconnectTimer = null;
     }
+
     if (existingSession.socketInstance) {
       try {
+        existingSession.socketInstance.ev.removeAllListeners('connection.update');
+        existingSession.socketInstance.ev.removeAllListeners('creds.update');
+        existingSession.socketInstance.ev.removeAllListeners('messages.upsert');
+
         if (triggerLogout && existingSession.status === 'CONNECTED') {
-          await existingSession.socketInstance.logout();
-        } else {
-          existingSession.socketInstance.end(undefined);
+          await Promise.race([
+            existingSession.socketInstance.logout(),
+            new Promise((resolve) => setTimeout(resolve, 2000))
+          ]);
         }
       } catch {
-        // --- abaikan error saat menutup instance socket ---
+        // --- abaikan error logout jika socket sudah tertutup ---
+      }
+
+      try {
+        existingSession.socketInstance.end(undefined);
+      } catch {
+        // --- abaikan error penutupan instance socket ---
       }
     }
+
     activeBotSessions.delete(googleUserId);
   }
 
@@ -749,6 +795,12 @@ async function destroyBotSession(googleUserId, triggerLogout = true) {
   }
 
   const freshDatabase = readBotDatabase(googleUserId);
+  io.to(`user_${googleUserId}`).emit('session:reset', {
+    status: 'DISCONNECTED',
+    profile: null,
+    database: freshDatabase,
+    globalStats: getGlobalPlatformStatistics()
+  });
   io.to(`user_${googleUserId}`).emit('connection:status', {
     status: 'DISCONNECTED',
     profile: null
