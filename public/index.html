@@ -83,45 +83,45 @@
 </head>
 <body class="min-h-screen flex flex-col selection:bg-slate-700 selection:text-white">
 
-  <header class="sticky top-0 z-40 w-full h-14 sm:h-16 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 px-2.5 sm:px-6 lg:px-8 flex items-center justify-between gap-1 overflow-x-hidden">
-    <div class="flex items-center min-w-0 shrink-0">
-      <h1 class="text-sm sm:text-xl md:text-2xl font-extrabold tracking-tight animated-brand-title select-none whitespace-nowrap">
+  <header class="sticky top-0 z-40 flex items-center justify-between gap-1 w-full overflow-x-hidden px-3 py-2 sm:px-6 sm:py-3 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
+    <div class="flex items-center min-w-0 flex-shrink-0">
+      <h1 class="text-xs sm:text-lg md:text-2xl font-extrabold tracking-tight animated-brand-title select-none whitespace-nowrap">
         JadiBot Platform
       </h1>
     </div>
 
-    <div class="flex items-center gap-1 sm:gap-2.5 shrink-0">
-      <div id="navbarMenuTabs" class="hidden bg-slate-900/90 border border-slate-800 rounded-xl p-0.5 sm:p-1 items-center gap-0.5 sm:gap-1">
-        <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-          <span class="sm:hidden">Dash</span>
-          <span class="hidden sm:inline">Dashboard</span>
-        </button>
+    <div id="navbarMenuTabs" class="hidden bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 sm:p-1 items-center gap-0.5 sm:gap-1 flex-shrink-0">
+      <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        <span class="sm:hidden">Dash</span>
+        <span class="hidden sm:inline">Dashboard</span>
+      </button>
 
-        <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-          </svg>
-          <span class="sm:hidden">IDE</span>
-          <span class="hidden sm:inline">Developer IDE</span>
-        </button>
-      </div>
+      <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+        <span class="sm:hidden">IDE</span>
+        <span class="hidden sm:inline">Developer IDE</span>
+      </button>
+    </div>
 
-      <button id="themeToggleButton" onclick="cycleAccentTheme()" class="flex items-center gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-all duration-200 active:scale-95 shrink-0 whitespace-nowrap">
-        <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full accent-bg shrink-0"></span>
+    <div class="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
+      <button id="themeToggleButton" onclick="cycleAccentTheme()" class="flex items-center gap-1.5 text-[11px] sm:text-xs px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 font-semibold text-slate-200 transition-all duration-200 active:scale-95 flex-shrink-0 whitespace-nowrap">
+        <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full accent-bg flex-shrink-0"></span>
         <span id="currentThemeLabel">Emerald</span>
       </button>
 
-      <div id="navbarGoogleUserBox" class="hidden items-center gap-1 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-800 shrink-0">
-        <img id="navGoogleAvatar" src="" alt="User" class="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border accent-border shrink-0" />
-        <span id="navGoogleGivenName" class="hidden md:inline text-xs font-semibold text-slate-200 max-w-[90px] truncate">User</span>
-        <button onclick="logoutGoogleAccount()" title="Keluar / Logout Akun" class="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-xs font-semibold transition-all active:scale-95">
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div id="navbarGoogleUserBox" class="hidden items-center gap-1.5 md:gap-2 pl-1.5 md:pl-2.5 border-l border-slate-800 flex-shrink-0">
+        <img id="navGoogleAvatar" src="" alt="U" class="h-7 w-7 sm:h-8 sm:w-8 rounded-full object-cover border accent-border text-xs font-bold flex-shrink-0" />
+        <span id="navGoogleGivenName" class="hidden lg:inline text-xs font-semibold text-slate-200 max-w-[90px] truncate">User</span>
+        <button onclick="logoutGoogleAccount()" title="Keluar / Logout Akun" class="flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-[11px] sm:text-xs font-semibold transition-all active:scale-95 flex-shrink-0">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
-          <span class="hidden sm:inline">Keluar</span>
+          <span class="hidden sm:inline ml-1">Keluar</span>
         </button>
       </div>
     </div>
@@ -134,32 +134,92 @@
     </div>
   </div>
 
-  <section id="googleAuthGateSection" class="flex-1 flex items-center justify-center p-4">
-    <div class="w-full max-w-md rounded-2xl bg-slate-900/80 border border-slate-800 p-6 sm:p-8 shadow-2xl space-y-6 text-center">
-      <div class="mx-auto w-14 h-14 rounded-2xl accent-soft-bg border accent-border flex items-center justify-center accent-text">
-        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
+  <section id="googleAuthGateSection" class="relative flex-1 flex items-center justify-center px-4 py-6 sm:p-6 overflow-hidden">
+    <div class="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full accent-soft-bg blur-3xl opacity-30"></div>
+    <div class="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full accent-soft-bg blur-3xl opacity-20"></div>
+
+    <div class="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-8 max-w-4xl w-full items-center">
+      
+      <div class="space-y-4 text-slate-100 pr-0 md:pr-2">
+        <div class="space-y-2">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full accent-soft-bg border accent-border">
+            <span class="w-1.5 h-1.5 rounded-full accent-bg"></span>
+            <span class="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest accent-text">WHY CHOOSE US</span>
+          </div>
+          <h2 class="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-100 leading-tight">
+            Platform Otomatisasi Bot WhatsApp
+          </h2>
+        </div>
+
+        <ul class="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <li class="p-3 rounded-xl bg-slate-900/30 border border-slate-800/60 hover:border-slate-700/80 transition-colors flex flex-col gap-1.5">
+            <div class="w-6 h-6 rounded-lg accent-soft-bg border accent-border flex items-center justify-center accent-text shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-100">Kinerja Stabil</h3>
+            <p class="text-[10px] sm:text-[11px] text-slate-400/90 leading-relaxed">
+              Koneksi bot tangguh, otomatis menyambung jika terputus.
+            </p>
+          </li>
+
+          <li class="p-3 rounded-xl bg-slate-900/30 border border-slate-800/60 hover:border-slate-700/80 transition-colors flex flex-col gap-1.5">
+            <div class="w-6 h-6 rounded-lg accent-soft-bg border accent-border flex items-center justify-center accent-text shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-100">Cloud Analytics</h3>
+            <p class="text-[10px] sm:text-[11px] text-slate-400/90 leading-relaxed">
+              Pelacakan statistik pesan & user aktif secara real-time.
+            </p>
+          </li>
+
+          <li class="p-3 rounded-xl bg-slate-900/30 border border-slate-800/60 hover:border-slate-700/80 transition-colors flex flex-col gap-1.5">
+            <div class="w-6 h-6 rounded-lg accent-soft-bg border accent-border flex items-center justify-center accent-text shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-100">Live Developer IDE</h3>
+            <p class="text-[10px] sm:text-[11px] text-slate-400/90 leading-relaxed">
+              Auto-loader plugin dinamis & deteksi error sintaks otomatis.
+            </p>
+          </li>
+
+          <li class="p-3 rounded-xl bg-slate-900/30 border border-slate-800/60 hover:border-slate-700/80 transition-colors flex flex-col gap-1.5">
+            <div class="w-6 h-6 rounded-lg accent-soft-bg border accent-border flex items-center justify-center accent-text shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-100">Isolated Data</h3>
+            <p class="text-[10px] sm:text-[11px] text-slate-400/90 leading-relaxed">
+              Setiap sesi tersimpan aman di cloud terenkripsi.
+            </p>
+          </li>
+        </ul>
       </div>
 
-      <div class="space-y-2">
-        <h2 class="text-xl font-extrabold text-white">Akses Panel Terlindungi</h2>
-        <p class="text-xs text-slate-400 leading-relaxed">
-          Masuk atau daftar menggunakan akun Google Anda untuk mengakses ruang kerja JadiBot dan penyimpanan sesi terisolasi.
+      <!-- --- card login sisi kanan minimalis --- -->
+      <div class="bg-slate-950/40 backdrop-blur-md border border-slate-800 rounded-3xl py-6 px-5 sm:py-8 sm:px-8 flex flex-col justify-center items-center text-center shadow-[0_24px_60px_-15px_rgba(0,0,0,0.75)] h-full">
+        
+        <p class="text-xs text-slate-400 font-medium tracking-wide mb-4 text-center block">
+          Silakan masuk menggunakan akun Google
         </p>
+
+        <div class="w-full flex justify-center min-h-[44px] mb-2">
+          <div id="googleSignInButtonContainer"></div>
+        </div>
+
+        <div class="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-500/80 font-medium">
+          <span class="w-1.5 h-1.5 rounded-full accent-bg opacity-80"></span>
+          <span>OAuth 2.0 Protected Workspace</span>
+        </div>
+
       </div>
 
-      <div class="flex flex-col items-center justify-center min-h-[52px] p-4 rounded-xl bg-slate-950/90 border border-slate-800/80">
-        <div id="googleSignInButtonContainer" class="flex justify-center"></div>
-        <p id="googleAuthStatusHint" class="text-[11px] text-slate-500 mt-2 font-mono-code">
-          Google Identity Services OAuth 2.0
-        </p>
-      </div>
-
-      <div class="text-left p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/70 space-y-1 text-[11px] text-slate-400">
-        <p class="font-semibold text-slate-300">Isolasi Sesi Otomatis:</p>
-        <p>Setiap akun Google mendapatkan folder volume permanen <span class="font-mono-code accent-text">/data/sessions/user_[google_id]</span> dan berkas <span class="font-mono-code accent-text">database.json</span> tersendiri.</p>
-      </div>
     </div>
   </section>
 
