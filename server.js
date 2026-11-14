@@ -25,7 +25,7 @@ const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirectoryPath = path.dirname(currentFilePath);
 
 // --- konfigurasi google oauth 2.0 client id ---
-const GOOGLE_CLIENT_ID = '404486479013-icr0741ql0c3pv0bgbjsvefgofek76qu.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com';
 const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // --- konfigurasi server express dan socket.io untuk railway ---
