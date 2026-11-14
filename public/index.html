@@ -85,6 +85,15 @@
       line-height: 1.2rem;
     }
 
+    /* --- kunci mutlak 1 layar penuh pas dengan address bar browser hp --- */
+    html:has(#googleAuthGateSection:not(.hidden)),
+    body:has(#googleAuthGateSection:not(.hidden)) {
+      height: 100dvh !important;
+      max-height: 100dvh !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+    }
+
     @media (min-width: 640px) {
       body:has(#googleAuthGateSection.hidden) #headerBrandTitle {
         font-size: 1.2rem;
@@ -216,25 +225,20 @@
     <div class="pointer-events-none absolute -bottom-20 left-1/2 -translate-x-1/2 w-80 h-44 rounded-full accent-soft-bg blur-3xl opacity-20"></div>
 
     <!-- Bagian Atas: Hero Text (Terkunci Pas 2 Baris) -->
-    <div class="text-center space-y-2.5 pt-1 relative z-10 max-w-md mx-auto w-full">
-      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-[10px] font-semibold tracking-wider uppercase text-slate-300 shadow-sm">
-        <span class="w-1.5 h-1.5 rounded-full accent-bg animate-pulse"></span>
-        <span>WhatsApp Cloud Automation</span>
-      </div>
-
-      <h2 class="font-heading-modern text-[clamp(1.3rem,5.5vw,1.85rem)] font-extrabold tracking-tight text-white leading-[1.2]">
+    <div class="text-center space-y-2 pt-1 relative z-10 max-w-md mx-auto w-full">
+      <h2 class="font-heading-modern text-[clamp(1.45rem,6vw,2rem)] font-extrabold tracking-tight text-white leading-[1.2]">
         <span class="block whitespace-nowrap">Bangun Bot WhatsApp Tanpa</span>
         <span class="block whitespace-nowrap">Harus Jago Ngoding.</span>
       </h2>
 
-      <p class="text-[12px] sm:text-xs text-slate-400/95 max-w-[335px] mx-auto leading-relaxed font-normal">
+      <p class="text-[13px] sm:text-[13px] text-slate-400/95 max-w-[350px] mx-auto leading-relaxed font-normal">
         Mulai dari ide sederhana hingga bot dengan berbagai fitur, semuanya bisa kamu kelola dengan lebih mudah. Hubungkan WhatsApp, atur otomatisasi, dan kembangkan bot versimu langsung dari dashboard kami.
       </p>
     </div>
 
     <!-- --- bagian tengah: garis timeline 1 sampai 4 diperbesar lagi ukuran elemen --- -->
-    <div class="w-full max-w-sm mx-auto flex flex-col gap-4 my-auto relative z-10 before:absolute before:top-3 before:bottom-3 before:left-[17px] before:w-[2px] before:bg-slate-800/80">
-      
+    <div class="w-full max-w-sm mx-auto flex flex-col gap-4 my-2 relative z-10 before:absolute before:top-3 before:bottom-3 before:left-[17px] before:w-[2px] before:bg-slate-800/80">
+
       <!-- --- step 1 --- -->
       <div class="flex items-start gap-4 pl-0.5 relative group">
         <div class="h-[34px] w-[34px] rounded-full bg-[#060911] border border-slate-700 text-slate-300 font-mono-code text-xs font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/40">
