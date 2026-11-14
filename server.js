@@ -945,14 +945,18 @@ io.on('connection', (clientSocket) => {
       let currentBotState = activeBotSessions.get(authenticatedGoogleId);
       
       const sessionFolder = getUserSessionFolderPath(authenticatedGoogleId);
-      // Jika session belum aktif di memori tapi file creds.json ada di volume (belum logout), langsung auto-start reconnect!
+      
+      // Jika sesi belum aktif di memori tapi file creds.json ada di volume, langsung jalankan reconnect
       if ((!currentBotState || currentBotState.status !== 'CONNECTED') && fs.existsSync(path.join(sessionFolder, 'creds.json'))) {
+        // Jalankan tanpa menunggu agar tidak memblokir respon autentikasi
         startWhatsAppSession(authenticatedGoogleId, 'reconnect', userDatabase.phoneNumber || '');
+        // Ambil ulang state terbaru setelah dipicu
         currentBotState = activeBotSessions.get(authenticatedGoogleId);
       }
 
       const pluginsList = getAvailablePluginsList();
 
+      // Kirim data session:ready ke klien yang baru bergabung ke room
       clientSocket.emit('session:ready', {
         user: verifiedUser,
         volumePath: getUserSessionFolderPath(authenticatedGoogleId),
@@ -962,6 +966,15 @@ io.on('connection', (clientSocket) => {
         globalStats: getGlobalPlatformStatistics(),
         plugins: pluginsList
       });
+
+      // PENTING: Jika bot sebenarnya sudah berstatus CONNECTED di memori, 
+      // pastikan klien langsung menerima status terhubung secara eksplisit.
+      if (currentBotState && currentBotState.status === 'CONNECTED' && currentBotState.profile) {
+        clientSocket.emit('connection:status', {
+          status: 'CONNECTED',
+          profile: currentBotState.profile
+        });
+      }
 
       emitTerminalLog(
         authenticatedGoogleId,
