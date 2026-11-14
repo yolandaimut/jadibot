@@ -6,9 +6,10 @@
   <title>JadiBot Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     /* --- variabel tema dinamis untuk theme changer --- */
     :root[data-theme="emerald"] {
@@ -82,16 +83,16 @@
 </head>
 <body class="min-h-screen flex flex-col selection:bg-slate-700 selection:text-white">
 
-  <header class="sticky top-0 z-40 w-full h-14 sm:h-16 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-1.5 overflow-x-hidden">
+  <header class="sticky top-0 z-40 w-full h-14 sm:h-16 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 px-2.5 sm:px-6 lg:px-8 flex items-center justify-between gap-1 overflow-x-hidden">
     <div class="flex items-center min-w-0 shrink-0">
-      <h1 class="text-base sm:text-xl md:text-2xl font-extrabold tracking-tight animated-brand-title select-none whitespace-nowrap">
+      <h1 class="text-sm sm:text-xl md:text-2xl font-extrabold tracking-tight animated-brand-title select-none whitespace-nowrap">
         JadiBot Platform
       </h1>
     </div>
 
-    <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
-      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-0.5 sm:p-1 flex items-center gap-0.5 sm:gap-1">
-        <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
+    <div class="flex items-center gap-1 sm:gap-2.5 shrink-0">
+      <div id="navbarMenuTabs" class="hidden bg-slate-900/90 border border-slate-800 rounded-xl p-0.5 sm:p-1 items-center gap-0.5 sm:gap-1">
+        <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
           </svg>
@@ -99,7 +100,7 @@
           <span class="hidden sm:inline">Dashboard</span>
         </button>
 
-        <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
+        <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
           </svg>
@@ -108,21 +109,61 @@
         </button>
       </div>
 
-      <button id="themeToggleButton" onclick="cycleAccentTheme()" class="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] sm:text-xs font-semibold text-slate-200 transition-all duration-200 active:scale-95 shrink-0 whitespace-nowrap">
+      <button id="themeToggleButton" onclick="cycleAccentTheme()" class="flex items-center gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-all duration-200 active:scale-95 shrink-0 whitespace-nowrap">
         <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full accent-bg shrink-0"></span>
         <span id="currentThemeLabel">Emerald</span>
       </button>
+
+      <div id="navbarGoogleUserBox" class="hidden items-center gap-1 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-800 shrink-0">
+        <img id="navGoogleAvatar" src="" alt="User" class="w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border accent-border shrink-0" />
+        <span id="navGoogleGivenName" class="hidden md:inline text-xs font-semibold text-slate-200 max-w-[90px] truncate">User</span>
+        <button onclick="logoutGoogleAccount()" title="Keluar / Logout Akun" class="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-xs font-semibold transition-all active:scale-95">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span class="hidden sm:inline">Keluar</span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <div id="topToastBanner" class="fixed top-16 left-0 right-0 z-30 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2">
-    <div id="topToastInner" class="pointer-events-auto mt-2 px-4 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate">
+  <div id="topToastBanner" class="fixed top-14 sm:top-16 left-0 right-0 z-30 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2">
+    <div class="pointer-events-auto mt-2 px-4 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate">
       <span id="topToastDot" class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
       <span id="topToastText" class="truncate">Notifikasi Sistem</span>
     </div>
   </div>
 
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
+  <section id="googleAuthGateSection" class="flex-1 flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-slate-900/80 border border-slate-800 p-6 sm:p-8 shadow-2xl space-y-6 text-center">
+      <div class="mx-auto w-14 h-14 rounded-2xl accent-soft-bg border accent-border flex items-center justify-center accent-text">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      </div>
+
+      <div class="space-y-2">
+        <h2 class="text-xl font-extrabold text-white">Akses Panel Terlindungi</h2>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Masuk atau daftar menggunakan akun Google Anda untuk mengakses ruang kerja JadiBot dan penyimpanan sesi terisolasi.
+        </p>
+      </div>
+
+      <div class="flex flex-col items-center justify-center min-h-[52px] p-4 rounded-xl bg-slate-950/90 border border-slate-800/80">
+        <div id="googleSignInButtonContainer" class="flex justify-center"></div>
+        <p id="googleAuthStatusHint" class="text-[11px] text-slate-500 mt-2 font-mono-code">
+          Google Identity Services OAuth 2.0
+        </p>
+      </div>
+
+      <div class="text-left p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/70 space-y-1 text-[11px] text-slate-400">
+        <p class="font-semibold text-slate-300">Isolasi Sesi Otomatis:</p>
+        <p>Setiap akun Google mendapatkan folder volume permanen <span class="font-mono-code accent-text">/data/sessions/user_[google_id]</span> dan berkas <span class="font-mono-code accent-text">database.json</span> tersendiri.</p>
+      </div>
+    </div>
+  </section>
+
+  <main id="protectedMainWorkspace" class="hidden flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-6">
 
     <section id="skeletonLoaderSection" class="space-y-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -157,6 +198,17 @@
     </section>
 
     <div id="liveApplicationContainer" class="hidden space-y-6">
+
+      <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800/90 text-xs">
+        <div class="flex items-center gap-2 font-mono-code text-slate-300 truncate">
+          <span class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
+          <span id="volumeStoragePathText" class="truncate">Volume: /data/sessions/</span>
+        </div>
+        <div class="flex items-center gap-4 text-slate-400 font-mono-code text-[11px]">
+          <span>Bot Aktif Global: <strong id="globalActiveBotsCount" class="text-white">0</strong></span>
+          <span>Total Trafik Global: <strong id="globalTotalTrafficCount" class="accent-text">0</strong></span>
+        </div>
+      </div>
 
       <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
@@ -209,12 +261,12 @@
 
           <div class="rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-5">
             <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
-              <div>
+              <div class="min-w-0">
                 <h2 class="text-sm font-bold text-white">Status Koneksi & Profil</h2>
-                <p id="sessionIdentifierDisplay" class="text-xs text-slate-400 font-mono-code mt-0.5">ID: Memuat...</p>
+                <p id="sessionIdentifierDisplay" class="text-[11px] text-slate-400 font-mono-code mt-0.5 truncate">User ID: -</p>
               </div>
 
-              <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
+              <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0">
                 <span id="connectionStatusIcon" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
                 <span id="connectionStatusText">Disconnected</span>
               </div>
@@ -222,12 +274,12 @@
 
             <div id="connectedProfileCard" class="hidden rounded-xl bg-slate-950/90 border border-slate-800 p-4">
               <div class="flex items-center gap-4">
-                <img id="botProfileAvatar" src="" alt="Avatar Bot" class="w-14 h-14 rounded-full object-cover border-2 accent-border" />
+                <img id="botProfileAvatar" src="" alt="Avatar Bot" class="w-14 h-14 rounded-full object-cover border-2 accent-border shrink-0" />
                 <div class="flex-1 min-w-0">
                   <h3 id="botProfileName" class="text-base font-bold text-white truncate">-</h3>
                   <p id="botProfileNumber" class="text-xs font-mono-code accent-text mt-0.5">-</p>
                   <span class="inline-block mt-1.5 text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    Multi-File Auth Active
+                    Railway Volume Auth Active
                   </span>
                 </div>
               </div>
@@ -289,7 +341,7 @@
 
             <div class="pt-2 flex items-center gap-3">
               <button onclick="openLogoutConfirmationModal()" class="w-full py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all">
-                Hapus Sesi / Logout
+                Hapus Sesi / Logout Bot
               </button>
             </div>
           </div>
@@ -335,35 +387,69 @@
 
           <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-1">
             <p class="font-semibold text-slate-200">Properti Context Tersedia:</p>
-            <p class="font-mono-code text-[11px] text-slate-400">socketInstance, rawMessage, messageText, senderJid, participantJid, isFromMe, botDatabase, replyMessage(text)</p>
+            <p class="font-mono-code text-[11px] text-slate-400">googleUserId, socketInstance, rawMessage, messageText, senderJid, participantJid, isFromMe, botDatabase, replyMessage(text)</p>
           </div>
         </div>
 
-        <div class="lg:col-span-8 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-4">
+        <div class="lg:col-span-8 rounded-2xl bg-slate-900/75 border border-slate-800 p-4 sm:p-5 space-y-4">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div class="flex-1">
               <label class="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Nama File Plugin (.js)</label>
-              <input id="pluginFileNameInput" type="text" placeholder="contoh: auto-reply.js" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white font-mono-code focus:outline-none" />
+              <input id="pluginFileNameInput" type="text" placeholder="contoh: auto-reply.js" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white font-mono-code focus:outline-none focus:border-slate-600" />
             </div>
 
             <button onclick="saveAndApplyPlugin()" class="sm:mt-5 px-5 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0">
-              Simpan & Terapkan Plugin
+              Simpan & Terapkan
             </button>
           </div>
 
-          <div>
-            <label class="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1.5">ESM Plugin Source Code Editor</label>
-            <textarea id="pluginCodeEditorTextarea" rows="13" spellcheck="false" class="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-emerald-300 font-mono-code leading-relaxed focus:outline-none"></textarea>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold truncate">
+                ESM Plugin Source Code Editor
+              </label>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button type="button" onclick="copyEditorCode()" title="Salin Kode (Copy)" class="p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all duration-150 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+
+                <button type="button" onclick="pasteEditorCode()" title="Tempel Kode (Paste)" class="p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-emerald-400 transition-all duration-150 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </button>
+
+                <button type="button" onclick="clearEditorCode()" title="Bersihkan Editor (Clear)" class="p-2 rounded-lg bg-slate-950 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-300 hover:text-rose-400 transition-all duration-150 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <textarea id="pluginCodeEditorTextarea" rows="13" spellcheck="false" class="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-slate-700 text-xs text-emerald-300 font-mono-code leading-relaxed focus:outline-none overflow-x-auto whitespace-pre"></textarea>
           </div>
 
-          <div id="developerErrorReportBox" class="rounded-xl bg-slate-950 border border-slate-800 p-4">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Real-Time Syntax & Runtime Inspector</span>
-              <span id="inspectorStatusBadge" class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono-code">
+          <div id="developerErrorReportBox" class="rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span id="inspectorIndicatorDot" class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-200 truncate">
+                  Real-Time Syntax & Runtime Inspector
+                </span>
+              </div>
+
+              <span id="inspectorStatusBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold font-mono-code shrink-0">
                 Status: Aman / Ready
               </span>
             </div>
-            <pre id="inspectorErrorDetailOutput" class="text-xs font-mono-code text-slate-400 whitespace-pre-wrap break-words">Belum ada error sintaks maupun runtime yang terdeteksi.</pre>
+
+            <div id="inspectorTerminalViewport" class="rounded-lg bg-black/80 border border-emerald-500/20 p-3 overflow-x-auto">
+              <pre id="inspectorErrorDetailOutput" class="text-[11px] sm:text-xs font-mono-code text-emerald-300/90 leading-relaxed whitespace-pre-wrap break-words">Belum ada error sintaks maupun runtime yang terdeteksi.</pre>
+            </div>
           </div>
         </div>
       </section>
@@ -376,7 +462,7 @@
     <div class="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 space-y-4 shadow-2xl">
       <h3 class="text-base font-bold text-white">Konfirmasi Hapus Sesi & Database</h3>
       <p class="text-xs text-slate-300 leading-relaxed">
-        Tindakan ini akan memutus koneksi WhatsApp dan menghapus seluruh folder sesi beserta file <span class="font-mono-code text-rose-400">database.json</span> milik bot ini secara permanen.
+        Tindakan ini akan memutus koneksi WhatsApp dan menghapus folder sesi di volume beserta berkas <span class="font-mono-code text-rose-400">database.json</span> milik akun Google Anda secara permanen.
       </p>
       <div class="flex items-center justify-end gap-3 pt-2">
         <button onclick="closeLogoutConfirmationModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">
@@ -390,29 +476,18 @@
   </div>
 
   <script>
-    // --- manajemen state aplikasi frontend ---
+    // --- konfigurasi google client id dan state utama frontend ---
+    let configuredGoogleClientId = '404486479013-icr0741ql0c3pv0bgbjsvefgofek76qu.apps.googleusercontent.com';
     const availableThemes = ['emerald', 'cyan', 'violet'];
     let currentThemeIndex = 0;
     let botStartTimeMs = Date.now();
-    let currentConnectionStatus = 'DISCONNECTED';
     let loadedPluginsCache = [];
     let toastTimeoutTimer = null;
+    let activeGoogleCredentialToken = localStorage.getItem('jadibot_google_jwt_token') || null;
 
-    // --- inisialisasi atau ambil session id persisten per browser ---
-    function getOrCreateClientSessionId() {
-      const storageKey = 'jadibot_enterprise_session_id';
-      let savedSessionId = localStorage.getItem(storageKey);
-      if (!savedSessionId) {
-        savedSessionId = 'bot_' + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem(storageKey, savedSessionId);
-      }
-      return savedSessionId;
-    }
+    const socketClient = io({ autoConnect: false });
 
-    const activeSessionId = getOrCreateClientSessionId();
-    const socketClient = io();
-
-    // --- fungsi notifikasi toast satu baris di bawah header ---
+    // --- fungsi notifikasi toast satu baris tepat di bawah header ---
     function showTopToast(messageText, isError = false) {
       const bannerElement = document.getElementById('topToastBanner');
       const dotElement = document.getElementById('topToastDot');
@@ -433,7 +508,7 @@
       }, 3200);
     }
 
-    // --- fungsi pengubah tema warna instan ---
+    // --- fungsi pengubah aksen tema warna instan ---
     function cycleAccentTheme() {
       currentThemeIndex = (currentThemeIndex + 1) % availableThemes.length;
       const selectedTheme = availableThemes[currentThemeIndex];
@@ -445,7 +520,7 @@
       showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
     }
 
-    // --- muat preferensi tema saat pertama kali dibuka ---
+    // --- muat preferensi tema tersimpan saat halaman dibuka ---
     (function initializeSavedTheme() {
       const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
       const foundIndex = availableThemes.indexOf(savedTheme);
@@ -456,6 +531,122 @@
         themeName.charAt(0).toUpperCase() + themeName.slice(1);
     })();
 
+    // --- inisialisasi konfigurasi google identity services dari backend ---
+    async function initializeGoogleOAuthPortal() {
+      try {
+        const configResponse = await fetch('/api/auth/config');
+        const configData = await configResponse.json();
+        if (configData.googleClientId) {
+          configuredGoogleClientId = configData.googleClientId;
+        }
+      } catch {
+        // --- gunakan client id default jika gagal mengambil config ---
+      }
+
+      if (activeGoogleCredentialToken) {
+        await verifyAndUnlockDashboard(activeGoogleCredentialToken, true);
+      }
+
+      const checkGoogleLibraryInterval = setInterval(() => {
+        if (window.google && window.google.accounts && window.google.accounts.id) {
+          clearInterval(checkGoogleLibraryInterval);
+          window.google.accounts.id.initialize({
+            client_id: configuredGoogleClientId,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false
+          });
+          window.google.accounts.id.renderButton(
+            document.getElementById('googleSignInButtonContainer'),
+            {
+              theme: 'filled_black',
+              size: 'large',
+              shape: 'pill',
+              text: 'signin_with',
+              width: 260
+            }
+          );
+        }
+      }, 250);
+    }
+
+    // --- callback saat pengguna memilih akun google ---
+    async function handleGoogleCredentialResponse(googleResponse) {
+      if (!googleResponse || !googleResponse.credential) {
+        showTopToast('Gagal menerima token dari Google', true);
+        return;
+      }
+      await verifyAndUnlockDashboard(googleResponse.credential, false);
+    }
+
+    // --- kirim token jwt google ke backend untuk diverifikasi ---
+    async function verifyAndUnlockDashboard(credentialToken, isSilentRestore) {
+      try {
+        const verifyResponse = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: credentialToken })
+        });
+
+        const verifyJson = await verifyResponse.json();
+        if (!verifyResponse.ok || !verifyJson.isAuthenticated) {
+          throw new Error(verifyJson.errorMessage || 'Sesi login Google tidak valid');
+        }
+
+        activeGoogleCredentialToken = credentialToken;
+        localStorage.setItem('jadibot_google_jwt_token', credentialToken);
+
+        const googleUser = verifyJson.user;
+        document.getElementById('navGoogleAvatar').src =
+          googleUser.pictureUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(googleUser.givenName)}&background=10b981&color=fff`;
+        document.getElementById('navGoogleGivenName').textContent = googleUser.givenName;
+        document.getElementById('sessionIdentifierDisplay').textContent = `Google Sub ID: ${googleUser.googleId}`;
+
+        document.getElementById('googleAuthGateSection').classList.add('hidden');
+        document.getElementById('protectedMainWorkspace').classList.remove('hidden');
+        document.getElementById('navbarMenuTabs').classList.remove('hidden');
+        document.getElementById('navbarMenuTabs').classList.add('flex');
+        document.getElementById('navbarGoogleUserBox').classList.remove('hidden');
+        document.getElementById('navbarGoogleUserBox').classList.add('flex');
+
+        if (!socketClient.connected) {
+          socketClient.connect();
+        }
+        socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
+
+        if (!isSilentRestore) {
+          showTopToast(`Selamat datang, ${googleUser.givenName}!`);
+        }
+      } catch (authError) {
+        localStorage.removeItem('jadibot_google_jwt_token');
+        activeGoogleCredentialToken = null;
+        if (!isSilentRestore) {
+          showTopToast(authError.message, true);
+        }
+      }
+    }
+
+    // --- keluar dari akun google dan kunci kembali halaman dashboard ---
+    function logoutGoogleAccount() {
+      localStorage.removeItem('jadibot_google_jwt_token');
+      activeGoogleCredentialToken = null;
+
+      if (socketClient.connected) {
+        socketClient.disconnect();
+      }
+
+      document.getElementById('protectedMainWorkspace').classList.add('hidden');
+      document.getElementById('liveApplicationContainer').classList.add('hidden');
+      document.getElementById('skeletonLoaderSection').classList.remove('hidden');
+      document.getElementById('navbarMenuTabs').classList.add('hidden');
+      document.getElementById('navbarMenuTabs').classList.remove('flex');
+      document.getElementById('navbarGoogleUserBox').classList.add('hidden');
+      document.getElementById('navbarGoogleUserBox').classList.remove('flex');
+      document.getElementById('googleAuthGateSection').classList.remove('hidden');
+
+      showTopToast('Anda telah keluar dari akun Google');
+    }
+
     // --- fungsi perpindahan tab utama antara dashboard dan developer ide ---
     function switchWorkspaceTab(targetTab) {
       const dashboardView = document.getElementById('workspaceDashboardView');
@@ -463,8 +654,8 @@
       const tabDashboardBtn = document.getElementById('navTabDashboard');
       const tabDeveloperBtn = document.getElementById('navTabDeveloper');
 
-      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
-      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
+      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
+      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
 
       if (targetTab === 'developer') {
         dashboardView.classList.add('hidden');
@@ -530,32 +721,39 @@
       }, 25);
     }
 
-    // --- fungsi perbarui seluruh kartu statistik dan tombol pengaturan ---
-    function renderDatabaseStatistics(databaseObject) {
-      if (!databaseObject) return;
-      animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
-      animateMetricCounter('statMessagesSent', databaseObject.totalMessagesSent || 0);
-      animateMetricCounter('statUniqueUsers', Array.isArray(databaseObject.uniqueUsers) ? databaseObject.uniqueUsers.length : 0);
+    // --- fungsi render statistik database.json user dan ringkasan global ---
+    function renderDatabaseStatistics(databaseObject, globalStatsObject) {
+      if (databaseObject) {
+        animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
+        animateMetricCounter('statMessagesSent', databaseObject.totalMessagesSent || 0);
+        animateMetricCounter('statUniqueUsers', Array.isArray(databaseObject.uniqueUsers) ? databaseObject.uniqueUsers.length : 0);
 
-      if (databaseObject.startTime) {
-        botStartTimeMs = databaseObject.startTime;
+        if (databaseObject.startTime) {
+          botStartTimeMs = databaseObject.startTime;
+        }
+
+        const autoReadBtn = document.getElementById('toggleAutoReadBtn');
+        const publicModeBtn = document.getElementById('togglePublicModeBtn');
+
+        const isAutoRead = databaseObject.settings?.autoRead ?? true;
+        const isPublicMode = databaseObject.settings?.publicMode ?? true;
+
+        autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
+        autoReadBtn.className = isAutoRead
+          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+
+        publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
+        publicModeBtn.className = isPublicMode
+          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
       }
 
-      const autoReadBtn = document.getElementById('toggleAutoReadBtn');
-      const publicModeBtn = document.getElementById('togglePublicModeBtn');
-
-      const isAutoRead = databaseObject.settings?.autoRead ?? true;
-      const isPublicMode = databaseObject.settings?.publicMode ?? true;
-
-      autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
-      autoReadBtn.className = isAutoRead
-        ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
-        : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
-
-      publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
-      publicModeBtn.className = isPublicMode
-        ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
-        : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+      if (globalStatsObject) {
+        document.getElementById('globalActiveBotsCount').textContent = globalStatsObject.totalActiveBots || 0;
+        const combinedTraffic = (globalStatsObject.globalMessagesReceived || 0) + (globalStatsObject.globalMessagesSent || 0);
+        document.getElementById('globalTotalTrafficCount').textContent = combinedTraffic.toLocaleString('id-ID');
+      }
     }
 
     // --- pewaktu live untuk menghitung uptime bot setiap detik ---
@@ -569,7 +767,6 @@
 
     // --- fungsi perbarui indikator visual status koneksi dan profil bot ---
     function updateConnectionInterface(status, profileData) {
-      currentConnectionStatus = status;
       const badgeEl = document.getElementById('connectionStatusBadge');
       const iconEl = document.getElementById('connectionStatusIcon');
       const textEl = document.getElementById('connectionStatusText');
@@ -577,7 +774,7 @@
       const authBox = document.getElementById('authenticationBox');
 
       if (status === 'CONNECTED') {
-        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-semibold shadow-[0_0_15px_rgba(16,185,129,0.25)]';
+        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-semibold shadow-[0_0_15px_rgba(16,185,129,0.25)] shrink-0';
         iconEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]';
         textEl.textContent = 'Connected';
 
@@ -589,13 +786,13 @@
         }
         authBox.classList.add('hidden');
       } else if (status === 'CONNECTING') {
-        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-semibold';
+        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-semibold shrink-0';
         iconEl.className = 'w-2.5 h-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin';
         textEl.textContent = 'Connecting...';
         profileCard.classList.add('hidden');
         authBox.classList.remove('hidden');
       } else {
-        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold';
+        badgeEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0';
         iconEl.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
         textEl.textContent = 'Disconnected';
         profileCard.classList.add('hidden');
@@ -603,7 +800,7 @@
       }
     }
 
-    // --- fungsi untuk memulai permintaan koneksi qr atau pairing ---
+    // --- fungsi memulai koneksi qr atau phone pairing ---
     function initiateConnection(method) {
       if (method === 'pairing') {
         const phoneInput = document.getElementById('pairingPhoneInput').value.trim();
@@ -644,7 +841,7 @@
       document.getElementById('qrCodeImageElement').classList.add('hidden');
       document.getElementById('pairingCodeDisplayWrapper').classList.add('hidden');
       socketClient.emit('session:logout');
-      showTopToast('Sesi dan database.json berhasil dihapus');
+      showTopToast('Sesi bot dan database.json berhasil dihapus');
     }
 
     // --- fungsi tambah baris baru pada terminal log dengan auto-scroll ---
@@ -672,6 +869,58 @@
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;');
+    }
+
+    // --- fungsi menyalin isi kode di textarea ke clipboard via navigator.clipboard.writeText ---
+    async function copyEditorCode() {
+      const editorTextarea = document.getElementById('pluginCodeEditorTextarea');
+      const codeString = editorTextarea.value;
+
+      if (!codeString.trim()) {
+        showTopToast('Editor masih kosong, tidak ada kode yang disalin', true);
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(codeString);
+        showTopToast('Kode plugin berhasil disalin ke clipboard');
+      } catch {
+        editorTextarea.select();
+        document.execCommand('copy');
+        window.getSelection().removeAllRanges();
+        showTopToast('Kode plugin berhasil disalin ke clipboard');
+      }
+    }
+
+    // --- fungsi menempel teks dari clipboard ke textarea via navigator.clipboard.readText ---
+    async function pasteEditorCode() {
+      const editorTextarea = document.getElementById('pluginCodeEditorTextarea');
+
+      try {
+        const clipboardText = await navigator.clipboard.readText();
+        if (!clipboardText) {
+          showTopToast('Clipboard kosong atau tidak berisi teks', true);
+          return;
+        }
+        editorTextarea.value = clipboardText;
+        editorTextarea.focus();
+        showTopToast('Kode dari clipboard berhasil ditempel ke editor');
+      } catch {
+        showTopToast('Izin baca clipboard ditolak browser. Tempel manual di editor.', true);
+        editorTextarea.focus();
+      }
+    }
+
+    // --- fungsi mengosongkan seluruh isi textarea dalam satu klik ---
+    function clearEditorCode() {
+      const editorTextarea = document.getElementById('pluginCodeEditorTextarea');
+      if (!editorTextarea.value) {
+        showTopToast('Editor sudah dalam keadaan kosong');
+        return;
+      }
+      editorTextarea.value = '';
+      editorTextarea.focus();
+      showTopToast('Isi code editor berhasil dibersihkan');
     }
 
     // --- fungsi render daftar plugin di developer ide ---
@@ -706,7 +955,7 @@
       }
     }
 
-    // --- muat isi kode plugin ke dalam code editor ---
+    // --- muat kode plugin yang dipilih ke dalam editor ---
     function loadPluginIntoEditor(pluginIndex) {
       const targetPlugin = loadedPluginsCache[pluginIndex];
       if (!targetPlugin) return;
@@ -714,7 +963,7 @@
       document.getElementById('pluginCodeEditorTextarea').value = targetPlugin.codeContent;
     }
 
-    // --- buat template kerangka plugin baru di editor ---
+    // --- siapkan template kerangka plugin baru di editor ---
     function prepareNewPluginTemplate() {
       document.getElementById('pluginFileNameInput').value = `fitur-${Math.floor(100 + Math.random() * 900)}.js`;
       document.getElementById('pluginCodeEditorTextarea').value = `// --- plugin custom jadibot ---
@@ -722,7 +971,7 @@ export default async function executePlugin(context) {
   const { messageText, replyMessage } = context;
 
   if (messageText.trim().toLowerCase() === '.halo') {
-    await replyMessage('Halo! Plugin baru berhasil dijalankan secara real-time tanpa restart.');
+    await replyMessage('Halo! Plugin baru aktif secara real-time tanpa restart.');
   }
 }
 `;
@@ -742,46 +991,59 @@ export default async function executePlugin(context) {
       socketClient.emit('plugin:save', { fileName, codeContent });
     }
 
-    // --- hapus file plugin tertentu ---
+    // --- hapus file plugin dari folder plugins ---
     function deletePluginFile(fileName) {
       socketClient.emit('plugin:delete', { fileName });
     }
 
-    // --- tampilkan laporan error sintaks atau runtime pada developer inspector ---
+    // --- tampilkan laporan error sintaks atau runtime pada mini-terminal inspector ---
     function displayDeveloperErrorReport(errorPayload) {
-      const badgeElement = document.getElementById('inspectorStatusBadge');
-      const detailElement = document.getElementById('inspectorErrorDetailOutput');
       const boxElement = document.getElementById('developerErrorReportBox');
+      const dotElement = document.getElementById('inspectorIndicatorDot');
+      const badgeElement = document.getElementById('inspectorStatusBadge');
+      const viewportElement = document.getElementById('inspectorTerminalViewport');
+      const detailElement = document.getElementById('inspectorErrorDetailOutput');
 
       if (!errorPayload) {
-        boxElement.className = 'rounded-xl bg-slate-950 border border-slate-800 p-4';
-        badgeElement.className = 'text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono-code';
+        boxElement.className = 'rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
+        dotElement.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+        badgeElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold font-mono-code shrink-0';
         badgeElement.textContent = 'Status: Aman / Ready';
-        detailElement.className = 'text-xs font-mono-code text-slate-400 whitespace-pre-wrap break-words';
-        detailElement.textContent = 'Validasi Sintaks & Struktur ESM berhasil. Plugin telah aktif di memori.';
+        viewportElement.className = 'rounded-lg bg-black/80 border border-emerald-500/20 p-3 overflow-x-auto';
+        detailElement.className = 'text-[11px] sm:text-xs font-mono-code text-emerald-300/90 leading-relaxed whitespace-pre-wrap break-words';
+        detailElement.textContent = '✓ Validasi Sintaks & Struktur ESM berhasil.\n✓ Plugin telah dimuat ke memori (Hot-Reload Active).';
         return;
       }
 
-      boxElement.className = 'rounded-xl bg-rose-950/20 border border-rose-500/40 p-4';
-      badgeElement.className = 'text-[11px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono-code';
-      badgeElement.textContent = `${errorPayload.errorType || 'Error'}${errorPayload.lineNumber ? ` (Baris ${errorPayload.lineNumber})` : ''}`;
-      detailElement.className = 'text-xs font-mono-code text-rose-300 whitespace-pre-wrap break-words';
-      detailElement.textContent = errorPayload.errorMessage || 'Terjadi kesalahan pada kode plugin.';
+      const formattedLineInfo = errorPayload.lineNumber ? ` • Baris ${errorPayload.lineNumber}` : '';
+      const errorHeaderLabel = `${errorPayload.errorType || 'SyntaxError'}${formattedLineInfo}`;
+
+      boxElement.className = 'rounded-xl bg-red-950/20 border border-red-500/40 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
+      dotElement.className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0';
+      badgeElement.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-red-500/20 text-red-300 border border-red-500/40 text-[11px] font-bold font-mono-code shrink-0';
+      badgeElement.textContent = errorHeaderLabel;
+      viewportElement.className = 'rounded-lg bg-black border border-red-500/30 p-3.5 overflow-x-auto shadow-inner';
+      detailElement.className = 'text-[11px] sm:text-xs font-mono-code font-bold text-red-400 leading-relaxed whitespace-pre-wrap';
+      detailElement.textContent = errorPayload.errorMessage || 'Terjadi kesalahan sintaks atau runtime pada kode plugin.';
     }
 
-    // --- event listener socket.io dari backend ---
-    socketClient.on('connect', () => {
-      document.getElementById('sessionIdentifierDisplay').textContent = `ID Sesi: ${activeSessionId}`;
-      socketClient.emit('session:init', { sessionId: activeSessionId });
-    });
-
+    // --- event listener socket.io real-time ---
     socketClient.on('session:ready', (payload) => {
       document.getElementById('skeletonLoaderSection').classList.add('hidden');
       document.getElementById('liveApplicationContainer').classList.remove('hidden');
 
+      if (payload.volumePath) {
+        document.getElementById('volumeStoragePathText').textContent = `Volume: ${payload.volumePath}`;
+      }
+
       updateConnectionInterface(payload.status, payload.profile);
-      renderDatabaseStatistics(payload.database);
+      renderDatabaseStatistics(payload.database, payload.globalStats);
       renderPluginsList(payload.plugins);
+    });
+
+    socketClient.on('auth:expired', (payload) => {
+      showTopToast(payload?.errorMessage || 'Sesi Google berakhir, silakan masuk kembali', true);
+      logoutGoogleAccount();
     });
 
     socketClient.on('connection:status', (payload) => {
@@ -807,8 +1069,8 @@ export default async function executePlugin(context) {
       showTopToast(errorMessage, true);
     });
 
-    socketClient.on('stats:update', (databaseObject) => {
-      renderDatabaseStatistics(databaseObject);
+    socketClient.on('stats:update', (payload) => {
+      renderDatabaseStatistics(payload.userStats, payload.globalStats);
     });
 
     socketClient.on('terminal:log', (logPayload) => {
@@ -837,6 +1099,9 @@ export default async function executePlugin(context) {
       });
       showTopToast(`Runtime Error di ${runtimeErrorPayload.fileName}`, true);
     });
+
+    // --- jalankan inisialisasi oauth saat halaman selesai dimuat ---
+    window.addEventListener('DOMContentLoaded', initializeGoogleOAuthPortal);
   </script>
 </body>
 </html>
