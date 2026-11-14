@@ -551,7 +551,12 @@
     let toastTimeoutTimer = null;
     let activeGoogleCredentialToken = localStorage.getItem('jadibot_google_jwt_token') || null;
 
-    const socketClient = io({ autoConnect: false });
+    const socketClient = io({
+      autoConnect: false,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity
+    });
 
     // --- fungsi notifikasi toast satu baris tepat di bawah header ---
     function showTopToast(messageText, isError = false) {
@@ -602,7 +607,7 @@
       try {
         const configResponse = await fetch('/api/auth/config');
         const configData = await configResponse.json();
-        if (configData.googleClientId) {
+        if (configData.googleClientId && !configData.googleClientId.startsWith('MASUKKAN_')) {
           configuredGoogleClientId = configData.googleClientId;
         }
       } catch {
@@ -616,19 +621,21 @@
       const checkGoogleLibraryInterval = setInterval(() => {
         if (window.google && window.google.accounts && window.google.accounts.id) {
           clearInterval(checkGoogleLibraryInterval);
+
           window.google.accounts.id.initialize({
             client_id: configuredGoogleClientId,
             callback: handleGoogleCredentialResponse,
             auto_select: false
           });
+
           window.google.accounts.id.renderButton(
             document.getElementById('googleSignInButtonContainer'),
             {
-              theme: 'filled_black',
+              theme: 'filled_blue',
               size: 'large',
-              shape: 'pill',
               text: 'signin_with',
-              width: 260
+              shape: 'pill',
+              width: 280
             }
           );
         }
@@ -677,8 +684,9 @@
 
         if (!socketClient.connected) {
           socketClient.connect();
+        } else {
+          socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
         }
-        socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
 
         if (!isSilentRestore) {
           showTopToast(`Selamat datang, ${googleUser.givenName}!`);
@@ -720,8 +728,8 @@
       const tabDashboardBtn = document.getElementById('navTabDashboard');
       const tabDeveloperBtn = document.getElementById('navTabDeveloper');
 
-      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
-      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
+      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
+      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-[11px] sm:text-xs font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
 
       if (targetTab === 'developer') {
         dashboardView.classList.add('hidden');
@@ -831,6 +839,28 @@
       document.getElementById('statBotUptime').textContent = `${hours}:${minutes}:${seconds}`;
     }, 1000);
 
+    // --- fungsi reset tampilan kotak qr dan pairing ke kondisi awal ---
+    function resetAuthenticationPanelsUI() {
+      const qrImg = document.getElementById('qrCodeImageElement');
+      const qrStatusText = document.getElementById('qrCodeStatusText');
+      const pairingWrapper = document.getElementById('pairingCodeDisplayWrapper');
+      const pairingValue = document.getElementById('pairingCodeValue');
+
+      if (qrImg) {
+        qrImg.src = '';
+        qrImg.classList.add('hidden');
+      }
+      if (qrStatusText) {
+        qrStatusText.textContent = 'Klik tombol di bawah untuk menginisialisasi sesi dan menampilkan QR Code terbaru.';
+      }
+      if (pairingWrapper) {
+        pairingWrapper.classList.add('hidden');
+      }
+      if (pairingValue) {
+        pairingValue.textContent = '----';
+      }
+    }
+
     // --- fungsi perbarui indikator visual status koneksi dan profil bot ---
     function updateConnectionInterface(status, profileData) {
       const badgeEl = document.getElementById('connectionStatusBadge');
@@ -863,6 +893,7 @@
         textEl.textContent = 'Disconnected';
         profileCard.classList.add('hidden');
         authBox.classList.remove('hidden');
+        resetAuthenticationPanelsUI();
       }
     }
 
@@ -904,8 +935,8 @@
 
     function confirmSessionLogout() {
       closeLogoutConfirmationModal();
-      document.getElementById('qrCodeImageElement').classList.add('hidden');
-      document.getElementById('pairingCodeDisplayWrapper').classList.add('hidden');
+      updateConnectionInterface('DISCONNECTED', null);
+      switchAuthMode('qr');
       socketClient.emit('session:logout');
       showTopToast('Sesi bot dan database.json berhasil dihapus');
     }
@@ -1093,6 +1124,24 @@ export default async function executePlugin(context) {
       detailElement.textContent = errorPayload.errorMessage || 'Terjadi kesalahan sintaks atau runtime pada kode plugin.';
     }
 
+    // --- otomatis gabung ulang ke room user setiap kali socket terhubung ulang ---
+    socketClient.on('connect', () => {
+      if (activeGoogleCredentialToken) {
+        socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
+      }
+    });
+
+    // --- sinkronisasi ulang saat pengguna kembali ke browser dari aplikasi whatsapp ---
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && activeGoogleCredentialToken) {
+        if (!socketClient.connected) {
+          socketClient.connect();
+        } else {
+          socketClient.emit('session:authenticate', { credential: activeGoogleCredentialToken });
+        }
+      }
+    });
+
     // --- event listener socket.io real-time ---
     socketClient.on('session:ready', (payload) => {
       document.getElementById('skeletonLoaderSection').classList.add('hidden');
@@ -1105,6 +1154,12 @@ export default async function executePlugin(context) {
       updateConnectionInterface(payload.status, payload.profile);
       renderDatabaseStatistics(payload.database, payload.globalStats);
       renderPluginsList(payload.plugins);
+    });
+
+    socketClient.on('session:reset', (payload) => {
+      updateConnectionInterface('DISCONNECTED', null);
+      renderDatabaseStatistics(payload.database, payload.globalStats);
+      switchAuthMode('qr');
     });
 
     socketClient.on('auth:expired', (payload) => {
