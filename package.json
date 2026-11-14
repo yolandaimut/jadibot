@@ -1,7 +1,7 @@
 {
-  "name": "whatsapp-jadibot-enterprise-platform",
-  "version": "2.0.0",
-  "description": "WhatsApp JadiBot Platform with Real-Time Plugin Hot-Reload and Isolated Atomic JSON Database",
+  "name": "whatsapp-jadibot-enterprise-oauth",
+  "version": "3.0.0",
+  "description": "WhatsApp JadiBot Platform with Google OAuth 2.0, Railway Volume Storage, and Real-Time Plugin IDE",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "^6.7.9",
     "express": "^4.21.1",
+    "google-auth-library": "^9.14.2",
     "pino": "^9.5.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1"
