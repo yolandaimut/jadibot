@@ -6,6 +6,7 @@
   <title>Dashboard — JadiBot Core</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -274,13 +275,6 @@
             </div>
 
             <div id="connectedProfileCard" class="hidden rounded-xl bg-slate-950/90 border border-slate-800 p-4">
-            <!-- --- indikator saat bot sedang menghubungkan otomatis ke sesi tersimpan --- -->
-            <div id="autoReconnectNotice" class="hidden rounded-xl bg-slate-950/90 border border-amber-500/30 p-5 text-center space-y-2.5">
-              <div class="w-7 h-7 mx-auto rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></div>
-              <p class="text-xs font-semibold text-amber-300">Menghubungkan otomatis ke sesi tersimpan...</p>
-              <p class="text-[11px] text-slate-400">Jika sesi tidak dapat dihubungkan, tampilan QR & Pairing akan muncul otomatis.</p>
-            </div>
-
               <div class="flex items-center gap-4">
                 <img id="botProfileAvatar" src="" alt="Avatar Bot" class="w-14 h-14 rounded-full object-cover border-2 accent-border shrink-0" />
                 <div class="flex-1 min-w-0">
@@ -291,6 +285,12 @@
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div id="autoReconnectNotice" class="hidden rounded-xl bg-slate-950/90 border border-amber-500/30 p-5 text-center space-y-2.5">
+              <div class="w-7 h-7 mx-auto rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></div>
+              <p class="text-xs font-semibold text-amber-300">Menghubungkan otomatis ke sesi tersimpan...</p>
+              <p class="text-[11px] text-slate-400">Jika sesi tidak dapat dihubungkan, tampilan QR & Pairing akan muncul otomatis.</p>
             </div>
 
             <div id="authenticationBox" class="space-y-4">
@@ -356,7 +356,30 @@
 
         </div>
 
-        <div class="lg:col-span-7 flex flex-col">
+        <div class="lg:col-span-7 flex flex-col gap-6">
+          <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 shadow-inner relative overflow-hidden">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full accent-bg animate-ping shrink-0"></span>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code">
+                  REAL-TIME CPU
+                </h2>
+              </div>
+              <div class="flex items-center gap-2 font-mono-code">
+                <span id="cpuSourceBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                  SIMULATION
+                </span>
+                <span id="cpuUsageValue" class="text-sm font-extrabold accent-text">
+                  0%
+                </span>
+              </div>
+            </div>
+
+            <div class="relative w-full h-32">
+              <canvas id="cpuHeartbeatChart" class="w-full h-32"></canvas>
+            </div>
+          </div>
+
           <div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
@@ -395,7 +418,7 @@
 
           <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-1">
             <p class="font-semibold text-slate-200">Properti Context Tersedia:</p>
-            <p class="font-mono-code text-[11px] text-slate-400">googleUserId, socketInstance, rawMessage, messageText, senderJid, participantJid, isFromMe, botDatabase, replyMessage(text)</p>
+            <p class="font-mono-code text-[11px] text-slate-400">cfg, func, extra, utils, store, socket, multidb, packname, author, users, groups, setting, date, time, quoted, botDatabase, replyMessage</p>
           </div>
         </div>
 
@@ -403,7 +426,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div class="flex-1">
               <label class="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Nama File Plugin (.js)</label>
-              <input id="pluginFileNameInput" type="text" placeholder="contoh: auto-reply.js" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white font-mono-code focus:outline-none focus:border-slate-600" />
+              <input id="pluginFileNameInput" type="text" placeholder="contoh: info/custom-command.js" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white font-mono-code focus:outline-none focus:border-slate-600" />
             </div>
 
             <button onclick="saveAndApplyPlugin()" class="sm:mt-5 px-5 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0">
@@ -484,7 +507,6 @@
   </div>
 
   <script>
-    // --- state utama dashboard dan koneksi socket.io berbasis cookie ---
     const availableThemes = ['emerald', 'cyan', 'violet'];
     let currentThemeIndex = 0;
     let botStartTimeMs = Date.now();
@@ -498,7 +520,158 @@
       reconnectionAttempts: Infinity
     });
 
-    // --- fungsi tampilkan toast notifikasi di bawah header ---
+    const MAX_CPU_POINTS = 25;
+    let cpuChartInstance = null;
+    let cpuDummyInterval = null;
+    let hasLiveCpuStream = false;
+
+    function hexToRgba(hexColor, alpha) {
+      const cleanHex = hexColor.replace('#', '').trim();
+      const fullHex = cleanHex.length === 3
+        ? cleanHex.split('').map((c) => c + c).join('')
+        : cleanHex;
+      const num = parseInt(fullHex, 16);
+      if (Number.isNaN(num)) return `rgba(16, 185, 129, ${alpha})`;
+      const r = (num >> 16) & 255;
+      const g = (num >> 8) & 255;
+      const b = num & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function getActiveAccentColor() {
+      return getComputedStyle(document.documentElement)
+        .getPropertyValue('--accent-main')
+        .trim() || '#10b981';
+    }
+
+    function buildCpuGradient(ctx, accentHex) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, 128);
+      gradient.addColorStop(0, hexToRgba(accentHex, 0.32));
+      gradient.addColorStop(0.65, hexToRgba(accentHex, 0.08));
+      gradient.addColorStop(1, hexToRgba(accentHex, 0.0));
+      return gradient;
+    }
+
+    function initCpuHeartbeatChart() {
+      const canvas = document.getElementById('cpuHeartbeatChart');
+      if (!canvas || typeof Chart === 'undefined' || cpuChartInstance) return;
+
+      const ctx = canvas.getContext('2d');
+      const accentColor = getActiveAccentColor();
+      const initialLabels = Array(MAX_CPU_POINTS).fill('');
+      const initialData = Array.from({ length: MAX_CPU_POINTS }, () =>
+        Math.floor(Math.random() * (45 - 20 + 1)) + 20
+      );
+
+      cpuChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: initialLabels,
+          datasets: [
+            {
+              label: 'CPU %',
+              data: initialData,
+              borderColor: accentColor,
+              borderWidth: 2.5,
+              backgroundColor: buildCpuGradient(ctx, accentColor),
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              pointHoverRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 280 },
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          },
+          scales: {
+            x: {
+              display: false,
+              grid: { display: false }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              border: { display: false },
+              grid: {
+                color: 'rgba(148, 163, 184, 0.06)',
+                drawTicks: false
+              },
+              ticks: {
+                stepSize: 25,
+                color: 'rgba(148, 163, 184, 0.45)',
+                font: { family: 'JetBrains Mono', size: 10 },
+                callback: (value) => `${value}%`
+              }
+            }
+          }
+        }
+      });
+
+      startCpuDummyStream();
+    }
+
+    function pushCpuDataPoint(cpuPercentage, isLive = false) {
+      if (!cpuChartInstance) return;
+
+      const clampedValue = Math.max(0, Math.min(100, Math.round(Number(cpuPercentage) || 0)));
+      const dataset = cpuChartInstance.data.datasets[0];
+
+      cpuChartInstance.data.labels.shift();
+      cpuChartInstance.data.labels.push('');
+      dataset.data.shift();
+      dataset.data.push(clampedValue);
+      cpuChartInstance.update('none');
+
+      const valueEl = document.getElementById('cpuUsageValue');
+      const sourceEl = document.getElementById('cpuSourceBadge');
+      if (valueEl) valueEl.textContent = `${clampedValue}%`;
+      if (sourceEl) {
+        sourceEl.textContent = isLive ? 'LIVE' : 'SIMULATION';
+        sourceEl.className = isLive
+          ? 'text-[10px] px-2 py-0.5 rounded accent-soft-bg accent-text border accent-border'
+          : 'text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400';
+      }
+    }
+
+    function startCpuDummyStream() {
+      if (cpuDummyInterval) clearInterval(cpuDummyInterval);
+      cpuDummyInterval = setInterval(() => {
+        if (hasLiveCpuStream) return;
+        const simulatedCpu = Math.floor(Math.random() * (70 - 15 + 1)) + 15;
+        pushCpuDataPoint(simulatedCpu, false);
+      }, 1000);
+    }
+
+    function refreshCpuChartTheme() {
+      if (!cpuChartInstance) return;
+      const ctx = cpuChartInstance.ctx;
+      const accentColor = getActiveAccentColor();
+      cpuChartInstance.data.datasets[0].borderColor = accentColor;
+      cpuChartInstance.data.datasets[0].backgroundColor = buildCpuGradient(ctx, accentColor);
+      cpuChartInstance.update('none');
+    }
+
+    socketClient.on('cpu-update', (payload) => {
+      hasLiveCpuStream = true;
+      const cpuValue = typeof payload === 'number'
+        ? payload
+        : (payload?.usage ?? payload?.cpu ?? payload?.percent ?? 0);
+      pushCpuDataPoint(cpuValue, true);
+    });
+
+    socketClient.on('disconnect', () => {
+      hasLiveCpuStream = false;
+    });
+
+    window.addEventListener('DOMContentLoaded', initCpuHeartbeatChart);
+
     function showTopToast(messageText, isError = false) {
       const bannerElement = document.getElementById('topToastBanner');
       const dotElement = document.getElementById('topToastDot');
@@ -521,11 +694,11 @@
       }, 3200);
     }
 
-    // --- fungsi pengubah tema warna aksen ---
     function cycleAccentTheme() {
       currentThemeIndex = (currentThemeIndex + 1) % availableThemes.length;
       const selectedTheme = availableThemes[currentThemeIndex];
       document.documentElement.setAttribute('data-theme', selectedTheme);
+      refreshCpuChartTheme();
 
       const formattedLabel = selectedTheme.charAt(0).toUpperCase() + selectedTheme.slice(1);
       const labelEl = document.getElementById('currentThemeLabel');
@@ -534,7 +707,6 @@
       showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
     }
 
-    // --- muat preferensi tema tersimpan saat halaman dibuka ---
     (function initializeSavedTheme() {
       const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
       const foundIndex = availableThemes.indexOf(savedTheme);
@@ -547,7 +719,6 @@
       }
     })();
 
-    // --- kontrol dropdown menu profil akun ---
     function toggleUserDropdownMenu(event) {
       if (event) event.stopPropagation();
       const popupMenu = document.getElementById('userDropdownMenuPopup');
@@ -563,7 +734,6 @@
       }
     });
 
-    // --- logout akun google dengan menghapus cookie sesi di server ---
     async function logoutGoogleAccount() {
       try {
         await fetch('/api/auth/logout', {
@@ -571,7 +741,6 @@
           credentials: 'same-origin'
         });
       } catch {
-        // --- tetap lanjutkan pengalihan ke halaman login ---
       }
 
       if (socketClient.connected) {
@@ -580,7 +749,6 @@
       window.location.replace('/login');
     }
 
-    // --- perpindahan tab antara dashboard dan developer ide ---
     function switchWorkspaceTab(targetTab) {
       const dashboardView = document.getElementById('workspaceDashboardView');
       const developerView = document.getElementById('workspaceDeveloperView');
@@ -604,10 +772,11 @@
 
         tabDashboardBtn.className = activeTabClasses;
         tabDeveloperBtn.className = inactiveTabClasses;
+
+        if (cpuChartInstance) cpuChartInstance.resize();
       }
     }
 
-    // --- perpindahan mode autentikasi qr dan pairing ---
     function switchAuthMode(mode) {
       const qrPanel = document.getElementById('qrCodeAuthPanel');
       const pairingPanel = document.getElementById('pairingCodeAuthPanel');
@@ -627,7 +796,6 @@
       }
     }
 
-    // --- animasi angka statistik ---
     function animateMetricCounter(elementId, newValue) {
       const targetElement = document.getElementById(elementId);
       if (!targetElement) return;
@@ -655,7 +823,6 @@
       }, 25);
     }
 
-    // --- render statistik user dan global ---
     function renderDatabaseStatistics(databaseObject, globalStatsObject) {
       if (databaseObject) {
         animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
@@ -690,7 +857,6 @@
       }
     }
 
-    // --- pewaktu live uptime bot ---
     setInterval(() => {
       const elapsedSeconds = Math.max(0, Math.floor((Date.now() - botStartTimeMs) / 1000));
       const hours = String(Math.floor(elapsedSeconds / 3600)).padStart(2, '0');
@@ -700,7 +866,6 @@
       if (uptimeEl) uptimeEl.textContent = `${hours}:${minutes}:${seconds}`;
     }, 1000);
 
-    // --- reset tampilan kotak qr dan pairing ---
     function resetAuthenticationPanelsUI() {
       const qrImg = document.getElementById('qrCodeImageElement');
       const qrStatusText = document.getElementById('qrCodeStatusText');
@@ -722,7 +887,6 @@
       }
     }
 
-    // --- perbarui tampilan status koneksi, auto-reconnect, dan fallback disconnected ---
     function updateConnectionUIState(statusState, profileObject, isAutoReconnect = false) {
       const normalizedStatus = String(statusState || 'disconnected').toLowerCase();
       const badge = document.getElementById('connectionStatusBadge');
@@ -773,7 +937,6 @@
       }
     }
 
-    // --- tampilkan baris log baru di terminal ---
     function appendTerminalLine(logEntry) {
       const terminalBox = document.getElementById('terminalLogOutput');
       if (!terminalBox) return;
@@ -805,7 +968,6 @@
       showTopToast('Tampilan terminal dibersihkan');
     }
 
-    // --- mulai koneksi qr atau pairing ---
     function initiateConnection(method) {
       if (method === 'pairing') {
         const phoneInput = document.getElementById('pairingPhoneInput').value.trim();
@@ -845,7 +1007,6 @@
       showTopToast('Menghapus sesi bot Anda...');
     }
 
-    // --- daftar dan editor plugin developer ide ---
     function renderPluginsList(pluginsArray) {
       loadedPluginsCache = pluginsArray || [];
       const container = document.getElementById('pluginsFileListContainer');
@@ -882,15 +1043,20 @@
     }
 
     function prepareNewPluginTemplate() {
-      document.getElementById('pluginFileNameInput').value = 'custom-command.js';
+      document.getElementById('pluginFileNameInput').value = 'info/custom-command.js';
       document.getElementById('pluginCodeEditorTextarea').value =
-`export default async function customCommandHandler(context) {
-  const { messageText, replyMessage } = context;
+`const run = async (m, client, { cfg }) => {
+  await m.reply(\`Halo dari \${cfg.botName}! Perintah: \${m.cmd}\`);
+};
 
-  if (messageText.toLowerCase() === '!halo') {
-    await replyMessage('Halo! Plugin kustom Anda aktif secara real-time.');
-  }
-}`;
+export default {
+  run,
+  cmd: ['halo'],
+  use: '',
+  type: 'info',
+  limit: 1,
+  restrict: false
+};`;
       showTopToast('Template plugin baru siap disunting');
     }
 
@@ -970,7 +1136,6 @@
       }
     }
 
-    // --- sinkronisasi ulang saat pengguna kembali dari aplikasi whatsapp ---
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         if (!socketClient.connected) {
@@ -981,7 +1146,6 @@
       }
     });
 
-    // --- event listener socket.io real-time ---
     socketClient.on('auth:expired', () => {
       window.location.replace('/login');
     });
@@ -996,6 +1160,12 @@
 
       document.getElementById('skeletonLoaderSection').classList.add('hidden');
       document.getElementById('liveApplicationContainer').classList.remove('hidden');
+
+      if (!cpuChartInstance) {
+        initCpuHeartbeatChart();
+      } else {
+        cpuChartInstance.resize();
+      }
 
       if (payload.volumePath) {
         document.getElementById('volumeStoragePathText').textContent = `Volume: ${payload.volumePath}`;
@@ -1014,7 +1184,7 @@
         selectPluginForEditing(payload.plugins[0].fileName);
       }
     });
-    
+
     socketClient.on('session:reset', (payload) => {
       updateConnectionUIState('DISCONNECTED', null);
       renderDatabaseStatistics(payload.database, payload.globalStats);
