@@ -380,7 +380,7 @@
             </div>
           </div>
 
-<!-- --- komponen real-time baileys cli terminal --- -->
+<!-- --- komponen real-time cli terminal --- -->
 <div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-4 sm:p-5 flex flex-col">
   <div class="flex items-center justify-between gap-2 mb-2.5">
     <div class="flex items-center gap-1.5 min-w-0">
@@ -406,8 +406,7 @@
       </button>
     </div>
   </div>
-
-  <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-3 pt-0.5 pb-2 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-tight"></div>
+  <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-3 py-2 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-snug"></div>
   </div>
 </div>
 
@@ -933,12 +932,11 @@
       }
     }
 
-    // --- tampilkan baris log baru secara rapat tanpa jeda kosong ---
     function appendTerminalLine(logEntry) {
       const terminalBox = document.getElementById('terminalLogOutput');
       if (!terminalBox) return;
 
-      const cleanMessage = String(logEntry?.message ?? '').replace(/^\s+|\s+$/g, '');
+      const cleanMessage = String(logEntry?.message ?? '').trim();
       if (!cleanMessage) return;
 
       const lineElement = document.createElement('div');
@@ -950,8 +948,8 @@
       if (normalizedLevel === 'error') levelColorClass = 'text-rose-400';
       if (normalizedLevel === 'msg') levelColorClass = 'text-cyan-400';
 
-      lineElement.className = `flex items-start gap-2 m-0 p-0 ${levelColorClass}`;
-      lineElement.innerHTML = `<span class="text-slate-600 select-none shrink-0">[${logEntry?.timestamp || '--:--:--'}]</span><span class="break-all">${escapeHtmlString(cleanMessage)}</span>`;
+      lineElement.className = `block m-0 p-0 whitespace-pre-wrap [overflow-wrap:anywhere] ${levelColorClass}`;
+      lineElement.innerHTML = `<span class="text-slate-500 select-none">[${escapeHtmlString(logEntry?.timestamp || '--:--:--')}]</span> ${escapeHtmlString(cleanMessage)}`;
 
       terminalBox.appendChild(lineElement);
       terminalBox.scrollTop = terminalBox.scrollHeight;
