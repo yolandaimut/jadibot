@@ -116,11 +116,15 @@
     </div>
 
     <div class="flex bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 items-center gap-0.5 flex-shrink-0">
-      <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
+      <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2 py-1 sm:px-2.5 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
         <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         <span>Dash</span>
       </button>
-      <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
+      <button id="navTabManage" onclick="switchWorkspaceTab('manage')" class="flex items-center gap-1 px-2 py-1 sm:px-2.5 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+        <span>Kelola</span>
+      </button>
+      <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="hidden items-center gap-1 px-2 py-1 sm:px-2.5 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
         <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
         <span>IDE</span>
       </button>
@@ -347,9 +351,12 @@
               </div>
             </div>
 
-            <div class="pt-2 flex items-center gap-3">
-              <button onclick="openLogoutConfirmationModal()" class="w-full py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all">
-                Hapus Sesi / Logout Bot
+            <div class="pt-2 grid grid-cols-2 gap-2.5">
+              <button onclick="triggerSoftRestartSession()" class="py-2.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-semibold text-xs transition-all active:scale-95">
+                Restart Koneksi
+              </button>
+              <button onclick="openLogoutConfirmationModal()" class="py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all active:scale-95">
+                Hapus Sesi / Logout
               </button>
             </div>
           </div>
@@ -358,14 +365,20 @@
 
         <div class="lg:col-span-7 flex flex-col gap-6">
           <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 shadow-inner relative overflow-hidden">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full accent-bg animate-ping shrink-0"></span>
                 <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code">
-                  REAL-TIME CPU
+                  REAL-TIME SYSTEM
                 </h2>
               </div>
-              <div class="flex items-center gap-2 font-mono-code">
+              <div class="flex flex-wrap items-center gap-2 font-mono-code text-[11px]">
+                <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                  RAM <strong id="ramUsageValue" class="text-cyan-400">0 MB</strong>
+                </span>
+                <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                  DISK <strong id="volumeDiskValue" class="text-amber-300">0 B</strong>
+                </span>
                 <span id="cpuSourceBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
                   CONNECTING
                 </span>
@@ -380,51 +393,170 @@
             </div>
           </div>
 
-<!-- --- komponen real-time cli terminal --- -->
-<div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-4 sm:p-5 flex flex-col">
-  <div class="flex items-center justify-between gap-2 mb-2.5">
-    <div class="flex items-center gap-1.5 min-w-0">
-      <span class="w-2.5 h-2.5 rounded-full bg-rose-500 flex-shrink-0"></span>
-      <span class="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0"></span>
-      <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
-      <h2 class="ml-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code truncate">
-        RealTime CLI Terminal
-      </h2>
-    </div>
+          <div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-4 sm:p-5 flex flex-col">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 flex-shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                <h2 class="ml-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code truncate">
+                  RealTime CLI Terminal
+                </h2>
+              </div>
 
-    <div class="flex items-center gap-1.5 flex-shrink-0">
-      <button type="button" onclick="copyTerminalLogs()" title="Salin Log" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-all active:scale-95">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-      </button>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button id="resumeAutoScrollBtn" type="button" onclick="resumeTerminalAutoScroll()" class="hidden px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono-code font-semibold">
+                  Scroll Paused
+                </button>
+                <button type="button" onclick="copyTerminalLogs()" title="Salin Log" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-all active:scale-95">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
 
-      <button type="button" onclick="clearTerminalLogs()" title="Bersihkan Log" class="p-1.5 rounded-lg bg-slate-950 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 transition-all active:scale-95">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-      </button>
-    </div>
-  </div>
-  <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-3 py-2 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-snug"></div>
-  </div>
-</div>
+                <button type="button" onclick="clearTerminalLogs()" title="Bersihkan Log" class="p-1.5 rounded-lg bg-slate-950 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 transition-all active:scale-95">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
 
+            <div class="flex flex-wrap items-center gap-1 mb-2 font-mono-code text-[10px]">
+              <button data-log-filter="all" onclick="setTerminalFilter('all')" class="log-filter-btn px-2 py-0.5 rounded accent-bg text-slate-950 font-bold">ALL</button>
+              <button data-log-filter="info" onclick="setTerminalFilter('info')" class="log-filter-btn px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-white">INFO</button>
+              <button data-log-filter="success" onclick="setTerminalFilter('success')" class="log-filter-btn px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-emerald-400/80 hover:text-emerald-300">OK</button>
+              <button data-log-filter="msg" onclick="setTerminalFilter('msg')" class="log-filter-btn px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-cyan-400/80 hover:text-cyan-300">MSG</button>
+              <button data-log-filter="warn" onclick="setTerminalFilter('warn')" class="log-filter-btn px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-amber-300/80 hover:text-amber-200">WARN</button>
+              <button data-log-filter="error" onclick="setTerminalFilter('error')" class="log-filter-btn px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-rose-400/80 hover:text-rose-300">ERR</button>
+            </div>
+
+            <div id="terminalLogOutput" class="flex-1 min-h-[360px] max-h-[440px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-2.5 py-2 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-snug"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="workspaceManageView" class="hidden grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-4">
+          <div class="border-b border-slate-800 pb-3">
+            <h2 class="text-sm font-bold text-white">Konfigurasi Bot (GUI)</h2>
+            <p class="text-[11px] text-slate-400 mt-0.5">Pengaturan otomatis tersinkron ke plugin & stiker</p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block text-slate-400 font-semibold mb-1">Nama Bot</label>
+              <input id="cfgBotNameInput" type="text" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-slate-600" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-slate-400 font-semibold mb-1">Sticker Packname</label>
+                <input id="cfgPacknameInput" type="text" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-slate-600" />
+              </div>
+              <div>
+                <label class="block text-slate-400 font-semibold mb-1">Sticker Author</label>
+                <input id="cfgAuthorInput" type="text" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-slate-600" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-slate-400 font-semibold mb-1">Filter Kata Terlarang / Toxic (pisahkan dengan koma)</label>
+              <textarea id="cfgToxicInput" rows="2" placeholder="contoh: kasar1, kasar2" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono-code text-[11px] focus:outline-none focus:border-slate-600"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-slate-300 font-medium">Mode Tanpa Prefix (isNoPrefix)</span>
+              <input id="cfgNoPrefixCheck" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded" />
+            </div>
+
+            <div class="flex items-center justify-between">
+              <span class="text-slate-300 font-medium">Izinkan Chat Pribadi (allowedPc)</span>
+              <input id="cfgAllowedPcCheck" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded" />
+            </div>
+
+            <button onclick="saveBotConfigurationForm()" class="w-full py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95">
+              Simpan Pengaturan Bot
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-7 space-y-6">
+          <div class="rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h2 class="text-sm font-bold text-white">Manajemen User (Limit & Premium Reseller)</h2>
+                <p class="text-[11px] text-slate-400">Status Premium khusus reseller, terpisah dari role</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <input id="manageUserSearchInput" oninput="renderManagedUsersTable()" type="text" placeholder="Cari nomor / nama..." class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-slate-600 w-40" />
+                <button onclick="requestManagedEntities()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">Refresh</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="text-[10px] uppercase text-slate-400 border-b border-slate-800 sticky top-0 bg-slate-900">
+                  <tr>
+                    <th class="py-2 pr-2">User</th>
+                    <th class="py-2 px-2">Limit</th>
+                    <th class="py-2 px-2">Premium</th>
+                    <th class="py-2 pl-2 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="managedUsersTableBody" class="divide-y divide-slate-800/70"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h2 class="text-sm font-bold text-white">Manajemen Grup Aktif</h2>
+                <p class="text-[11px] text-slate-400">Kontrol akses bot pada grup terdaftar</p>
+              </div>
+              <input id="manageGroupSearchInput" oninput="renderManagedGroupsTable()" type="text" placeholder="Cari grup..." class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-slate-600 w-40" />
+            </div>
+
+            <div class="overflow-x-auto max-h-[220px] overflow-y-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead class="text-[10px] uppercase text-slate-400 border-b border-slate-800 sticky top-0 bg-slate-900">
+                  <tr>
+                    <th class="py-2 pr-2">Nama Grup</th>
+                    <th class="py-2 px-2">Anggota</th>
+                    <th class="py-2 pl-2 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="managedGroupsTableBody" class="divide-y divide-slate-800/70"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 
       <section id="workspaceDeveloperView" class="hidden grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-4 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col justify-between space-y-4">
-          <div class="space-y-4">
+          <div class="space-y-3">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 class="text-sm font-bold text-white">Daftar Plugins Aktif</h2>
-              <button onclick="prepareNewPluginTemplate()" class="px-2.5 py-1 rounded-lg accent-soft-bg accent-text text-xs font-semibold">
-                + Plugin Baru
-              </button>
+              <h2 class="text-sm font-bold text-white">Daftar Plugins</h2>
+              <div class="flex items-center gap-1.5">
+                <button onclick="downloadPlatformBackupZip()" title="Backup Plugins & Database (.zip)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold">
+                  Backup ZIP
+                </button>
+                <button onclick="prepareNewPluginTemplate()" class="px-2.5 py-1 rounded-lg accent-soft-bg accent-text text-xs font-semibold">
+                  + Baru
+                </button>
+              </div>
             </div>
 
-            <div id="pluginsFileListContainer" class="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+            <div class="flex items-center gap-2">
+              <input id="pluginSearchInput" oninput="renderPluginsList(loadedPluginsCache)" type="text" placeholder="Cari plugin..." class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-slate-600" />
+              <select id="pluginCategoryFilter" onchange="renderPluginsList(loadedPluginsCache)" class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none">
+                <option value="all">Semua</option>
+              </select>
             </div>
+
+            <div id="pluginsFileListContainer" class="space-y-2 max-h-[360px] overflow-y-auto pr-1"></div>
           </div>
 
           <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-1">
@@ -472,7 +604,10 @@
               </div>
             </div>
 
-            <textarea id="pluginCodeEditorTextarea" rows="13" spellcheck="false" class="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-slate-700 text-xs text-emerald-300 font-mono-code leading-relaxed focus:outline-none overflow-x-auto whitespace-pre"></textarea>
+            <div class="flex rounded-xl bg-slate-950 border border-slate-800 focus-within:border-slate-700 overflow-hidden h-[310px]">
+              <pre id="editorLineNumbersGutter" aria-hidden="true" class="w-11 py-3 px-2 bg-slate-900/70 border-r border-slate-800 text-right text-xs text-slate-500 font-mono-code leading-relaxed select-none overflow-hidden shrink-0">1</pre>
+              <textarea id="pluginCodeEditorTextarea" spellcheck="false" class="flex-1 p-3 bg-transparent text-xs text-emerald-300 font-mono-code leading-relaxed focus:outline-none overflow-auto whitespace-pre resize-none"></textarea>
+            </div>
           </div>
 
           <div id="developerErrorReportBox" class="rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5">
@@ -522,7 +657,15 @@
     let currentThemeIndex = 0;
     let botStartTimeMs = Date.now();
     let loadedPluginsCache = [];
+    let isCurrentUserAdmin = false;
     let toastTimeoutTimer = null;
+
+    let terminalLogsBuffer = [];
+    let activeLogFilter = 'all';
+    let isTerminalAutoScrollEnabled = true;
+
+    let managedUsersCache = [];
+    let managedGroupsCache = [];
 
     const socketClient = io({
       withCredentials: true,
@@ -534,6 +677,7 @@
     const MAX_CPU_POINTS = 25;
     let cpuChartInstance = null;
 
+    // --- konversi warna hex ke rgba untuk gradien grafik cpu ---
     function hexToRgba(hexColor, alpha) {
       const cleanHex = hexColor.replace('#', '').trim();
       const fullHex = cleanHex.length === 3
@@ -620,24 +764,40 @@
       });
     }
 
-    function pushCpuDataPoint(cpuPercentage) {
-      if (!cpuChartInstance) return;
+    function pushSystemMetricsPoint(payload) {
+      const cpuPercentage = typeof payload === 'number'
+        ? payload
+        : (payload?.usage ?? payload?.cpu ?? payload?.percent ?? 0);
 
-      const clampedValue = Math.max(0, Math.min(100, Number(cpuPercentage) || 0));
-      const dataset = cpuChartInstance.data.datasets[0];
+      if (cpuChartInstance) {
+        const clampedValue = Math.max(0, Math.min(100, Number(cpuPercentage) || 0));
+        const dataset = cpuChartInstance.data.datasets[0];
 
-      cpuChartInstance.data.labels.shift();
-      cpuChartInstance.data.labels.push('');
-      dataset.data.shift();
-      dataset.data.push(clampedValue);
-      cpuChartInstance.update('none');
+        cpuChartInstance.data.labels.shift();
+        cpuChartInstance.data.labels.push('');
+        dataset.data.shift();
+        dataset.data.push(clampedValue);
+        cpuChartInstance.update('none');
 
-      const valueEl = document.getElementById('cpuUsageValue');
-      const sourceEl = document.getElementById('cpuSourceBadge');
-      if (valueEl) valueEl.textContent = `${clampedValue.toFixed(1)}%`;
-      if (sourceEl) {
-        sourceEl.textContent = 'LIVE';
-        sourceEl.className = 'text-[10px] px-2 py-0.5 rounded accent-soft-bg accent-text border accent-border';
+        const valueEl = document.getElementById('cpuUsageValue');
+        const sourceEl = document.getElementById('cpuSourceBadge');
+        if (valueEl) valueEl.textContent = `${clampedValue.toFixed(1)}%`;
+        if (sourceEl) {
+          sourceEl.textContent = 'LIVE';
+          sourceEl.className = 'text-[10px] px-2 py-0.5 rounded accent-soft-bg accent-text border accent-border';
+        }
+      }
+
+      if (payload && typeof payload === 'object') {
+        const ramEl = document.getElementById('ramUsageValue');
+        const diskEl = document.getElementById('volumeDiskValue');
+        if (ramEl && payload.ramRssMb !== undefined) {
+          ramEl.textContent = `${payload.ramRssMb} MB`;
+          ramEl.title = `Heap: ${payload.ramHeapMb} MB / Total OS: ${payload.ramTotalMb} MB`;
+        }
+        if (diskEl && payload.volumeSizeLabel) {
+          diskEl.textContent = payload.volumeSizeLabel;
+        }
       }
     }
 
@@ -651,10 +811,7 @@
     }
 
     socketClient.on('cpu-update', (payload) => {
-      const cpuValue = typeof payload === 'number'
-        ? payload
-        : (payload?.usage ?? payload?.cpu ?? payload?.percent ?? 0);
-      pushCpuDataPoint(cpuValue);
+      pushSystemMetricsPoint(payload);
     });
 
     socketClient.on('disconnect', () => {
@@ -665,7 +822,12 @@
       }
     });
 
-    window.addEventListener('DOMContentLoaded', initCpuHeartbeatChart);
+    // --- inisialisasi grafik, auto-scroll terminal, dan editor line number ---
+    window.addEventListener('DOMContentLoaded', () => {
+      initCpuHeartbeatChart();
+      setupTerminalScrollWatcher();
+      setupCodeEditorEnhancements();
+    });
 
     function showTopToast(messageText, isError = false) {
       const bannerElement = document.getElementById('topToastBanner');
@@ -717,9 +879,7 @@
     function toggleUserDropdownMenu(event) {
       if (event) event.stopPropagation();
       const popupMenu = document.getElementById('userDropdownMenuPopup');
-      if (popupMenu) {
-        popupMenu.classList.toggle('hidden');
-      }
+      if (popupMenu) popupMenu.classList.toggle('hidden');
     }
 
     window.addEventListener('click', () => {
@@ -731,44 +891,60 @@
 
     async function logoutGoogleAccount() {
       try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          credentials: 'same-origin'
-        });
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
       } catch {
       }
-
-      if (socketClient.connected) {
-        socketClient.disconnect();
-      }
+      if (socketClient.connected) socketClient.disconnect();
       window.location.replace('/login');
     }
 
+    // --- perpindahan tab workspace antara dash, kelola, dan ide ---
     function switchWorkspaceTab(targetTab) {
-      const dashboardView = document.getElementById('workspaceDashboardView');
-      const developerView = document.getElementById('workspaceDeveloperView');
-      const tabDashboardBtn = document.getElementById('navTabDashboard');
-      const tabDeveloperBtn = document.getElementById('navTabDeveloper');
+      if (targetTab === 'developer' && !isCurrentUserAdmin) {
+        showTopToast('Tab IDE khusus admin platform', true);
+        return;
+      }
 
-      const activeTabClasses = 'flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
-      const inactiveTabClasses = 'flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
+      const views = {
+        dashboard: document.getElementById('workspaceDashboardView'),
+        manage: document.getElementById('workspaceManageView'),
+        developer: document.getElementById('workspaceDeveloperView')
+      };
 
-      if (targetTab === 'developer') {
-        dashboardView.classList.add('hidden');
-        developerView.classList.remove('hidden');
-        developerView.classList.add('grid');
+      const buttons = {
+        dashboard: document.getElementById('navTabDashboard'),
+        manage: document.getElementById('navTabManage'),
+        developer: document.getElementById('navTabDeveloper')
+      };
 
-        tabDeveloperBtn.className = activeTabClasses;
-        tabDashboardBtn.className = inactiveTabClasses;
-      } else {
-        developerView.classList.add('hidden');
-        developerView.classList.remove('grid');
-        dashboardView.classList.remove('hidden');
+      const activeTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-2.5 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
+      const inactiveTabClasses = 'flex items-center gap-1 px-2 py-1 sm:px-2.5 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
 
-        tabDashboardBtn.className = activeTabClasses;
-        tabDeveloperBtn.className = inactiveTabClasses;
+      for (const [key, sectionEl] of Object.entries(views)) {
+        if (!sectionEl) continue;
+        if (key === targetTab) {
+          sectionEl.classList.remove('hidden');
+          sectionEl.classList.add('grid');
+        } else {
+          sectionEl.classList.add('hidden');
+          sectionEl.classList.remove('grid');
+        }
+      }
 
-        if (cpuChartInstance) cpuChartInstance.resize();
+      for (const [key, btnEl] of Object.entries(buttons)) {
+        if (!btnEl) continue;
+        if (key === 'developer' && !isCurrentUserAdmin) {
+          btnEl.className = 'hidden';
+          continue;
+        }
+        btnEl.className = key === targetTab ? activeTabClasses : inactiveTabClasses;
+      }
+
+      if (targetTab === 'dashboard' && cpuChartInstance) {
+        cpuChartInstance.resize();
+      }
+      if (targetTab === 'manage') {
+        requestManagedEntities();
       }
     }
 
@@ -818,6 +994,39 @@
       }, 25);
     }
 
+    function populateSettingsForm(settingsObj) {
+      if (!settingsObj) return;
+      const botNameEl = document.getElementById('cfgBotNameInput');
+      const packnameEl = document.getElementById('cfgPacknameInput');
+      const authorEl = document.getElementById('cfgAuthorInput');
+      const toxicEl = document.getElementById('cfgToxicInput');
+      const noPrefixEl = document.getElementById('cfgNoPrefixCheck');
+      const allowedPcEl = document.getElementById('cfgAllowedPcCheck');
+
+      if (botNameEl && document.activeElement !== botNameEl) botNameEl.value = settingsObj.botName || '';
+      if (packnameEl && document.activeElement !== packnameEl) packnameEl.value = settingsObj.packname || '';
+      if (authorEl && document.activeElement !== authorEl) authorEl.value = settingsObj.author || '';
+      if (toxicEl && document.activeElement !== toxicEl) {
+        toxicEl.value = Array.isArray(settingsObj.toxic) ? settingsObj.toxic.join(', ') : '';
+      }
+      if (noPrefixEl) noPrefixEl.checked = settingsObj.isNoPrefix ?? true;
+      if (allowedPcEl) allowedPcEl.checked = settingsObj.allowedPc ?? true;
+    }
+
+    function saveBotConfigurationForm() {
+      const rawToxic = document.getElementById('cfgToxicInput').value || '';
+      const toxicArray = rawToxic.split(',').map((w) => w.trim()).filter(Boolean);
+
+      socketClient.emit('settings:update', {
+        botName: document.getElementById('cfgBotNameInput').value.trim(),
+        packname: document.getElementById('cfgPacknameInput').value.trim(),
+        author: document.getElementById('cfgAuthorInput').value.trim(),
+        isNoPrefix: document.getElementById('cfgNoPrefixCheck').checked,
+        allowedPc: document.getElementById('cfgAllowedPcCheck').checked,
+        toxic: toxicArray
+      });
+    }
+
     function renderDatabaseStatistics(databaseObject, globalStatsObject) {
       if (databaseObject) {
         animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
@@ -843,6 +1052,8 @@
         publicModeBtn.className = isPublicMode
           ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
           : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+
+        populateSettingsForm(databaseObject.settings);
       }
 
       if (globalStatsObject) {
@@ -874,12 +1085,8 @@
       if (qrStatusText) {
         qrStatusText.textContent = 'Klik tombol di bawah untuk menginisialisasi sesi dan menampilkan QR Code terbaru.';
       }
-      if (pairingWrapper) {
-        pairingWrapper.classList.add('hidden');
-      }
-      if (pairingValue) {
-        pairingValue.textContent = '----';
-      }
+      if (pairingWrapper) pairingWrapper.classList.add('hidden');
+      if (pairingValue) pairingValue.textContent = '----';
     }
 
     function updateConnectionUIState(statusState, profileObject, isAutoReconnect = false) {
@@ -932,15 +1139,46 @@
       }
     }
 
-    function appendTerminalLine(logEntry) {
+    // --- pantau scroll terminal untuk pause auto-scroll otomatis saat user membaca ke atas ---
+    function setupTerminalScrollWatcher() {
       const terminalBox = document.getElementById('terminalLogOutput');
-      if (!terminalBox) return;
+      const resumeBtn = document.getElementById('resumeAutoScrollBtn');
+      if (!terminalBox || !resumeBtn) return;
 
+      terminalBox.addEventListener('scroll', () => {
+        const distanceFromBottom = terminalBox.scrollHeight - terminalBox.scrollTop - terminalBox.clientHeight;
+        isTerminalAutoScrollEnabled = distanceFromBottom <= 24;
+        resumeBtn.classList.toggle('hidden', isTerminalAutoScrollEnabled);
+      });
+    }
+
+    function resumeTerminalAutoScroll() {
+      const terminalBox = document.getElementById('terminalLogOutput');
+      const resumeBtn = document.getElementById('resumeAutoScrollBtn');
+      isTerminalAutoScrollEnabled = true;
+      if (resumeBtn) resumeBtn.classList.add('hidden');
+      if (terminalBox) terminalBox.scrollTop = terminalBox.scrollHeight;
+    }
+
+    function setTerminalFilter(levelFilter) {
+      activeLogFilter = levelFilter;
+      document.querySelectorAll('.log-filter-btn').forEach((btn) => {
+        const btnLevel = btn.getAttribute('data-log-filter');
+        if (btnLevel === levelFilter) {
+          btn.className = 'log-filter-btn px-2 py-0.5 rounded accent-bg text-slate-950 font-bold';
+        } else {
+          btn.className = 'log-filter-btn px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-white';
+        }
+      });
+      renderFilteredTerminalLogs();
+    }
+
+    function buildTerminalLineElement(logEntry) {
       const cleanMessage = String(logEntry?.message ?? '').trim();
-      if (!cleanMessage) return;
+      if (!cleanMessage) return null;
 
       const lineElement = document.createElement('div');
-      const normalizedLevel = String(logEntry?.level || '').toLowerCase();
+      const normalizedLevel = String(logEntry?.level || 'info').toLowerCase();
 
       let levelColorClass = 'text-slate-300';
       if (normalizedLevel === 'success') levelColorClass = 'text-emerald-400';
@@ -948,11 +1186,46 @@
       if (normalizedLevel === 'error') levelColorClass = 'text-rose-400';
       if (normalizedLevel === 'msg') levelColorClass = 'text-cyan-400';
 
-      lineElement.className = `block m-0 p-0 whitespace-pre-wrap [overflow-wrap:anywhere] ${levelColorClass}`;
+      lineElement.className = `block m-0 p-0 whitespace-pre-wrap break-all ${levelColorClass}`;
       lineElement.innerHTML = `<span class="text-slate-500 select-none">[${escapeHtmlString(logEntry?.timestamp || '--:--:--')}]</span> ${escapeHtmlString(cleanMessage)}`;
+      return lineElement;
+    }
+
+    function renderFilteredTerminalLogs() {
+      const terminalBox = document.getElementById('terminalLogOutput');
+      if (!terminalBox) return;
+      terminalBox.innerHTML = '';
+
+      for (const entry of terminalLogsBuffer) {
+        const entryLevel = String(entry?.level || 'info').toLowerCase();
+        if (activeLogFilter !== 'all' && entryLevel !== activeLogFilter) continue;
+        const el = buildTerminalLineElement(entry);
+        if (el) terminalBox.appendChild(el);
+      }
+
+      if (isTerminalAutoScrollEnabled) {
+        terminalBox.scrollTop = terminalBox.scrollHeight;
+      }
+    }
+
+    function appendTerminalLine(logEntry) {
+      if (!logEntry?.message) return;
+      terminalLogsBuffer.push(logEntry);
+      if (terminalLogsBuffer.length > 200) terminalLogsBuffer.shift();
+
+      const entryLevel = String(logEntry?.level || 'info').toLowerCase();
+      if (activeLogFilter !== 'all' && entryLevel !== activeLogFilter) return;
+
+      const terminalBox = document.getElementById('terminalLogOutput');
+      if (!terminalBox) return;
+
+      const lineElement = buildTerminalLineElement(logEntry);
+      if (!lineElement) return;
 
       terminalBox.appendChild(lineElement);
-      terminalBox.scrollTop = terminalBox.scrollHeight;
+      if (isTerminalAutoScrollEnabled) {
+        terminalBox.scrollTop = terminalBox.scrollHeight;
+      }
     }
 
     function escapeHtmlString(rawString) {
@@ -962,7 +1235,6 @@
         .replace(/>/g, '&gt;');
     }
 
-    // --- salin seluruh isi teks log terminal ke clipboard ---
     async function copyTerminalLogs() {
       const terminalBox = document.getElementById('terminalLogOutput');
       if (!terminalBox) return;
@@ -989,11 +1261,10 @@
       }
     }
 
-    // --- bersihkan seluruh baris log pada terminal ---
     function clearTerminalLogs() {
+      terminalLogsBuffer = [];
       const terminalBox = document.getElementById('terminalLogOutput');
-      if (!terminalBox) return;
-      terminalBox.innerHTML = '';
+      if (terminalBox) terminalBox.innerHTML = '';
       showTopToast('Tampilan terminal dibersihkan');
     }
 
@@ -1011,6 +1282,11 @@
         document.getElementById('qrCodeStatusText').textContent = 'Menghubungkan ke server WhatsApp, mohon tunggu QR Code...';
         showTopToast('Menginisialisasi sesi QR Code...');
       }
+    }
+
+    function triggerSoftRestartSession() {
+      socketClient.emit('session:restart');
+      showTopToast('Memulai soft restart koneksi bot...');
     }
 
     function toggleBotSetting(settingKey) {
@@ -1036,31 +1312,187 @@
       showTopToast('Menghapus sesi bot Anda...');
     }
 
+    // --- manajemen user (limit, premium reseller, ban) dan grup ---
+    function requestManagedEntities() {
+      socketClient.emit('manage:list');
+    }
+
+    function renderManagedUsersTable() {
+      const tbody = document.getElementById('managedUsersTableBody');
+      const query = String(document.getElementById('manageUserSearchInput')?.value || '').toLowerCase();
+      if (!tbody) return;
+
+      const filtered = managedUsersCache.filter(
+        (u) => u.number.toLowerCase().includes(query) || String(u.name || '').toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Belum ada user terdata.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((u) => `
+        <tr class="hover:bg-slate-950/60">
+          <td class="py-2 pr-2">
+            <p class="font-semibold text-slate-200 truncate max-w-[140px]">${escapeHtmlString(u.name)}</p>
+            <p class="text-[10px] font-mono-code text-slate-500">+${escapeHtmlString(u.number)}</p>
+          </td>
+          <td class="py-2 px-2">
+            <input type="number" min="0" value="${u.limit}" onchange="updateManagedUser('${u.jid}', { limit: Number(this.value) })" class="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs font-mono-code text-white" />
+          </td>
+          <td class="py-2 px-2">
+            <button onclick="updateManagedUser('${u.jid}', { premium: ${!u.premium} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.premium ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-400'}">
+              ${u.premium ? 'Reseller ON' : 'Reguler'}
+            </button>
+          </td>
+          <td class="py-2 pl-2 text-right">
+            <button onclick="updateManagedUser('${u.jid}', { banned: ${!u.banned} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
+              ${u.banned ? 'Banned' : 'Aktif'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderManagedGroupsTable() {
+      const tbody = document.getElementById('managedGroupsTableBody');
+      const query = String(document.getElementById('manageGroupSearchInput')?.value || '').toLowerCase();
+      if (!tbody) return;
+
+      const filtered = managedGroupsCache.filter(
+        (g) => String(g.subject || '').toLowerCase().includes(query) || g.jid.toLowerCase().includes(query)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-slate-500">Belum ada grup terdata.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((g) => `
+        <tr class="hover:bg-slate-950/60">
+          <td class="py-2 pr-2">
+            <p class="font-semibold text-slate-200 truncate max-w-[200px]">${escapeHtmlString(g.subject)}</p>
+            <p class="text-[10px] font-mono-code text-slate-500 truncate max-w-[200px]">${escapeHtmlString(g.jid)}</p>
+          </td>
+          <td class="py-2 px-2 font-mono-code text-slate-300">${g.participantsCount}</td>
+          <td class="py-2 pl-2 text-right">
+            <button onclick="updateManagedGroup('${g.jid}', { banned: ${!g.banned} })" class="px-2.5 py-1 rounded text-[10px] font-semibold ${g.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
+              ${g.banned ? 'Banned' : 'Aktif'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function updateManagedUser(jid, changes) {
+      socketClient.emit('manage:user:update', { jid, ...changes });
+    }
+
+    function updateManagedGroup(jid, changes) {
+      socketClient.emit('manage:group:update', { jid, ...changes });
+    }
+
+    // --- manajemen daftar plugin ide, kategori, toggle on/off, dan backup zip ---
+    function syncCategoryFilterOptions(pluginsArray) {
+      const selectEl = document.getElementById('pluginCategoryFilter');
+      if (!selectEl) return;
+      const currentVal = selectEl.value || 'all';
+      const categories = Array.from(new Set(pluginsArray.map((p) => p.category || 'root'))).sort();
+
+      selectEl.innerHTML = '<option value="all">Semua</option>' +
+        categories.map((cat) => `<option value="${escapeHtmlString(cat)}">${escapeHtmlString(cat)}</option>`).join('');
+
+      if (categories.includes(currentVal)) {
+        selectEl.value = currentVal;
+      }
+    }
+
     function renderPluginsList(pluginsArray) {
       loadedPluginsCache = pluginsArray || [];
+      syncCategoryFilterOptions(loadedPluginsCache);
+
       const container = document.getElementById('pluginsFileListContainer');
       if (!container) return;
       container.innerHTML = '';
 
-      if (loadedPluginsCache.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-500">Belum ada berkas plugin.</p>';
+      const searchQuery = String(document.getElementById('pluginSearchInput')?.value || '').toLowerCase();
+      const selectedCategory = document.getElementById('pluginCategoryFilter')?.value || 'all';
+
+      const filteredPlugins = loadedPluginsCache.filter((item) => {
+        const matchSearch = item.fileName.toLowerCase().includes(searchQuery);
+        const matchCategory = selectedCategory === 'all' || (item.category || 'root') === selectedCategory;
+        return matchSearch && matchCategory;
+      });
+
+      if (filteredPlugins.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-500">Tidak ada plugin yang cocok.</p>';
         return;
       }
 
-      loadedPluginsCache.forEach((pluginItem) => {
+      filteredPlugins.forEach((pluginItem) => {
+        const isEnabled = pluginItem.isEnabled !== false;
         const card = document.createElement('div');
-        card.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all';
+        card.className = `flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950 border ${isEnabled ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/50 opacity-60'} transition-all`;
         card.innerHTML = `
-          <button onclick="selectPluginForEditing('${pluginItem.fileName}')" class="text-left flex-1 truncate pr-2">
+          <button onclick="selectPluginForEditing('${pluginItem.fileName}')" class="text-left flex-1 min-w-0">
             <p class="text-xs font-bold text-slate-200 font-mono-code truncate">${escapeHtmlString(pluginItem.fileName)}</p>
-            <p class="text-[11px] text-slate-500 mt-0.5">Klik untuk menyunting</p>
+            <p class="text-[10px] text-slate-500 mt-0.5">${escapeHtmlString(pluginItem.category || 'root')} • ${isEnabled ? 'Aktif' : 'Nonaktif'}</p>
           </button>
-          <button onclick="deletePluginFile('${pluginItem.fileName}')" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="Hapus Plugin">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          </button>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="togglePluginActiveState('${pluginItem.fileName}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold ${isEnabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' : 'bg-slate-800 text-slate-400'}" title="Aktif/Nonaktifkan Plugin">
+              ${isEnabled ? 'ON' : 'OFF'}
+            </button>
+            <button onclick="deletePluginFile('${pluginItem.fileName}')" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="Hapus Plugin">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
         `;
         container.appendChild(card);
       });
+    }
+
+    function togglePluginActiveState(fileName) {
+      socketClient.emit('plugin:toggle', { fileName });
+    }
+
+    function downloadPlatformBackupZip() {
+      window.location.href = '/api/backup/download';
+      showTopToast('Mengunduh arsip backup ZIP...');
+    }
+
+    // --- line number gutter dan dukungan tombol tab pada editor kode ---
+    function updateEditorLineNumbers() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      const gutter = document.getElementById('editorLineNumbersGutter');
+      if (!textarea || !gutter) return;
+      const lineCount = (textarea.value || '').split('\n').length;
+      const lines = [];
+      for (let i = 1; i <= lineCount; i += 1) lines.push(i);
+      gutter.textContent = lines.join('\n');
+    }
+
+    function setupCodeEditorEnhancements() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      const gutter = document.getElementById('editorLineNumbersGutter');
+      if (!textarea || !gutter) return;
+
+      textarea.addEventListener('input', updateEditorLineNumbers);
+      textarea.addEventListener('scroll', () => {
+        gutter.scrollTop = textarea.scrollTop;
+      });
+
+      textarea.addEventListener('keydown', (event) => {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          textarea.value = `${textarea.value.substring(0, start)}  ${textarea.value.substring(end)}`;
+          textarea.selectionStart = textarea.selectionEnd = start + 2;
+          updateEditorLineNumbers();
+        }
+      });
+
+      updateEditorLineNumbers();
     }
 
     function selectPluginForEditing(fileName) {
@@ -1068,6 +1500,7 @@
       if (!found) return;
       document.getElementById('pluginFileNameInput').value = found.fileName;
       document.getElementById('pluginCodeEditorTextarea').value = found.codeContent ?? '';
+      updateEditorLineNumbers();
       showTopToast(`Membuka ${found.fileName}`);
     }
 
@@ -1086,6 +1519,7 @@ export default {
   limit: 1,
   restrict: false
 };`;
+      updateEditorLineNumbers();
       showTopToast('Template plugin baru siap disunting');
     }
 
@@ -1124,6 +1558,7 @@ export default {
       try {
         const clipText = await navigator.clipboard.readText();
         textarea.value = clipText;
+        updateEditorLineNumbers();
         showTopToast('Kode ditempel dari clipboard');
       } catch {
         showTopToast('Izin clipboard ditolak browser, silakan tempel manual', true);
@@ -1134,6 +1569,7 @@ export default {
       const textarea = document.getElementById('pluginCodeEditorTextarea');
       if (textarea) {
         textarea.value = '';
+        updateEditorLineNumbers();
         showTopToast('Editor dibersihkan');
       }
     }
@@ -1180,6 +1616,18 @@ export default {
     });
 
     socketClient.on('session:ready', (payload) => {
+      isCurrentUserAdmin = Boolean(payload.isAdmin);
+      const ideBtn = document.getElementById('navTabDeveloper');
+      if (ideBtn) {
+        if (isCurrentUserAdmin) {
+          ideBtn.classList.remove('hidden');
+          ideBtn.classList.add('flex');
+        } else {
+          ideBtn.classList.add('hidden');
+          ideBtn.classList.remove('flex');
+        }
+      }
+
       if (payload.user) {
         const googleUser = payload.user;
         document.getElementById('navGoogleAvatar').src = googleUser.pictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(googleUser.givenName || 'User')}&background=10b981&color=fff`;
@@ -1202,15 +1650,17 @@ export default {
 
       renderDatabaseStatistics(payload.database, payload.globalStats);
       updateConnectionUIState(payload.status, payload.profile, Boolean(payload.isAutoReconnect));
-      renderPluginsList(payload.plugins || []);
 
-      if (Array.isArray(payload.logs)) {
-        document.getElementById('terminalLogOutput').innerHTML = '';
-        payload.logs.forEach(appendTerminalLine);
+      if (isCurrentUserAdmin) {
+        renderPluginsList(payload.plugins || []);
+        if (payload.plugins && payload.plugins.length > 0 && !document.getElementById('pluginFileNameInput').value) {
+          selectPluginForEditing(payload.plugins[0].fileName);
+        }
       }
 
-      if (payload.plugins && payload.plugins.length > 0 && !document.getElementById('pluginFileNameInput').value) {
-        selectPluginForEditing(payload.plugins[0].fileName);
+      if (Array.isArray(payload.logs)) {
+        terminalLogsBuffer = [...payload.logs];
+        renderFilteredTerminalLogs();
       }
     });
 
@@ -1252,12 +1702,23 @@ export default {
       renderDatabaseStatistics(payload.userStats || payload.database, payload.globalStats);
     });
 
+    socketClient.on('settings:saved', () => {
+      showTopToast('Konfigurasi bot disimpan!');
+    });
+
+    socketClient.on('manage:data', (payload) => {
+      managedUsersCache = payload?.users || [];
+      managedGroupsCache = payload?.groups || [];
+      renderManagedUsersTable();
+      renderManagedGroupsTable();
+    });
+
     socketClient.on('terminal:log', (logEntry) => {
       appendTerminalLine(logEntry);
     });
 
     socketClient.on('plugin:list', (pluginsArray) => {
-      renderPluginsList(pluginsArray);
+      if (isCurrentUserAdmin) renderPluginsList(pluginsArray);
     });
 
     socketClient.on('plugin:save:result', (result) => {
