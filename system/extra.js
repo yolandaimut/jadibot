@@ -161,9 +161,17 @@ export default class Extra {
     const { sendMessage, relayMessage, waUploadToServer } = client;
     const VALID_JID_REGEX = /^(\d.*@(s\.whatsapp\.net|g\.us|newsletter)|status@broadcast)$/;
 
+    const getBotSetting = () => {
+      const botJid = client.user?.jid || (client.user?.id ? jidNormalizedUser(client.user.id) : '');
+      return global.db?.setting?.[botJid] || {};
+    };
+
     const isAllowedInPc = (jid) => {
-      if (mapping.cfg?.allowedPc !== false) return true;
-      if (mapping.cfg?.devs?.includes(jid) || global.db?.users?.[jid]?.premium) return true;
+      const botSetting = getBotSetting();
+      if (botSetting.allowedPc !== false) return true;
+      if (mapping.cfg?.devs?.includes(jid) || botSetting.owners?.includes(jid) || global.db?.users?.[jid]?.premium) {
+        return true;
+      }
       if (utils.isAnyBot(jid)) return true;
 
       const wwRooms = Object.values(global.db?.werewolf || {});
@@ -523,11 +531,11 @@ export default class Extra {
             mentionedJid: mentions,
             forwardingScore: 256,
             isForwarded: true,
-            ...(opts.newsletter && mapping.cfg.id?.newsletter
+            ...(opts.newsletter && getBotSetting().newsletter
               ? {
                   forwardedNewsletterMessageInfo: {
-                    newsletterJid: mapping.cfg.id.newsletter,
-                    newsletterName: mapping.cfg.header || 'Surya Core',
+                    newsletterJid: getBotSetting().newsletter,
+                    newsletterName: getBotSetting().header || mapping.cfg.header,
                     serverMessageId: -1
                   }
                 }
@@ -583,7 +591,7 @@ export default class Extra {
         mediaData = fileRes.data;
       }
 
-      if (mapping.cfg?.baileys?.button) {
+      if (getBotSetting().button) {
         const buttons = button.map(([displayText, buttonId]) => ({
           name: 'quick_reply',
           buttonParamsJson: JSON.stringify({ display_text: displayText, id: buttonId })
@@ -818,7 +826,7 @@ export default class Extra {
       const stickerBuffer = await convertToStickerBuffer(
         { mimetype: mime, data: buffer },
         {
-          packname: options.packname || mapping.cfg?.botName || 'Surya Core',
+          packname: options.packname || getBotSetting().botName || 'Surya Core',
           author: options.author || '',
           categories: options.categories || [],
           avatar: options.avatar,

@@ -105,11 +105,7 @@ class Utils {
     const activeBotJids = allSockets.filter((x) => x?.user?.id).map((x) => jidNormalizedUser(x.user.id));
     const activeBotLids = allSockets.filter((x) => x?.user?.lid).map((x) => jidNormalizedUser(x.user.lid));
 
-    if (activeBotJids.includes(targetJid) || activeBotLids.includes(targetJid)) return true;
-    if (!this.botIds && mapping.cfg?.pairing?.number) {
-      this.botIds = func.wa(mapping.cfg.pairing.number);
-    }
-    return Boolean(this.botIds && targetJid === this.botIds);
+    return activeBotJids.includes(targetJid) || activeBotLids.includes(targetJid);
   }
 
   getSafeSocket(playerJid, defaultSocket) {

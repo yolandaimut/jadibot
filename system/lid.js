@@ -199,28 +199,71 @@ class Lid {
     return newText;
   }
 
+  // --- prioritaskan nomor telepon (PN) dari seluruh properti key tanpa bergantung addressingMode ---
   getWhatsappJid(key) {
     if (!key) return null;
-    if (key.participantPn && this.isPnUser(key.participantPn)) return key.participantPn;
-    if (key.senderPn && this.isPnUser(key.senderPn)) return key.senderPn;
-    if (key.participant && this.isPnUser(key.participant)) return key.participant;
-    if (key.remoteJid && this.isPnUser(key.remoteJid)) return key.remoteJid;
 
-    if (key.addressingMode) {
-      if (key.addressingMode === 'lid') {
-        if (this.isGroup(key.remoteJid) && key.participantAlt && this.isPnUser(key.participantAlt)) return key.participantAlt;
-        if (key.remoteJidAlt && this.isPnUser(key.remoteJidAlt)) return key.remoteJidAlt;
-      } else if (key.addressingMode === 'pn' && key.remoteJid && this.isPnUser(key.remoteJid)) {
-        return key.remoteJid;
+    const pnCandidates = [
+      key.participantPn,
+      key.senderPn,
+      key.participantAlt,
+      key.remoteJidAlt,
+      key.participant,
+      key.remoteJid
+    ];
+
+    for (const candidate of pnCandidates) {
+      if (candidate && this.isPnUser(candidate)) {
+        return jidNormalizedUser(candidate);
       }
     }
 
-    if (key.participantLid) return key.participantLid;
-    if (key.senderLid) return key.senderLid;
-    if (key.participant && this.isLidUser(key.participant)) return key.participant;
-    if (key.remoteJid && this.isLidUser(key.remoteJid)) return key.remoteJid;
+    const lidCandidates = [
+      key.participantLid,
+      key.senderLid,
+      key.participant,
+      key.remoteJid
+    ];
+
+    for (const candidate of lidCandidates) {
+      if (candidate && this.isLidUser(candidate)) {
+        return jidNormalizedUser(candidate);
+      }
+    }
 
     return key.participant || key.remoteJid || null;
+  }
+
+  // --- konversi m.chat pada chat pribadi dari @lid menjadi PN (@s.whatsapp.net) ---
+  resolveChatJid(client, key) {
+    if (!key?.remoteJid) return '';
+    const remoteJid = key.remoteJid;
+
+    if (this.isGroup(remoteJid) || this.isPnUser(remoteJid) || remoteJid === 'status@broadcast') {
+      return jidNormalizedUser(remoteJid);
+    }
+
+    if (this.isLidUser(remoteJid)) {
+      const altPn = [key.remoteJidAlt, key.senderPn, key.participantPn, key.participantAlt].find((id) =>
+        this.isPnUser(id)
+      );
+
+      if (altPn) {
+        const normalizedPn = jidNormalizedUser(altPn);
+        this.add(normalizedPn, remoteJid);
+        return normalizedPn;
+      }
+
+      const cachedPn = this.get(remoteJid);
+      if (cachedPn && this.isPnUser(cachedPn)) {
+        return jidNormalizedUser(cachedPn);
+      }
+
+      this.backgroundFetchRealJid(remoteJid, client);
+      return jidNormalizedUser(remoteJid);
+    }
+
+    return jidNormalizedUser(remoteJid);
   }
 
   getSenderJid(client, key) {

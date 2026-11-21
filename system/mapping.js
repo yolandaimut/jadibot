@@ -2,6 +2,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { CONFIG } from '../core/config.js';
 
 class SweepCache {
   static instances = [];
@@ -94,21 +95,7 @@ class Mapping {
 
     // --- default konfigurasi agar serialize.js dan extra.js tidak pernah undefined ---
     const ownerNumber = String(process.env.OWNER_NUMBER || '').replace(/\D/g, '');
-    this.cfg = {
-      botName: process.env.BOT_NAME || 'Surya Core',
-      header: process.env.BOT_NAME || 'Surya Core',
-      copyright: 'Surya Core Platform',
-      owner: ownerNumber ? `${ownerNumber}@s.whatsapp.net` : '',
-      devs: ownerNumber ? [`${ownerNumber}@s.whatsapp.net`] : [],
-      prefixes: /^[.!\/#]/,
-      isNoPrefix: false,
-      allowedPc: true,
-      useRedis: process.env.USE_REDIS === 'true',
-      baileys: { button: false, online: true },
-      pairing: { status: true, number: ownerNumber },
-      id: {},
-      path: { trash: defaultTrashDir }
-    };
+    this.cfg = CONFIG;
 
     this.plugins = {};
     this.detects = new Set();

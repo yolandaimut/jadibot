@@ -75,7 +75,7 @@ const serialize = (client, m, store) => {
     },
     chat: {
       get() {
-        return Lid.isLidUser(m.key?.remoteJid) ? (m.key?.remoteJidAlt || m.key?.remoteJid) : m.key?.remoteJid;
+        return Lid.resolveChatJid(client, m.key);
       },
       enumerable: true
     },
@@ -241,8 +241,9 @@ const serialize = (client, m, store) => {
     },
     isOwner: {
       get() {
-        const ownerList = Array.isArray(global.db?.owner) ? global.db.owner : [];
-        return [mapping.cfg?.owner, m.bot, ...ownerList].includes(m.sender) || m.isDevs;
+        const botOwners = Array.isArray(m.setting?.owners) ? m.setting.owners : [];
+        const globalOwners = Array.isArray(global.db?.owner) ? global.db.owner : [];
+        return [m.bot, ...botOwners, ...globalOwners].includes(m.sender) || m.isDevs;
       },
       enumerable: true
     },
@@ -260,7 +261,8 @@ const serialize = (client, m, store) => {
     },
     command: {
       get() {
-        const hasNoPrefixAccess = (m.isDevs || m.isOwner || m.isPrem || m.isVIP) && mapping.cfg?.isNoPrefix;
+        const isNoPrefixEnabled = m.setting?.isNoPrefix ?? true;
+        const hasNoPrefixAccess = (m.isDevs || m.isOwner || m.fromMe) && isNoPrefixEnabled;
         if (hasNoPrefixAccess || m.isPrefix) {
           return (m.isPrefix ? m.budy.slice(m.prefix.length) : m.budy).trim().split(/ +/).shift().toLowerCase();
         }
