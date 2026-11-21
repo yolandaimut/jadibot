@@ -1,5 +1,6 @@
-// --- registrasi route express anti-flicker dan handler komunikasi socket.io ---
+// --- registrasi route express anti-flicker, monitor cpu real-time, dan handler socket.io ---
 import express from 'express';
+import os from 'os';
 import path from 'path';
 import {
   GOOGLE_CLIENT_ID,
@@ -31,6 +32,54 @@ import {
   startWhatsAppSession,
   syncSessionStateToSocket
 } from './session-manager.js';
+
+let cpuMonitorInterval = null;
+
+// --- ambil snapshot total dan idle tick cpu dari os ---
+function getCpuTimesSnapshot() {
+  const cpus = os.cpus();
+  let idle = 0;
+  let total = 0;
+
+  for (const cpu of cpus) {
+    idle += cpu.times.idle;
+    total +=
+      cpu.times.user +
+      cpu.times.nice +
+      cpu.times.sys +
+      cpu.times.idle +
+      cpu.times.irq;
+  }
+
+  return { idle, total };
+}
+
+// --- mulai broadcast utilisasi cpu asli setiap 1 detik ke dashboard ---
+function startRealtimeCpuBroadcaster(io) {
+  if (cpuMonitorInterval) return;
+
+  let previousSnapshot = getCpuTimesSnapshot();
+
+  cpuMonitorInterval = setInterval(() => {
+    const currentSnapshot = getCpuTimesSnapshot();
+    const idleDiff = currentSnapshot.idle - previousSnapshot.idle;
+    const totalDiff = currentSnapshot.total - previousSnapshot.total;
+    previousSnapshot = currentSnapshot;
+
+    if (io.engine.clientsCount === 0) return;
+
+    const rawUsage = totalDiff > 0 ? (1 - idleDiff / totalDiff) * 100 : 0;
+    const usage = Math.max(0, Math.min(100, Math.round(rawUsage * 10) / 10));
+
+    io.emit('cpu-update', {
+      usage,
+      cores: os.cpus().length,
+      timestamp: Date.now()
+    });
+  }, 1000);
+
+  cpuMonitorInterval.unref();
+}
 
 // --- pasang route halaman dan api autentikasi express ---
 export function registerHttpRoutes(app) {
@@ -100,6 +149,8 @@ export function registerHttpRoutes(app) {
 // --- pasang event listener socket.io terproteksi cookie sesi ---
 export function registerSocketHandlers(io, coreModules) {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+
+  startRealtimeCpuBroadcaster(io);
 
   io.on('connection', (clientSocket) => {
     const sessionUser = getSessionUserFromCookieHeader(clientSocket.handshake.headers.cookie);
