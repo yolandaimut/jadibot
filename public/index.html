@@ -920,13 +920,14 @@
     }
 
     function updateConnectionUIState(statusState, profileObject) {
+      const normalizedStatus = String(statusState || 'disconnected').toLowerCase();
       const badge = document.getElementById('connectionStatusBadge');
       const icon = document.getElementById('connectionStatusIcon');
       const text = document.getElementById('connectionStatusText');
       const profileCard = document.getElementById('connectedProfileCard');
       const authBox = document.getElementById('authenticationBox');
 
-      if (statusState === 'connected') {
+      if (normalizedStatus === 'connected') {
         badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold shrink-0';
         icon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
         text.textContent = 'Connected';
@@ -942,7 +943,7 @@
             profileObject.avatarUrl ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(profileObject.name || 'Bot')}&background=10b981&color=fff`;
         }
-      } else if (statusState === 'connecting') {
+      } else if (normalizedStatus === 'connecting') {
         badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold shrink-0';
         icon.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
         text.textContent = 'Connecting...';
@@ -960,11 +961,13 @@
       const terminalBox = document.getElementById('terminalLogOutput');
       if (!terminalBox) return;
       const lineElement = document.createElement('div');
+      const normalizedLevel = String(logEntry.level || '').toLowerCase();
 
       let levelColorClass = 'text-slate-300';
-      if (logEntry.level === 'success') levelColorClass = 'text-emerald-400';
-      if (logEntry.level === 'warn') levelColorClass = 'text-amber-300';
-      if (logEntry.level === 'error') levelColorClass = 'text-rose-400';
+      if (normalizedLevel === 'success') levelColorClass = 'text-emerald-400';
+      if (normalizedLevel === 'warn') levelColorClass = 'text-amber-300';
+      if (normalizedLevel === 'error') levelColorClass = 'text-rose-400';
+      if (normalizedLevel === 'msg') levelColorClass = 'text-cyan-400';
 
       lineElement.className = `flex items-start gap-2 ${levelColorClass}`;
       lineElement.innerHTML = `<span class="text-slate-600 select-none shrink-0">[${logEntry.timestamp || '--:--:--'}]</span><span class="break-all">${escapeHtmlString(logEntry.message || '')}</span>`;
@@ -1055,7 +1058,7 @@
       const found = loadedPluginsCache.find((item) => item.fileName === fileName);
       if (!found) return;
       document.getElementById('pluginFileNameInput').value = found.fileName;
-      document.getElementById('pluginCodeEditorTextarea').value = found.code;
+      document.getElementById('pluginCodeEditorTextarea').value = found.codeContent ?? found.code ?? '';
       showTopToast(`Membuka ${found.fileName}`);
     }
 
@@ -1074,18 +1077,18 @@
 
     function saveAndApplyPlugin() {
       const fileName = document.getElementById('pluginFileNameInput').value.trim();
-      const code = document.getElementById('pluginCodeEditorTextarea').value;
+      const codeContent = document.getElementById('pluginCodeEditorTextarea').value;
 
       if (!fileName) {
         showTopToast('Nama file plugin wajib diisi', true);
         return;
       }
 
-      socketClient.emit('plugins:save', { fileName, code });
+      socketClient.emit('plugin:save', { fileName, codeContent });
     }
 
     function deletePluginFile(fileName) {
-      socketClient.emit('plugins:delete', { fileName });
+      socketClient.emit('plugin:delete', { fileName });
     }
 
     async function copyEditorCode() {
@@ -1154,8 +1157,8 @@
       }
     });
 
-    socketClient.on('session:auth-error', (payload) => {
-      showTopToast(payload?.message || 'Autentikasi Socket gagal', true);
+    socketClient.on('auth:expired', (payload) => {
+      showTopToast(payload?.errorMessage || 'Autentikasi Socket gagal', true);
       logoutGoogleAccount();
     });
 
@@ -1181,52 +1184,64 @@
       }
     });
 
-    socketClient.on('session:status', (payload) => {
+    socketClient.on('session:reset', (payload) => {
+      updateConnectionUIState('DISCONNECTED', null);
+      renderDatabaseStatistics(payload.database, payload.globalStats);
+      resetAuthenticationPanelsUI();
+    });
+
+    socketClient.on('connection:status', (payload) => {
       updateConnectionUIState(payload.status, payload.profile);
     });
 
-    socketClient.on('session:qr', (payload) => {
+    socketClient.on('qr:update', (payload) => {
       const qrImg = document.getElementById('qrCodeImageElement');
       const qrText = document.getElementById('qrCodeStatusText');
-      if (payload && payload.qrDataUrl) {
-        qrImg.src = payload.qrDataUrl;
+      const qrDataUrl = typeof payload === 'string' ? payload : payload?.qrDataUrl;
+      if (qrDataUrl) {
+        qrImg.src = qrDataUrl;
         qrImg.classList.remove('hidden');
         qrText.textContent = 'Scan QR Code ini menggunakan aplikasi WhatsApp Anda (Perangkat Tertaut).';
       }
     });
 
-    socketClient.on('session:pairing', (payload) => {
-      if (payload && payload.pairingCode) {
+    socketClient.on('pairing:code', (payload) => {
+      const pairingCode = typeof payload === 'string' ? payload : payload?.pairingCode;
+      if (pairingCode) {
         document.getElementById('pairingCodeDisplayWrapper').classList.remove('hidden');
-        document.getElementById('pairingCodeValue').textContent = payload.pairingCode;
+        document.getElementById('pairingCodeValue').textContent = pairingCode;
         showTopToast('Pairing code diterima!');
       }
     });
 
-    socketClient.on('database:update', (payload) => {
-      renderDatabaseStatistics(payload.database, payload.globalStats);
+    socketClient.on('pairing:error', (errorMessage) => {
+      showTopToast(errorMessage || 'Gagal menerbitkan kode pairing', true);
+    });
+
+    socketClient.on('stats:update', (payload) => {
+      renderDatabaseStatistics(payload.userStats || payload.database, payload.globalStats);
     });
 
     socketClient.on('terminal:log', (logEntry) => {
       appendTerminalLine(logEntry);
     });
 
-    socketClient.on('plugins:list', (pluginsArray) => {
+    socketClient.on('plugin:list', (pluginsArray) => {
       renderPluginsList(pluginsArray);
     });
 
-    socketClient.on('plugins:save-result', (result) => {
-      if (result.success) {
+    socketClient.on('plugin:save:result', (result) => {
+      if (result.isSuccess) {
         updateCodeInspectorReport(`Plugin "${result.fileName}" berhasil disimpan & dimuat ulang tanpa error.`, false);
         showTopToast(`Plugin ${result.fileName} diterapkan!`);
       } else {
-        updateCodeInspectorReport(result.error || 'Terjadi kesalahan sintaks pada plugin.', true);
+        updateCodeInspectorReport(result.errorMessage || 'Terjadi kesalahan sintaks pada plugin.', true);
         showTopToast('Gagal menerapkan plugin, cek inspector!', true);
       }
     });
 
-    socketClient.on('plugins:runtime-error', (payload) => {
-      updateCodeInspectorReport(`[Runtime Error - ${payload.fileName || 'Plugin'}]\n${payload.error}`, true);
+    socketClient.on('plugin:error', (payload) => {
+      updateCodeInspectorReport(`[Runtime Error - ${payload.fileName || 'Plugin'}]\n${payload.errorMessage || ''}`, true);
     });
 
     window.addEventListener('DOMContentLoaded', initializeGoogleOAuthPortal);
