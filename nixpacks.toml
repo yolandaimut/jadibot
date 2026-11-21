@@ -1,6 +1,6 @@
 # --- konfigurasi environment nixpacks untuk railway ---
 [phases.setup]
-nixPkgs = ["nodejs_20", "git"]
+nixPkgs = ["nodejs_20", "git", "ffmpeg"]
 
 [phases.install]
 cmds = ["npm install --no-audit --no-fund"]
