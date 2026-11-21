@@ -49,7 +49,7 @@ async function loadSystemCoreModules() {
 }
 
 // --- jalankan bootstrap surya core beserta inisialisasi multidb ---
-async function bootstrapSuryaCore() {
+async function bootstrap() {
   initPersistentDirectories();
   const coreModules = await loadSystemCoreModules();
 
@@ -68,3 +68,9 @@ async function bootstrapSuryaCore() {
     restoreExistingSessionsOnBoot(io, coreModules);
   });
 }
+
+// --- panggil bootstrap utama saat file dijalankan ---
+bootstrap().catch((bootError) => {
+  console.error('[SURYA CORE FATAL] Failed to run bootstrap:', bootError);
+  process.exit(1);
+});
