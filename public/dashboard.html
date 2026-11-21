@@ -388,7 +388,7 @@
       <span class="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0"></span>
       <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
       <h2 class="ml-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code truncate">
-        Real-Time Baileys CLI Terminal
+        RealTime CLI Terminal
       </h2>
     </div>
 
@@ -407,7 +407,7 @@
     </div>
   </div>
 
-  <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-3 pt-1.5 pb-2.5 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-tight">
+  <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-3 pt-0.5 pb-2 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-tight"></div>
   </div>
 </div>
 
@@ -532,7 +532,7 @@
       reconnectionAttempts: Infinity
     });
 
-    const MAX_CPU_POINTS = 99;
+    const MAX_CPU_POINTS = 25;
     let cpuChartInstance = null;
 
     function hexToRgba(hexColor, alpha) {
@@ -933,11 +933,16 @@
       }
     }
 
+    // --- tampilkan baris log baru secara rapat tanpa jeda kosong ---
     function appendTerminalLine(logEntry) {
       const terminalBox = document.getElementById('terminalLogOutput');
       if (!terminalBox) return;
+
+      const cleanMessage = String(logEntry?.message ?? '').replace(/^\s+|\s+$/g, '');
+      if (!cleanMessage) return;
+
       const lineElement = document.createElement('div');
-      const normalizedLevel = String(logEntry.level || '').toLowerCase();
+      const normalizedLevel = String(logEntry?.level || '').toLowerCase();
 
       let levelColorClass = 'text-slate-300';
       if (normalizedLevel === 'success') levelColorClass = 'text-emerald-400';
@@ -945,8 +950,8 @@
       if (normalizedLevel === 'error') levelColorClass = 'text-rose-400';
       if (normalizedLevel === 'msg') levelColorClass = 'text-cyan-400';
 
-      lineElement.className = `flex items-start gap-2 ${levelColorClass}`;
-      lineElement.innerHTML = `<span class="text-slate-600 select-none shrink-0">[${logEntry.timestamp || '--:--:--'}]</span><span class="break-all">${escapeHtmlString(logEntry.message || '')}</span>`;
+      lineElement.className = `flex items-start gap-2 m-0 p-0 ${levelColorClass}`;
+      lineElement.innerHTML = `<span class="text-slate-600 select-none shrink-0">[${logEntry?.timestamp || '--:--:--'}]</span><span class="break-all">${escapeHtmlString(cleanMessage)}</span>`;
 
       terminalBox.appendChild(lineElement);
       terminalBox.scrollTop = terminalBox.scrollHeight;
