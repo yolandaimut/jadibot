@@ -26,6 +26,9 @@ import {
   writeBotDatabaseAtomic
 } from './database.js';
 import { executeDynamicPlugins, getAvailablePluginsList } from './plugin-manager.js';
+import Extra from '../system/extra.js';
+
+const extraInstance = new Extra();
 
 export const activeBotSessions = new Map();
 export const userTerminalLogsCache = new Map();
@@ -358,6 +361,8 @@ export async function startWhatsAppSession(
           latestRecord.socketInstance.ev.removeAllListeners('connection.update');
           latestRecord.socketInstance.ev.removeAllListeners('creds.update');
           latestRecord.socketInstance.ev.removeAllListeners('messages.upsert');
+          latestRecord.socketInstance.ev.removeAllListeners('groups.upsert');
+          latestRecord.socketInstance.ev.removeAllListeners('groups.update');
           latestRecord.socketInstance.end(undefined);
         } catch {
           // --- abaikan error pemutusan socket timeout ---
@@ -395,6 +400,9 @@ export async function startWhatsAppSession(
       generateHighQualityLinkPreview: true,
       syncFullHistory: false
     });
+
+    // --- pasang method client.reply, client.sendReact, client.sendStickerFromUrl, dll ---
+    extraInstance.registerComponents(client);
 
     // --- intercept pengiriman pesan untuk menghitung statistik secara atomic ---
     const originalSendMessage = client.sendMessage.bind(client);
@@ -478,6 +486,10 @@ export async function startWhatsAppSession(
         const normalizedBotJid = jidNormalizedUser(client.user?.id || '');
         const cleanPhoneNumber = normalizedBotJid.split('@')[0];
         const whatsappName = client.user?.name || client.user?.verifiedName || CONFIG.botName;
+
+        if (client.user) {
+          client.user.jid = normalizedBotJid;
+        }
 
         if (coreModules.socket && typeof coreModules.socket.set === 'function') {
           coreModules.socket.set(normalizedBotJid, client);
@@ -591,6 +603,10 @@ export async function startWhatsAppSession(
           coreModules.store.saveMessage(messageItem, client.user?.id);
         }
 
+        if (typeof coreModules.database === 'function') {
+          coreModules.database(client, messageItem);
+        }
+
         // --- sinkronkan metadata grup agar m.isAdmin dan m.isBotAdmin akurat ---
         const remoteJid = messageItem.key.remoteJid;
         if (remoteJid?.endsWith('@g.us') && typeof coreModules.metadata === 'function') {
@@ -633,7 +649,7 @@ export async function startWhatsAppSession(
           await executeDynamicPlugins({
             googleUserId,
             m,
-            client: client,
+            client,
             botDatabase: currentDatabase,
             coreModules,
             io,
@@ -646,6 +662,8 @@ export async function startWhatsAppSession(
     // --- perbarui cache metadata saat bot masuk grup atau info grup berubah ---
     client.ev.on('groups.upsert', (newGroups) => {
       if (!Array.isArray(newGroups)) return;
+      global.db = global.db || {};
+      global.db.metadata = global.db.metadata || {};
       for (const group of newGroups) {
         if (!group?.id) continue;
         global.db.metadata[group.id] = {
@@ -659,6 +677,8 @@ export async function startWhatsAppSession(
 
     client.ev.on('groups.update', (updates) => {
       if (!Array.isArray(updates)) return;
+      global.db = global.db || {};
+      global.db.metadata = global.db.metadata || {};
       for (const update of updates) {
         if (!update?.id) continue;
         if (global.db.metadata[update.id]) {

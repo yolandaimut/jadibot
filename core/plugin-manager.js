@@ -103,7 +103,7 @@ export function initializeDefaultPlugin() {
   const defaultPluginPath = path.join(infoCategoryDir, 'core-commands.js');
   fs.mkdirSync(infoCategoryDir, { recursive: true });
 
-  const defaultPluginCode = `// --- plugin bawaan surya core berformat objek ---
+  const defaultPluginCode = `// --- plugin default ---
 export default {
   cmd: ['ping', 'status'],
   type: 'info',
@@ -291,7 +291,7 @@ export function deletePluginFile(googleUserId, rawFileName, emitLog) {
   return true;
 }
 
-// --- dispatcher eksekusi plugin dengan pencocokan cmd dan alias ---
+// --- dispatcher eksekusi plugin dengan pencocokan cmd, alias, limit, dan restrict ---
 export async function executeDynamicPlugins({
   googleUserId,
   m,
@@ -302,18 +302,42 @@ export async function executeDynamicPlugins({
   emitLog
 }) {
   const relativePluginFiles = scanPluginFilesRecursive(PLUGINS_ROOT_DIR);
-  const incomingCommand = String(m.command || m.cmd || '').toLowerCase();
+  const incomingCommand = String(m.command || '').toLowerCase();
+
+  const users = global.db?.users?.[m.sender] || null;
+  const groups = m.isGc ? global.db?.groups?.[m.chat] || null : null;
+  const setting = m.setting || {};
+  const { date, time } =
+    typeof coreModules.functions?.getCurrentTimeInZone === 'function'
+      ? coreModules.functions.getCurrentTimeInZone('Asia/Jakarta')
+      : { date: '', time: '' };
+
+  const senderName = users?.name || m.pushname || 'User';
+  const packname = (setting.packname || CONFIG.packname)
+    .replaceAll('+date', date)
+    .replaceAll('+time', time)
+    .replaceAll('+name', senderName);
+  const author = (setting.author || CONFIG.author)
+    .replaceAll('+date', date)
+    .replaceAll('+time', time)
+    .replaceAll('+name', senderName);
 
   const executionContext = {
-    cfg: CONFIG,
+    cfg: coreModules.mapping?.cfg || CONFIG,
     func: coreModules.functions,
     extra: coreModules.extra,
     utils: coreModules.utils,
     store: coreModules.store,
     socket: coreModules.socket,
     multidb: coreModules.multidb,
-    packname: CONFIG.packname,
-    author: CONFIG.author,
+    packname,
+    author,
+    users,
+    groups,
+    setting,
+    date,
+    time,
+    quoted: m.quoted || m,
     botDatabase,
     googleUserId,
     isFromMe: m.fromMe,
@@ -338,9 +362,45 @@ export async function executeDynamicPlugins({
           ? pluginObj.alias.map((item) => String(item).toLowerCase())
           : [];
 
-        if (commandsArray.includes(incomingCommand) || aliasArray.includes(incomingCommand)) {
-          await pluginObj.run(m, client, executionContext);
+        if (!commandsArray.includes(incomingCommand) && !aliasArray.includes(incomingCommand)) {
+          continue;
         }
+
+        // --- filter kata terlarang jika plugin mengaktifkan restrict ---
+        if (
+          pluginObj.restrict &&
+          m.text &&
+          Array.isArray(setting.toxic) &&
+          setting.toxic.length > 0 &&
+          !m.isOwner &&
+          !m.isPrem &&
+          !m.fromMe
+        ) {
+          const toxicPattern = new RegExp(
+            `\\b(${setting.toxic.map((w) => coreModules.functions.escapeRegExp(w)).join('|')})\\b`,
+            'i'
+          );
+          if (toxicPattern.test(m.text)) {
+            await m.reply('✗ Teks mengandung kata yang dilarang.');
+            continue;
+          }
+        }
+
+        // --- validasi dan pengurangan limit untuk user non-premium ---
+        if (pluginObj.limit && users && !m.isOwner && !m.isDevs && !m.isPrem && !m.isVIP && !m.fromMe) {
+          const limitCost = typeof pluginObj.limit === 'number' ? pluginObj.limit : 1;
+          if ((users.limit || 0) < limitCost) {
+            await m.reply('✗ Limit kamu habis! Tunggu reset harian atau upgrade premium.');
+            continue;
+          }
+          users.limit -= limitCost;
+        }
+
+        if (typeof coreModules.functions?.addcommand === 'function') {
+          coreModules.functions.addcommand(incomingCommand);
+        }
+
+        await pluginObj.run(m, client, executionContext);
       }
     } catch (runtimeError) {
       const fullPluginPath = path.join(PLUGINS_ROOT_DIR, relativeFilePath);
