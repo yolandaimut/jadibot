@@ -40,6 +40,7 @@ import {
   syncBotSettingsToGlobalDb,
   syncSessionStateToSocket
 } from './session-manager.js';
+import lidModule from '../system/lid.js';
 
 let systemMetricsInterval = null;
 let cachedVolumeSizeBytes = 0;
@@ -430,6 +431,60 @@ export function registerSocketHandlers(io, coreModules) {
         `User [${targetJid.split('@')[0]}] diperbarui (Limit: ${existingUser.limit}, Premium: ${existingUser.premium ? 'Ya' : 'Tidak'}, Banned: ${existingUser.banned ? 'Ya' : 'Tidak'}).`
       );
       io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+    });
+
+    // --- hapus data user dari global.db, lid.json, dan daftar uniqueUsers ---
+    clientSocket.on('manage:user:delete', async (payload) => {
+      const targetJid = String(payload?.jid || '').trim();
+      if (!/(@s\.whatsapp\.net|@lid)$/i.test(targetJid)) return;
+
+      const mappedPairJid = lidModule
+        ? (targetJid.endsWith('@lid') ? lidModule.get(targetJid) : lidModule.getLid(targetJid))
+        : null;
+
+      const candidateJids = new Set([targetJid, mappedPairJid].filter(Boolean));
+      const candidateNumbers = new Set(
+        [...candidateJids]
+          .map((id) => String(id).split('@')[0].split(':')[0].replace(/\D/g, ''))
+          .filter(Boolean)
+      );
+
+      if (global.db?.users) {
+        for (const jid of candidateJids) {
+          if (global.db.users[jid]) {
+            delete global.db.users[jid];
+          }
+        }
+      }
+
+      if (lidModule && typeof lidModule.delete === 'function') {
+        for (const id of candidateJids) {
+          lidModule.delete(id);
+        }
+      }
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      if (Array.isArray(currentDatabase.uniqueUsers)) {
+        currentDatabase.uniqueUsers = currentDatabase.uniqueUsers.filter((num) => {
+          const cleanEntry = String(num).split('@')[0].split(':')[0].replace(/\D/g, '');
+          return !candidateNumbers.has(cleanEntry);
+        });
+        writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+      }
+
+      if (coreModules.multidb && typeof coreModules.multidb.save === 'function') {
+        coreModules.multidb.save();
+      }
+
+      const labelNumber = [...candidateNumbers][0] || targetJid.split('@')[0];
+      emitLog(authenticatedGoogleId, 'WARN', `User [${labelNumber}] telah dihapus permanen dari database.`);
+
+      io.to(`user_${authenticatedGoogleId}`).emit('stats:update', {
+        userStats: currentDatabase,
+        globalStats: getGlobalPlatformStatistics(activeBotSessions)
+      });
+      io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+      clientSocket.emit('manage:user:deleted', { jid: targetJid, number: labelNumber });
     });
 
     clientSocket.on('manage:group:update', (payload) => {
