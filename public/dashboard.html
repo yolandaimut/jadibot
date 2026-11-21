@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — JadiBot Core</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800;1,900&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    :root[data-theme="emerald"] {
+      --accent-main: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --accent-border: rgba(16, 185, 129, 0.35);
+      --gradient-start: #34d399;
+      --gradient-mid: #10b981;
+      --gradient-end: #06b6d4;
+    }
+
+    :root[data-theme="cyan"] {
+      --accent-main: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.14);
+      --accent-border: rgba(6, 182, 212, 0.35);
+      --gradient-start: #38bdf8;
+      --gradient-mid: #06b6d4;
+      --gradient-end: #3b82f6;
+    }
+
+    :root[data-theme="violet"] {
+      --accent-main: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --accent-border: rgba(139, 92, 246, 0.35);
+      --gradient-start: #c084fc;
+      --gradient-mid: #8b5cf6;
+      --gradient-end: #ec4899;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      background-color: #060911;
+      color: #f1f5f9;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .brand-display-style {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 0.02em;
+      padding-right: 0.25rem;
+      font-size: 0.9rem;
+      line-height: 1.2rem;
+    }
+
+    @media (min-width: 640px) {
+      .brand-display-style {
+        font-size: 1.2rem;
+        line-height: 1.5rem;
+      }
+    }
+
+    @keyframes futuristicFlow {
+      0% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+      50% { background-position: 100% 50%; filter: drop-shadow(0 0 16px var(--accent-border)); }
+      100% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+    }
+
+    .animated-brand-title {
+      background: linear-gradient(270deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: futuristicFlow 6s ease infinite;
+    }
+
+    .accent-bg { background-color: var(--accent-main); }
+    .accent-bg:hover { background-color: var(--accent-hover); }
+    .accent-text { color: var(--accent-main); }
+    .accent-border { border-color: var(--accent-border); }
+    .accent-soft-bg { background-color: var(--accent-soft); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-slate-700 selection:text-white">
+
+  <header class="sticky top-0 z-40 flex items-center justify-between gap-1 w-full overflow-visible px-3 py-2.5 sm:px-6 sm:py-3 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
+    <div class="flex items-center gap-2 min-w-0 flex-shrink-0">
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 border accent-border flex items-center justify-center flex-shrink-0 relative group/cyber shadow-lg">
+        <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-30 transition-opacity duration-300 group-hover/cyber:opacity-60"></div>
+        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent-main)] relative z-10 transition-transform duration-500 group-hover/cyber:rotate-90" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L20.7 7V17L12 22L3.3 17V7L12 2Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" fill="currentColor" fill-opacity="0.08" />
+          <path d="M12 6L17.2 9V15L12 18L6.8 15V9L12 6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" opacity="0.4" />
+          <circle cx="12" cy="12" r="2.5" fill="#ffffff" class="filter drop-shadow-[0_0_5px_var(--accent-main)]" />
+          <path d="M12 2V6M12 18V22M3.3 7L6.8 9M20.7 17L17.2 15M3.3 17L6.8 15M20.7 7L17.2 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.7" />
+        </svg>
+      </div>
+
+      <h1 class="brand-display-style animated-brand-title select-none whitespace-nowrap">
+        JadiBot Core
+      </h1>
+    </div>
+
+    <div class="flex bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 items-center gap-0.5 flex-shrink-0">
+      <button id="navTabDashboard" onclick="switchWorkspaceTab('dashboard')" class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap">
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span>Dash</span>
+      </button>
+      <button id="navTabDeveloper" onclick="switchWorkspaceTab('developer')" class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap">
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+        <span>IDE</span>
+      </button>
+    </div>
+
+    <div class="flex items-center gap-1.5 flex-shrink-0">
+      <div class="relative flex items-center">
+        <button onclick="toggleUserDropdownMenu(event)" class="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-all active:scale-95">
+          <img id="navGoogleAvatar" src="https://ui-avatars.com/api/?name=U&background=10b981&color=fff" alt="U" class="h-7 w-7 rounded-full object-cover border accent-border" />
+          <svg class="w-3.5 h-3.5 text-slate-400 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+
+        <div id="userDropdownMenuPopup" class="hidden absolute right-0 top-10 w-44 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50 text-xs divide-y divide-slate-800/80">
+          <div class="px-3 py-2">
+            <p class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Akun</p>
+            <p id="navGoogleGivenName" class="font-bold text-white truncate mt-0.5">Memuat...</p>
+          </div>
+          <div class="py-1">
+            <button onclick="cycleAccentTheme(); toggleUserDropdownMenu();" class="w-full text-left px-3 py-2 flex items-center justify-between text-slate-300 hover:bg-slate-800 transition-colors">
+              <span class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full accent-bg shrink-0"></span>
+                <span>Ubah Tema</span>
+              </span>
+              <span id="currentThemeLabel" class="text-[10px] font-mono-code text-slate-400">Emerald</span>
+            </button>
+          </div>
+          <div class="py-1">
+            <button onclick="logoutGoogleAccount()" class="w-full text-left px-3 py-2 flex items-center gap-2 text-rose-400 hover:bg-rose-500/10 transition-colors font-semibold">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div id="topToastBanner" class="fixed top-14 sm:top-16 left-0 right-0 z-30 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2">
+    <div class="pointer-events-auto mt-2 px-4 py-2 rounded-xl bg-slate-900/95 border border-slate-700 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate">
+      <span id="topToastDot" class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
+      <span id="topToastText" class="truncate">Notifikasi Sistem</span>
+    </div>
+  </div>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <section id="skeletonLoaderSection" class="space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-20 bg-slate-800 rounded"></div>
+        </div>
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-20 bg-slate-800 rounded"></div>
+        </div>
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-20 bg-slate-800 rounded"></div>
+        </div>
+        <div class="h-28 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-5 animate-pulse flex flex-col justify-between">
+          <div class="h-3 w-28 bg-slate-800 rounded"></div>
+          <div class="h-8 w-24 bg-slate-800 rounded"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 h-96 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-6 animate-pulse space-y-4">
+          <div class="h-5 w-40 bg-slate-800 rounded"></div>
+          <div class="h-64 w-full bg-slate-800/70 rounded-xl"></div>
+        </div>
+        <div class="lg:col-span-7 h-96 rounded-2xl bg-slate-900/80 border border-slate-800/80 p-6 animate-pulse space-y-4">
+          <div class="h-5 w-48 bg-slate-800 rounded"></div>
+          <div class="h-72 w-full bg-slate-950 rounded-xl"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="liveApplicationContainer" class="hidden space-y-6">
+
+      <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800/90 text-xs">
+        <div class="flex items-center gap-2 font-mono-code text-slate-300 truncate">
+          <span class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
+          <span id="volumeStoragePathText" class="truncate">Volume: /data/sessions/</span>
+        </div>
+        <div class="flex items-center gap-4 text-slate-400 font-mono-code text-[11px]">
+          <span>Bot Aktif Global: <strong id="globalActiveBotsCount" class="text-white">0</strong></span>
+          <span>Total Trafik Global: <strong id="globalTotalTrafficCount" class="accent-text">0</strong></span>
+        </div>
+      </div>
+
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Pesan Diterima</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            </span>
+          </div>
+          <div id="statMessagesReceived" class="mt-3 text-3xl font-extrabold text-white font-mono-code">0</div>
+          <p class="mt-1 text-xs text-slate-500">Sinkronisasi real-time database.json</p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Pesan Terkirim</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+            </span>
+          </div>
+          <div id="statMessagesSent" class="mt-3 text-3xl font-extrabold text-white font-mono-code">0</div>
+          <p class="mt-1 text-xs text-slate-500">Respon otomatis & keluar</p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total User Aktif</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </span>
+          </div>
+          <div id="statUniqueUsers" class="mt-3 text-3xl font-extrabold text-white font-mono-code">0</div>
+          <p class="mt-1 text-xs text-slate-500">Nomor unik terdata</p>
+        </div>
+
+        <div class="rounded-2xl bg-slate-900/70 border border-slate-800/90 p-5 hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Bot Uptime</span>
+            <span class="p-2 rounded-lg accent-soft-bg accent-text">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </span>
+          </div>
+          <div id="statBotUptime" class="mt-3 text-2xl font-extrabold text-white font-mono-code">00:00:00</div>
+          <p class="mt-1 text-xs text-slate-500">Durasi aktif sesi berjalan</p>
+        </div>
+      </section>
+
+      <section id="workspaceDashboardView" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 space-y-6">
+
+          <div class="rounded-2xl bg-slate-900/75 border border-slate-800 p-5 space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+              <div class="min-w-0">
+                <h2 class="text-sm font-bold text-white">Status Koneksi & Profil</h2>
+                <p id="sessionIdentifierDisplay" class="text-[11px] text-slate-400 font-mono-code mt-0.5 truncate">User ID: -</p>
+              </div>
+
+              <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0">
+                <span id="connectionStatusIcon" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+                <span id="connectionStatusText">Disconnected</span>
+              </div>
+            </div>
+
+            <div id="connectedProfileCard" class="hidden rounded-xl bg-slate-950/90 border border-slate-800 p-4">
+              <div class="flex items-center gap-4">
+                <img id="botProfileAvatar" src="" alt="Avatar Bot" class="w-14 h-14 rounded-full object-cover border-2 accent-border shrink-0" />
+                <div class="flex-1 min-w-0">
+                  <h3 id="botProfileName" class="text-base font-bold text-white truncate">-</h3>
+                  <p id="botProfileNumber" class="text-xs font-mono-code accent-text mt-0.5">-</p>
+                  <span class="inline-block mt-1.5 text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Railway Volume Auth Active
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div id="authenticationBox" class="space-y-4">
+              <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                <button id="authTabQrBtn" onclick="switchAuthMode('qr')" class="py-2 rounded-lg text-xs font-semibold transition-all accent-bg text-slate-950">
+                  QR Code Box
+                </button>
+                <button id="authTabPairingBtn" onclick="switchAuthMode('pairing')" class="py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                  Phone Pairing
+                </button>
+              </div>
+
+              <div id="qrCodeAuthPanel" class="flex flex-col items-center justify-center p-5 rounded-xl bg-slate-950/80 border border-slate-800/90 min-h-[250px] text-center">
+                <img id="qrCodeImageElement" src="" alt="QR Code" class="hidden w-52 h-52 rounded-xl border-4 border-white shadow-lg mb-3" />
+                <p id="qrCodeStatusText" class="text-xs text-slate-400 max-w-xs">
+                  Klik tombol di bawah untuk menginisialisasi sesi dan menampilkan QR Code terbaru.
+                </p>
+                <button onclick="initiateConnection('qr')" class="mt-4 px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95">
+                  Generate / Refresh QR Code
+                </button>
+              </div>
+
+              <div id="pairingCodeAuthPanel" class="hidden p-5 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nomor WhatsApp Internasional</label>
+                  <input id="pairingPhoneInput" type="text" placeholder="Contoh: 6281234567890" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white font-mono-code focus:outline-none focus:border-emerald-500" />
+                </div>
+
+                <button onclick="initiateConnection('pairing')" class="w-full py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95">
+                  Request 8-Digit Pairing Code
+                </button>
+
+                <div id="pairingCodeDisplayWrapper" class="hidden pt-2 text-center">
+                  <p class="text-xs text-slate-400 mb-1.5">Masukkan kode berikut di perangkat WhatsApp Anda:</p>
+                  <div id="pairingCodeValue" class="py-3 px-4 rounded-xl bg-slate-900 border accent-border text-2xl font-extrabold tracking-widest font-mono-code accent-text select-all">
+                    ----
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800/80 space-y-3">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-medium">Auto Read Pesan Masuk</span>
+                <button id="toggleAutoReadBtn" onclick="toggleBotSetting('autoRead')" class="px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-300 transition-all">
+                  Aktif
+                </button>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-medium">Public Bot Mode</span>
+                <button id="togglePublicModeBtn" onclick="toggleBotSetting('publicMode')" class="px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-300 transition-all">
+                  Aktif
+                </button>
+              </div>
+            </div>
+
+            <div class="pt-2 flex items-center gap-3">
+              <button onclick="openLogoutConfirmationModal()" class="w-full py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all">
+                Hapus Sesi / Logout Bot
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="lg:col-span-7 flex flex-col">
+          <div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                <h2 class="ml-2 text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code">
+                  Real-Time Baileys CLI Terminal
+                </h2>
+              </div>
+
+              <button onclick="clearTerminalLogs()" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-all">
+                Clear Logs
+              </button>
+            </div>
+
+            <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 p-4 font-mono-code text-xs space-y-1.5 leading-relaxed">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="workspaceDeveloperView" class="hidden grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-4 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col justify-between space-y-4">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 class="text-sm font-bold text-white">Daftar Plugins Aktif</h2>
+              <button onclick="prepareNewPluginTemplate()" class="px-2.5 py-1 rounded-lg accent-soft-bg accent-text text-xs font-semibold">
+                + Plugin Baru
+              </button>
+            </div>
+
+            <div id="pluginsFileListContainer" class="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 space-y-1">
+            <p class="font-semibold text-slate-200">Properti Context Tersedia:</p>
+            <p class="font-mono-code text-[11px] text-slate-400">googleUserId, socketInstance, rawMessage, messageText, senderJid, participantJid, isFromMe, botDatabase, replyMessage(text)</p>
+          </div>
+        </div>
+
+        <div class="lg:col-span-8 rounded-2xl bg-slate-900/75 border border-slate-800 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div class="flex-1">
+              <label class="block text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Nama File Plugin (.js)</label>
+              <input id="pluginFileNameInput" type="text" placeholder="contoh: auto-reply.js" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white font-mono-code focus:outline-none focus:border-slate-600" />
+            </div>
+
+            <button onclick="saveAndApplyPlugin()" class="sm:mt-5 px-5 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0">
+              Simpan & Terapkan
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold truncate">
+                ESM Plugin Source Code Editor
+              </label>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button type="button" onclick="copyEditorCode()" title="Salin Kode (Copy)" class="p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all duration-150 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+
+                <button type="button" onclick="pasteEditorCode()" title="Tempel Kode (Paste)" class="p-2 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-emerald-400 transition-all duration-150 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </button>
+
+                <button type="button" onclick="clearEditorCode()" title="Bersihkan Editor (Clear)" class="p-2 rounded-lg bg-slate-950 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-300 hover:text-rose-400 transition-all duration-150 active:scale-95">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <textarea id="pluginCodeEditorTextarea" rows="13" spellcheck="false" class="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 focus:border-slate-700 text-xs text-emerald-300 font-mono-code leading-relaxed focus:outline-none overflow-x-auto whitespace-pre"></textarea>
+          </div>
+
+          <div id="developerErrorReportBox" class="rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span id="inspectorIndicatorDot" class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-200 truncate">
+                  Real-Time Syntax & Runtime Inspector
+                </span>
+              </div>
+
+              <span id="inspectorStatusBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold font-mono-code shrink-0">
+                Status: Aman / Ready
+              </span>
+            </div>
+
+            <div id="inspectorTerminalViewport" class="rounded-lg bg-black/80 border border-emerald-500/20 p-3 overflow-x-auto">
+              <pre id="inspectorErrorDetailOutput" class="text-[11px] sm:text-xs font-mono-code text-emerald-300/90 leading-relaxed whitespace-pre-wrap break-words">Belum ada error sintaks maupun runtime yang terdeteksi.</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <div id="logoutConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 space-y-4 shadow-2xl">
+      <h3 class="text-base font-bold text-white">Konfirmasi Hapus Sesi Bot</h3>
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Tindakan ini akan memutus koneksi WhatsApp dan menghapus folder sesi kredensial di volume milik akun Anda secara permanen.
+      </p>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button onclick="closeLogoutConfirmationModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">
+          Batal
+        </button>
+        <button onclick="confirmSessionLogout()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white">
+          Ya, Hapus Permanen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- state utama dashboard dan koneksi socket.io berbasis cookie ---
+    const availableThemes = ['emerald', 'cyan', 'violet'];
+    let currentThemeIndex = 0;
+    let botStartTimeMs = Date.now();
+    let loadedPluginsCache = [];
+    let toastTimeoutTimer = null;
+
+    const socketClient = io({
+      withCredentials: true,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity
+    });
+
+    // --- fungsi tampilkan toast notifikasi di bawah header ---
+    function showTopToast(messageText, isError = false) {
+      const bannerElement = document.getElementById('topToastBanner');
+      const dotElement = document.getElementById('topToastDot');
+      const textElement = document.getElementById('topToastText');
+
+      if (!bannerElement || !dotElement || !textElement) return;
+
+      textElement.textContent = messageText;
+      dotElement.className = isError
+        ? 'w-2 h-2 rounded-full bg-rose-500 shrink-0'
+        : 'w-2 h-2 rounded-full accent-bg shrink-0';
+
+      bannerElement.classList.remove('opacity-0', '-translate-y-2');
+      bannerElement.classList.add('opacity-100', 'translate-y-0');
+
+      if (toastTimeoutTimer) clearTimeout(toastTimeoutTimer);
+      toastTimeoutTimer = setTimeout(() => {
+        bannerElement.classList.remove('opacity-100', 'translate-y-0');
+        bannerElement.classList.add('opacity-0', '-translate-y-2');
+      }, 3200);
+    }
+
+    // --- fungsi pengubah tema warna aksen ---
+    function cycleAccentTheme() {
+      currentThemeIndex = (currentThemeIndex + 1) % availableThemes.length;
+      const selectedTheme = availableThemes[currentThemeIndex];
+      document.documentElement.setAttribute('data-theme', selectedTheme);
+
+      const formattedLabel = selectedTheme.charAt(0).toUpperCase() + selectedTheme.slice(1);
+      const labelEl = document.getElementById('currentThemeLabel');
+      if (labelEl) labelEl.textContent = formattedLabel;
+      localStorage.setItem('jadibot_theme_pref', selectedTheme);
+      showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
+    }
+
+    // --- muat preferensi tema tersimpan saat halaman dibuka ---
+    (function initializeSavedTheme() {
+      const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
+      const foundIndex = availableThemes.indexOf(savedTheme);
+      currentThemeIndex = foundIndex >= 0 ? foundIndex : 0;
+      const themeName = availableThemes[currentThemeIndex];
+      document.documentElement.setAttribute('data-theme', themeName);
+      const labelEl = document.getElementById('currentThemeLabel');
+      if (labelEl) {
+        labelEl.textContent = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+      }
+    })();
+
+    // --- kontrol dropdown menu profil akun ---
+    function toggleUserDropdownMenu(event) {
+      if (event) event.stopPropagation();
+      const popupMenu = document.getElementById('userDropdownMenuPopup');
+      if (popupMenu) {
+        popupMenu.classList.toggle('hidden');
+      }
+    }
+
+    window.addEventListener('click', () => {
+      const popupMenu = document.getElementById('userDropdownMenuPopup');
+      if (popupMenu && !popupMenu.classList.contains('hidden')) {
+        popupMenu.classList.add('hidden');
+      }
+    });
+
+    // --- logout akun google dengan menghapus cookie sesi di server ---
+    async function logoutGoogleAccount() {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+      } catch {
+        // --- tetap lanjutkan pengalihan ke halaman login ---
+      }
+
+      if (socketClient.connected) {
+        socketClient.disconnect();
+      }
+      window.location.replace('/login');
+    }
+
+    // --- perpindahan tab antara dashboard dan developer ide ---
+    function switchWorkspaceTab(targetTab) {
+      const dashboardView = document.getElementById('workspaceDashboardView');
+      const developerView = document.getElementById('workspaceDeveloperView');
+      const tabDashboardBtn = document.getElementById('navTabDashboard');
+      const tabDeveloperBtn = document.getElementById('navTabDeveloper');
+
+      const activeTabClasses = 'flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap';
+      const inactiveTabClasses = 'flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-200 whitespace-nowrap';
+
+      if (targetTab === 'developer') {
+        dashboardView.classList.add('hidden');
+        developerView.classList.remove('hidden');
+        developerView.classList.add('grid');
+
+        tabDeveloperBtn.className = activeTabClasses;
+        tabDashboardBtn.className = inactiveTabClasses;
+      } else {
+        developerView.classList.add('hidden');
+        developerView.classList.remove('grid');
+        dashboardView.classList.remove('hidden');
+
+        tabDashboardBtn.className = activeTabClasses;
+        tabDeveloperBtn.className = inactiveTabClasses;
+      }
+    }
+
+    // --- perpindahan mode autentikasi qr dan pairing ---
+    function switchAuthMode(mode) {
+      const qrPanel = document.getElementById('qrCodeAuthPanel');
+      const pairingPanel = document.getElementById('pairingCodeAuthPanel');
+      const qrBtn = document.getElementById('authTabQrBtn');
+      const pairingBtn = document.getElementById('authTabPairingBtn');
+
+      if (mode === 'pairing') {
+        qrPanel.classList.add('hidden');
+        pairingPanel.classList.remove('hidden');
+        pairingBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all accent-bg text-slate-950';
+        qrBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+      } else {
+        pairingPanel.classList.add('hidden');
+        qrPanel.classList.remove('hidden');
+        qrBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all accent-bg text-slate-950';
+        pairingBtn.className = 'py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white';
+      }
+    }
+
+    // --- animasi angka statistik ---
+    function animateMetricCounter(elementId, newValue) {
+      const targetElement = document.getElementById(elementId);
+      if (!targetElement) return;
+      const currentValue = parseInt(targetElement.textContent.replace(/[^0-9]/g, ''), 10) || 0;
+      const targetNumber = parseInt(newValue, 10) || 0;
+
+      if (currentValue === targetNumber) {
+        targetElement.textContent = targetNumber.toLocaleString('id-ID');
+        return;
+      }
+
+      const stepCount = 12;
+      const incrementValue = (targetNumber - currentValue) / stepCount;
+      let currentStep = 0;
+
+      const counterInterval = setInterval(() => {
+        currentStep += 1;
+        if (currentStep >= stepCount) {
+          targetElement.textContent = targetNumber.toLocaleString('id-ID');
+          clearInterval(counterInterval);
+        } else {
+          const intermediate = Math.round(currentValue + incrementValue * currentStep);
+          targetElement.textContent = intermediate.toLocaleString('id-ID');
+        }
+      }, 25);
+    }
+
+    // --- render statistik user dan global ---
+    function renderDatabaseStatistics(databaseObject, globalStatsObject) {
+      if (databaseObject) {
+        animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
+        animateMetricCounter('statMessagesSent', databaseObject.totalMessagesSent || 0);
+        animateMetricCounter('statUniqueUsers', Array.isArray(databaseObject.uniqueUsers) ? databaseObject.uniqueUsers.length : 0);
+
+        if (databaseObject.startTime) {
+          botStartTimeMs = databaseObject.startTime;
+        }
+
+        const autoReadBtn = document.getElementById('toggleAutoReadBtn');
+        const publicModeBtn = document.getElementById('togglePublicModeBtn');
+
+        const isAutoRead = databaseObject.settings?.autoRead ?? true;
+        const isPublicMode = databaseObject.settings?.publicMode ?? true;
+
+        autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
+        autoReadBtn.className = isAutoRead
+          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+
+        publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
+        publicModeBtn.className = isPublicMode
+          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+      }
+
+      if (globalStatsObject) {
+        document.getElementById('globalActiveBotsCount').textContent = globalStatsObject.totalActiveBots || 0;
+        const combinedTraffic = (globalStatsObject.globalMessagesReceived || 0) + (globalStatsObject.globalMessagesSent || 0);
+        document.getElementById('globalTotalTrafficCount').textContent = combinedTraffic.toLocaleString('id-ID');
+      }
+    }
+
+    // --- pewaktu live uptime bot ---
+    setInterval(() => {
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - botStartTimeMs) / 1000));
+      const hours = String(Math.floor(elapsedSeconds / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, '0');
+      const seconds = String(elapsedSeconds % 60).padStart(2, '0');
+      const uptimeEl = document.getElementById('statBotUptime');
+      if (uptimeEl) uptimeEl.textContent = `${hours}:${minutes}:${seconds}`;
+    }, 1000);
+
+    // --- reset tampilan kotak qr dan pairing ---
+    function resetAuthenticationPanelsUI() {
+      const qrImg = document.getElementById('qrCodeImageElement');
+      const qrStatusText = document.getElementById('qrCodeStatusText');
+      const pairingWrapper = document.getElementById('pairingCodeDisplayWrapper');
+      const pairingValue = document.getElementById('pairingCodeValue');
+
+      if (qrImg) {
+        qrImg.src = '';
+        qrImg.classList.add('hidden');
+      }
+      if (qrStatusText) {
+        qrStatusText.textContent = 'Klik tombol di bawah untuk menginisialisasi sesi dan menampilkan QR Code terbaru.';
+      }
+      if (pairingWrapper) {
+        pairingWrapper.classList.add('hidden');
+      }
+      if (pairingValue) {
+        pairingValue.textContent = '----';
+      }
+    }
+
+    // --- perbarui tampilan status koneksi dan profil bot ---
+    function updateConnectionUIState(statusState, profileObject) {
+      const normalizedStatus = String(statusState || 'disconnected').toLowerCase();
+      const badge = document.getElementById('connectionStatusBadge');
+      const icon = document.getElementById('connectionStatusIcon');
+      const text = document.getElementById('connectionStatusText');
+      const profileCard = document.getElementById('connectedProfileCard');
+      const authBox = document.getElementById('authenticationBox');
+
+      if (normalizedStatus === 'connected') {
+        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold shrink-0';
+        icon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        text.textContent = 'Connected';
+
+        profileCard.classList.remove('hidden');
+        authBox.classList.add('hidden');
+        resetAuthenticationPanelsUI();
+
+        if (profileObject) {
+          document.getElementById('botProfileName').textContent = profileObject.name || 'WhatsApp Bot';
+          document.getElementById('botProfileNumber').textContent = `+${profileObject.number || '-'}`;
+          document.getElementById('botProfileAvatar').src =
+            profileObject.avatarUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(profileObject.name || 'Bot')}&background=10b981&color=fff`;
+        }
+      } else if (normalizedStatus === 'connecting') {
+        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold shrink-0';
+        icon.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
+        text.textContent = 'Connecting...';
+      } else {
+        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0';
+        icon.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
+        text.textContent = 'Disconnected';
+
+        profileCard.classList.add('hidden');
+        authBox.classList.remove('hidden');
+      }
+    }
+
+    // --- tampilkan baris log baru di terminal ---
+    function appendTerminalLine(logEntry) {
+      const terminalBox = document.getElementById('terminalLogOutput');
+      if (!terminalBox) return;
+      const lineElement = document.createElement('div');
+      const normalizedLevel = String(logEntry.level || '').toLowerCase();
+
+      let levelColorClass = 'text-slate-300';
+      if (normalizedLevel === 'success') levelColorClass = 'text-emerald-400';
+      if (normalizedLevel === 'warn') levelColorClass = 'text-amber-300';
+      if (normalizedLevel === 'error') levelColorClass = 'text-rose-400';
+      if (normalizedLevel === 'msg') levelColorClass = 'text-cyan-400';
+
+      lineElement.className = `flex items-start gap-2 ${levelColorClass}`;
+      lineElement.innerHTML = `<span class="text-slate-600 select-none shrink-0">[${logEntry.timestamp || '--:--:--'}]</span><span class="break-all">${escapeHtmlString(logEntry.message || '')}</span>`;
+
+      terminalBox.appendChild(lineElement);
+      terminalBox.scrollTop = terminalBox.scrollHeight;
+    }
+
+    function escapeHtmlString(rawString) {
+      return String(rawString)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function clearTerminalLogs() {
+      document.getElementById('terminalLogOutput').innerHTML = '';
+      showTopToast('Tampilan terminal dibersihkan');
+    }
+
+    // --- mulai koneksi qr atau pairing ---
+    function initiateConnection(method) {
+      if (method === 'pairing') {
+        const phoneInput = document.getElementById('pairingPhoneInput').value.trim();
+        if (!phoneInput) {
+          showTopToast('Masukkan nomor WhatsApp terlebih dahulu', true);
+          return;
+        }
+        socketClient.emit('session:connect', { method: 'pairing', phoneNumber: phoneInput });
+        showTopToast('Meminta 8-digit pairing code...');
+      } else {
+        socketClient.emit('session:connect', { method: 'qr' });
+        document.getElementById('qrCodeStatusText').textContent = 'Menghubungkan ke server WhatsApp, mohon tunggu QR Code...';
+        showTopToast('Menginisialisasi sesi QR Code...');
+      }
+    }
+
+    function toggleBotSetting(settingKey) {
+      socketClient.emit('settings:toggle', { key: settingKey });
+    }
+
+    function openLogoutConfirmationModal() {
+      const modal = document.getElementById('logoutConfirmModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeLogoutConfirmationModal() {
+      const modal = document.getElementById('logoutConfirmModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function confirmSessionLogout() {
+      closeLogoutConfirmationModal();
+      socketClient.emit('session:logout');
+      resetAuthenticationPanelsUI();
+      showTopToast('Menghapus sesi bot Anda...');
+    }
+
+    // --- daftar dan editor plugin developer ide ---
+    function renderPluginsList(pluginsArray) {
+      loadedPluginsCache = pluginsArray || [];
+      const container = document.getElementById('pluginsFileListContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (loadedPluginsCache.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-500">Belum ada berkas plugin.</p>';
+        return;
+      }
+
+      loadedPluginsCache.forEach((pluginItem) => {
+        const card = document.createElement('div');
+        card.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all';
+        card.innerHTML = `
+          <button onclick="selectPluginForEditing('${pluginItem.fileName}')" class="text-left flex-1 truncate pr-2">
+            <p class="text-xs font-bold text-slate-200 font-mono-code truncate">${escapeHtmlString(pluginItem.fileName)}</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Klik untuk menyunting</p>
+          </button>
+          <button onclick="deletePluginFile('${pluginItem.fileName}')" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="Hapus Plugin">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function selectPluginForEditing(fileName) {
+      const found = loadedPluginsCache.find((item) => item.fileName === fileName);
+      if (!found) return;
+      document.getElementById('pluginFileNameInput').value = found.fileName;
+      document.getElementById('pluginCodeEditorTextarea').value = found.codeContent ?? '';
+      showTopToast(`Membuka ${found.fileName}`);
+    }
+
+    function prepareNewPluginTemplate() {
+      document.getElementById('pluginFileNameInput').value = 'custom-command.js';
+      document.getElementById('pluginCodeEditorTextarea').value =
+`export default async function customCommandHandler(context) {
+  const { messageText, replyMessage } = context;
+
+  if (messageText.toLowerCase() === '!halo') {
+    await replyMessage('Halo! Plugin kustom Anda aktif secara real-time.');
+  }
+}`;
+      showTopToast('Template plugin baru siap disunting');
+    }
+
+    function saveAndApplyPlugin() {
+      const fileName = document.getElementById('pluginFileNameInput').value.trim();
+      const codeContent = document.getElementById('pluginCodeEditorTextarea').value;
+
+      if (!fileName) {
+        showTopToast('Nama file plugin wajib diisi', true);
+        return;
+      }
+
+      socketClient.emit('plugin:save', { fileName, codeContent });
+    }
+
+    function deletePluginFile(fileName) {
+      socketClient.emit('plugin:delete', { fileName });
+    }
+
+    async function copyEditorCode() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      if (!textarea || !textarea.value) return showTopToast('Editor masih kosong', true);
+      try {
+        await navigator.clipboard.writeText(textarea.value);
+        showTopToast('Kode berhasil disalin ke clipboard');
+      } catch {
+        textarea.select();
+        document.execCommand('copy');
+        showTopToast('Kode disalin');
+      }
+    }
+
+    async function pasteEditorCode() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      if (!textarea) return;
+      try {
+        const clipText = await navigator.clipboard.readText();
+        textarea.value = clipText;
+        showTopToast('Kode ditempel dari clipboard');
+      } catch {
+        showTopToast('Izin clipboard ditolak browser, silakan tempel manual', true);
+      }
+    }
+
+    function clearEditorCode() {
+      const textarea = document.getElementById('pluginCodeEditorTextarea');
+      if (textarea) {
+        textarea.value = '';
+        showTopToast('Editor dibersihkan');
+      }
+    }
+
+    function updateCodeInspectorReport(errorMessageText, hasError) {
+      const box = document.getElementById('developerErrorReportBox');
+      const dot = document.getElementById('inspectorIndicatorDot');
+      const badge = document.getElementById('inspectorStatusBadge');
+      const viewport = document.getElementById('inspectorTerminalViewport');
+      const output = document.getElementById('inspectorErrorDetailOutput');
+      if (!box || !output) return;
+
+      if (hasError) {
+        box.className = 'rounded-xl bg-rose-950/20 border border-rose-500/40 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
+        dot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping shrink-0';
+        badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-semibold font-mono-code shrink-0';
+        badge.textContent = 'Status: Error Terdeteksi';
+        viewport.className = 'rounded-lg bg-black/80 border border-rose-500/30 p-3 overflow-x-auto';
+        output.className = 'text-[11px] sm:text-xs font-mono-code text-rose-300 leading-relaxed whitespace-pre-wrap break-words';
+        output.textContent = errorMessageText;
+      } else {
+        box.className = 'rounded-xl bg-emerald-950/15 border border-emerald-500/30 p-3.5 sm:p-4 transition-all duration-200 space-y-2.5';
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+        badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold font-mono-code shrink-0';
+        badge.textContent = 'Status: Aman / Ready';
+        viewport.className = 'rounded-lg bg-black/80 border border-emerald-500/20 p-3 overflow-x-auto';
+        output.className = 'text-[11px] sm:text-xs font-mono-code text-emerald-300/90 leading-relaxed whitespace-pre-wrap break-words';
+        output.textContent = errorMessageText || 'Belum ada error sintaks maupun runtime yang terdeteksi.';
+      }
+    }
+
+    // --- sinkronisasi ulang saat pengguna kembali dari aplikasi whatsapp ---
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (!socketClient.connected) {
+          socketClient.connect();
+        } else {
+          socketClient.emit('session:sync');
+        }
+      }
+    });
+
+    // --- event listener socket.io real-time ---
+    socketClient.on('auth:expired', () => {
+      window.location.replace('/login');
+    });
+
+    socketClient.on('session:ready', (payload) => {
+      if (payload.user) {
+        const googleUser = payload.user;
+        document.getElementById('navGoogleAvatar').src =
+          googleUser.pictureUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(googleUser.givenName || 'User')}&background=10b981&color=fff`;
+        document.getElementById('navGoogleGivenName').textContent = googleUser.givenName || 'User';
+        document.getElementById('sessionIdentifierDisplay').textContent = `Google Sub ID: ${googleUser.googleId}`;
+      }
+
+      document.getElementById('skeletonLoaderSection').classList.add('hidden');
+      document.getElementById('liveApplicationContainer').classList.remove('hidden');
+
+      if (payload.volumePath) {
+        document.getElementById('volumeStoragePathText').textContent = `Volume: ${payload.volumePath}`;
+      }
+
+      renderDatabaseStatistics(payload.database, payload.globalStats);
+      updateConnectionUIState(payload.status, payload.profile);
+      renderPluginsList(payload.plugins || []);
+
+      if (Array.isArray(payload.logs)) {
+        document.getElementById('terminalLogOutput').innerHTML = '';
+        payload.logs.forEach(appendTerminalLine);
+      }
+
+      if (payload.plugins && payload.plugins.length > 0 && !document.getElementById('pluginFileNameInput').value) {
+        selectPluginForEditing(payload.plugins[0].fileName);
+      }
+    });
+
+    socketClient.on('session:reset', (payload) => {
+      updateConnectionUIState('DISCONNECTED', null);
+      renderDatabaseStatistics(payload.database, payload.globalStats);
+      resetAuthenticationPanelsUI();
+    });
+
+    socketClient.on('connection:status', (payload) => {
+      updateConnectionUIState(payload.status, payload.profile);
+    });
+
+    socketClient.on('qr:update', (payload) => {
+      const qrImg = document.getElementById('qrCodeImageElement');
+      const qrText = document.getElementById('qrCodeStatusText');
+      const qrDataUrl = typeof payload === 'string' ? payload : payload?.qrDataUrl;
+      if (qrDataUrl) {
+        qrImg.src = qrDataUrl;
+        qrImg.classList.remove('hidden');
+        qrText.textContent = 'Scan QR Code ini menggunakan aplikasi WhatsApp Anda (Perangkat Tertaut).';
+      }
+    });
+
+    socketClient.on('pairing:code', (payload) => {
+      const pairingCode = typeof payload === 'string' ? payload : payload?.pairingCode;
+      if (pairingCode) {
+        document.getElementById('pairingCodeDisplayWrapper').classList.remove('hidden');
+        document.getElementById('pairingCodeValue').textContent = pairingCode;
+        showTopToast('Pairing code diterima!');
+      }
+    });
+
+    socketClient.on('pairing:error', (errorMessage) => {
+      showTopToast(errorMessage || 'Gagal menerbitkan kode pairing', true);
+    });
+
+    socketClient.on('stats:update', (payload) => {
+      renderDatabaseStatistics(payload.userStats || payload.database, payload.globalStats);
+    });
+
+    socketClient.on('terminal:log', (logEntry) => {
+      appendTerminalLine(logEntry);
+    });
+
+    socketClient.on('plugin:list', (pluginsArray) => {
+      renderPluginsList(pluginsArray);
+    });
+
+    socketClient.on('plugin:save:result', (result) => {
+      if (result.isSuccess) {
+        updateCodeInspectorReport(`Plugin "${result.fileName}" berhasil disimpan & dimuat ulang tanpa error.`, false);
+        showTopToast(`Plugin ${result.fileName} diterapkan!`);
+      } else {
+        updateCodeInspectorReport(result.errorMessage || 'Terjadi kesalahan sintaks pada plugin.', true);
+        showTopToast('Gagal menerapkan plugin, cek inspector!', true);
+      }
+    });
+
+    socketClient.on('plugin:error', (payload) => {
+      updateCodeInspectorReport(`[Runtime Error - ${payload.fileName || 'Plugin'}]\n${payload.errorMessage || ''}`, true);
+    });
+  </script>
+</body>
+</html>
