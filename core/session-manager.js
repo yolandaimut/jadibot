@@ -1,4 +1,4 @@
-// --- manajer sesi baileys, dynamic session mapping, auto-connect, dan serializer pesan ---
+// --- manajer sesi baileys, dynamic session mapping, auto-connect, soft restart, dan serializer pesan ---
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
@@ -21,6 +21,7 @@ import {
 import {
   getGlobalPlatformStatistics,
   getUserSessionFolderPath,
+  isPlatformAdminUser,
   readBotDatabase,
   readMasterDatabaseFile,
   writeBotDatabaseAtomic
@@ -48,9 +49,25 @@ export function emitTerminalLog(io, googleUserId, logLevel, logMessage) {
   }
   const userLogs = userTerminalLogsCache.get(googleUserId);
   userLogs.push(logEntry);
-  if (userLogs.length > 60) userLogs.shift();
+  if (userLogs.length > 100) userLogs.shift();
 
   io.to(`user_${googleUserId}`).emit('terminal:log', logEntry);
+}
+
+// --- sinkronkan pengaturan dashboard ke global.db.setting agar langsung aktif di extra.js ---
+export function syncBotSettingsToGlobalDb(botJid, settingsObject) {
+  if (!botJid || !settingsObject) return;
+  global.db = global.db || {};
+  global.db.setting = global.db.setting || {};
+  global.db.setting[botJid] = {
+    ...(global.db.setting[botJid] || {}),
+    botName: settingsObject.botName || CONFIG.platformName,
+    packname: settingsObject.packname || CONFIG.platformName,
+    author: settingsObject.author || 'Surya Core',
+    isNoPrefix: settingsObject.isNoPrefix ?? true,
+    allowedPc: settingsObject.allowedPc ?? true,
+    toxic: Array.isArray(settingsObject.toxic) ? settingsObject.toxic : []
+  };
 }
 
 // --- validasi folder sesi terdaftar dan simpan metadata pemilik ---
@@ -192,7 +209,14 @@ async function serializeIncomingMessage(coreModules, client, rawMessage) {
     '';
 
   const trimmedBody = body.trim();
-  const matchedPrefix = CONFIG.prefixes.find((prefix) => trimmedBody.startsWith(prefix)) || '';
+  let matchedPrefix = '';
+  if (CONFIG.prefixes instanceof RegExp) {
+    const regexMatch = trimmedBody.match(CONFIG.prefixes);
+    matchedPrefix = regexMatch ? regexMatch[0] : '';
+  } else if (Array.isArray(CONFIG.prefixes)) {
+    matchedPrefix = CONFIG.prefixes.find((prefix) => trimmedBody.startsWith(prefix)) || '';
+  }
+
   const withoutPrefix = matchedPrefix ? trimmedBody.slice(matchedPrefix.length).trim() : trimmedBody;
   const parts = withoutPrefix ? withoutPrefix.split(/\s+/) : [];
   const command = matchedPrefix && parts.length > 0 ? parts[0].toLowerCase() : '';
@@ -253,7 +277,7 @@ export async function startWhatsAppSession(
   const isAutoReconnect = connectionMethod === 'reconnect';
 
   if (existingSession) {
-    if (existingSession.status === 'CONNECTED' && existingSession.socketInstance) {
+    if (!forceRestart && existingSession.status === 'CONNECTED' && existingSession.socketInstance) {
       io.to(`user_${googleUserId}`).emit('connection:status', {
         status: 'CONNECTED',
         profile: existingSession.profile,
@@ -500,6 +524,7 @@ export async function startWhatsAppSession(
         latestDatabase.sessionName = activeSessionName;
         writeBotDatabaseAtomic(googleUserId, latestDatabase);
         writeSessionOwnerMetadata(userSessionFolder, googleUserId, activeSessionName, cleanPhoneNumber);
+        syncBotSettingsToGlobalDb(normalizedBotJid, latestDatabase.settings);
 
         let avatarImageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(whatsappName)}&background=10b981&color=fff&size=128`;
         try {
@@ -533,7 +558,7 @@ export async function startWhatsAppSession(
           userStats: latestDatabase,
           globalStats: getGlobalPlatformStatistics(activeBotSessions)
         });
-        emitLog(googleUserId, 'SUCCESS', `Connected as ${whatsappName} (+${cleanPhoneNumber})`); // [${activeSessionName}]`);
+        emitLog(googleUserId, 'SUCCESS', `Connected as ${whatsappName} (+${cleanPhoneNumber})`);
       }
 
       if (connection === 'close') {
@@ -702,6 +727,27 @@ export async function startWhatsAppSession(
   }
 }
 
+// --- soft restart koneksi whatsapp tanpa menghapus kredensial sesi ---
+export async function restartWhatsAppSession(io, coreModules, googleUserId) {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const discoveredSession = findValidUserSession(googleUserId);
+
+  if (!discoveredSession) {
+    emitLog(googleUserId, 'WARN', 'Tidak ada sesi tersimpan untuk di-restart. Silakan tautkan QR atau Pairing terlebih dahulu.');
+    io.to(`user_${googleUserId}`).emit('connection:status', {
+      status: 'DISCONNECTED',
+      profile: null,
+      isAutoReconnect: false
+    });
+    return false;
+  }
+
+  emitLog(googleUserId, 'INFO', `Memulai soft restart koneksi sesi [${discoveredSession.sessionName}]...`);
+  const userDatabase = readBotDatabase(googleUserId);
+  await startWhatsAppSession(io, coreModules, googleUserId, 'reconnect', userDatabase.phoneNumber || '', 1, true);
+  return true;
+}
+
 // --- hapus sesi kredensial baileys secara bersih tanpa merusak statistik ---
 export async function destroyBotSession(io, coreModules, googleUserId, triggerLogout = true) {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
@@ -846,6 +892,7 @@ export function restoreExistingSessionsOnBoot(io, coreModules) {
 // --- sinkronisasi state sesi dan daftar plugin ke klien dashboard ---
 export function syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser) {
   const googleUserId = sessionUser.googleId;
+  const isAdmin = isPlatformAdminUser(sessionUser);
   const userDatabase = readBotDatabase(googleUserId);
   let currentBotState = activeBotSessions.get(googleUserId);
   const discoveredSession = findValidUserSession(googleUserId);
@@ -861,13 +908,14 @@ export function syncSessionStateToSocket(io, coreModules, clientSocket, sessionU
 
   clientSocket.emit('session:ready', {
     user: sessionUser,
+    isAdmin,
     volumePath: discoveredSession?.folderPath || getUserSessionFolderPath(googleUserId),
     status: resolvedStatus,
     profile: resolvedProfile,
     isAutoReconnect,
     database: userDatabase,
     globalStats: getGlobalPlatformStatistics(activeBotSessions),
-    plugins: getAvailablePluginsList(),
+    plugins: isAdmin ? getAvailablePluginsList() : [],
     logs: userTerminalLogsCache.get(googleUserId) || []
   });
 

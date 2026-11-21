@@ -12,6 +12,13 @@ function sanitize(id) {
   return String(id || '').replace(/\D/g, '') + '@s.whatsapp.net';
 }
 
+function parseEnvList(rawValue) {
+  return String(rawValue || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export const CURRENT_DIR = path.resolve(coreDirPath, '..');
 export const PUBLIC_ROOT_DIR = path.join(CURRENT_DIR, 'public');
 export const SYSTEM_ROOT_DIR = path.join(CURRENT_DIR, 'system');
@@ -20,6 +27,9 @@ export const SERVER_PORT = process.env.PORT || 3000;
 export const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
   '404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com';
+
+export const ADMIN_EMAILS = parseEnvList(process.env.ADMIN_EMAILS);
+export const ADMIN_GOOGLE_IDS = parseEnvList(process.env.ADMIN_GOOGLE_IDS);
 
 export const SESSION_COOKIE_NAME = 'jadibot_session';
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -53,6 +63,7 @@ export const SESSIONS_VOLUME_ROOT = resolveRailwayVolumeRoot();
 export const MAIN_DATABASE_FILE_PATH = path.join(SESSIONS_VOLUME_ROOT, 'database.json');
 export const SESSIONS_ROOT_FOLDER_PATH = path.join(SESSIONS_VOLUME_ROOT, 'sessions');
 export const PLUGINS_ROOT_DIR = path.join(SESSIONS_VOLUME_ROOT, 'plugins');
+export const DISABLED_PLUGINS_FILE_PATH = path.join(SESSIONS_VOLUME_ROOT, 'disabled-plugins.json');
 export const CONTACTS_FILE_PATH = path.join(SESSIONS_VOLUME_ROOT, 'contacts.json');
 export const SESSION_SECRET_PATH = path.join(SESSIONS_VOLUME_ROOT, '.session_secret');
 export const TRASH_ROOT_DIR = path.join(SESSIONS_VOLUME_ROOT, 'sampah');

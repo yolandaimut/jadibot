@@ -2,6 +2,9 @@
 import fs from 'fs';
 import path from 'path';
 import {
+  ADMIN_EMAILS,
+  ADMIN_GOOGLE_IDS,
+  CONFIG,
   MAIN_DATABASE_FILE_PATH,
   SESSIONS_ROOT_FOLDER_PATH,
   SESSIONS_VOLUME_ROOT
@@ -10,17 +13,20 @@ import {
 // --- baca berkas master database.json secara aman ---
 export function readMasterDatabaseFile() {
   if (!fs.existsSync(MAIN_DATABASE_FILE_PATH)) {
-    return { users: {} };
+    return { users: {}, platformAdmins: [] };
   }
 
   try {
     const parsedContent = JSON.parse(fs.readFileSync(MAIN_DATABASE_FILE_PATH, 'utf-8'));
     if (!parsedContent || typeof parsedContent.users !== 'object') {
-      return { users: {} };
+      return { users: {}, platformAdmins: [] };
+    }
+    if (!Array.isArray(parsedContent.platformAdmins)) {
+      parsedContent.platformAdmins = [];
     }
     return parsedContent;
   } catch {
-    return { users: {} };
+    return { users: {}, platformAdmins: [] };
   }
 }
 
@@ -32,10 +38,45 @@ export function writeMasterDatabaseFileAtomic(masterDatabaseObject) {
   fs.renameSync(tempFilePath, MAIN_DATABASE_FILE_PATH);
 }
 
+// --- cek apakah akun google memiliki hak akses admin platform (ide & backup) ---
+export function isPlatformAdminUser(sessionUser) {
+  if (!sessionUser?.googleId) return false;
+
+  const normalizedId = String(sessionUser.googleId).toLowerCase();
+  const normalizedEmail = String(sessionUser.email || '').toLowerCase();
+
+  if (ADMIN_EMAILS.length > 0 || ADMIN_GOOGLE_IDS.length > 0) {
+    return (
+      ADMIN_GOOGLE_IDS.includes(normalizedId) ||
+      (normalizedEmail && ADMIN_EMAILS.includes(normalizedEmail))
+    );
+  }
+
+  const masterDb = readMasterDatabaseFile();
+  if (masterDb.platformAdmins.length === 0) {
+    masterDb.platformAdmins.push(sessionUser.googleId);
+    writeMasterDatabaseFileAtomic(masterDb);
+    return true;
+  }
+
+  return masterDb.platformAdmins.some((id) => String(id).toLowerCase() === normalizedId);
+}
+
 // --- ambil data statistik dan mapping sesi milik akun google ---
 export function readBotDatabase(googleUserId) {
   const masterDatabase = readMasterDatabaseFile();
   const existingUserRecord = masterDatabase.users[googleUserId];
+
+  const defaultSettings = {
+    autoRead: true,
+    publicMode: true,
+    botName: CONFIG.platformName,
+    packname: CONFIG.platformName,
+    author: 'Surya Core',
+    isNoPrefix: true,
+    allowedPc: true,
+    toxic: []
+  };
 
   const defaultUserRecord = {
     googleUserId,
@@ -45,10 +86,7 @@ export function readBotDatabase(googleUserId) {
     totalMessagesSent: 0,
     uniqueUsers: [],
     startTime: Date.now(),
-    settings: {
-      autoRead: true,
-      publicMode: true
-    }
+    settings: defaultSettings
   };
 
   if (!existingUserRecord) {
@@ -57,14 +95,17 @@ export function readBotDatabase(googleUserId) {
     return defaultUserRecord;
   }
 
+  const mergedSettings = {
+    ...defaultSettings,
+    ...(existingUserRecord.settings || {})
+  };
+  mergedSettings.toxic = Array.isArray(mergedSettings.toxic) ? mergedSettings.toxic : [];
+
   return {
     ...defaultUserRecord,
     ...existingUserRecord,
     uniqueUsers: Array.isArray(existingUserRecord.uniqueUsers) ? existingUserRecord.uniqueUsers : [],
-    settings: {
-      ...defaultUserRecord.settings,
-      ...(existingUserRecord.settings || {})
-    }
+    settings: mergedSettings
   };
 }
 
@@ -114,4 +155,30 @@ export function getGlobalPlatformStatistics(activeBotSessions) {
     globalMessagesReceived,
     globalMessagesSent
   };
+}
+
+// --- hitung total ukuran direktori volume secara rekursif dalam byte ---
+export function calculateDirectorySizeBytes(targetDirPath) {
+  if (!fs.existsSync(targetDirPath)) return 0;
+
+  let totalBytes = 0;
+  try {
+    const entries = fs.readdirSync(targetDirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(targetDirPath, entry.name);
+      try {
+        if (entry.isDirectory()) {
+          totalBytes += calculateDirectorySizeBytes(fullPath);
+        } else if (entry.isFile()) {
+          totalBytes += fs.statSync(fullPath).size;
+        }
+      } catch {
+        // --- lewati file sementara yang sudah terhapus ---
+      }
+    }
+  } catch {
+    return 0;
+  }
+
+  return totalBytes;
 }
