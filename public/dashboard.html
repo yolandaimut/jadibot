@@ -274,6 +274,13 @@
             </div>
 
             <div id="connectedProfileCard" class="hidden rounded-xl bg-slate-950/90 border border-slate-800 p-4">
+            <!-- --- indikator saat bot sedang menghubungkan otomatis ke sesi tersimpan --- -->
+            <div id="autoReconnectNotice" class="hidden rounded-xl bg-slate-950/90 border border-amber-500/30 p-5 text-center space-y-2.5">
+              <div class="w-7 h-7 mx-auto rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></div>
+              <p class="text-xs font-semibold text-amber-300">Menghubungkan otomatis ke sesi tersimpan...</p>
+              <p class="text-[11px] text-slate-400">Jika sesi tidak dapat dihubungkan, tampilan QR & Pairing akan muncul otomatis.</p>
+            </div>
+
               <div class="flex items-center gap-4">
                 <img id="botProfileAvatar" src="" alt="Avatar Bot" class="w-14 h-14 rounded-full object-cover border-2 accent-border shrink-0" />
                 <div class="flex-1 min-w-0">
@@ -715,13 +722,14 @@
       }
     }
 
-    // --- perbarui tampilan status koneksi dan profil bot ---
-    function updateConnectionUIState(statusState, profileObject) {
+    // --- perbarui tampilan status koneksi, auto-reconnect, dan fallback disconnected ---
+    function updateConnectionUIState(statusState, profileObject, isAutoReconnect = false) {
       const normalizedStatus = String(statusState || 'disconnected').toLowerCase();
       const badge = document.getElementById('connectionStatusBadge');
       const icon = document.getElementById('connectionStatusIcon');
       const text = document.getElementById('connectionStatusText');
       const profileCard = document.getElementById('connectedProfileCard');
+      const autoReconnectNotice = document.getElementById('autoReconnectNotice');
       const authBox = document.getElementById('authenticationBox');
 
       if (normalizedStatus === 'connected') {
@@ -730,6 +738,7 @@
         text.textContent = 'Connected';
 
         profileCard.classList.remove('hidden');
+        if (autoReconnectNotice) autoReconnectNotice.classList.add('hidden');
         authBox.classList.add('hidden');
         resetAuthenticationPanelsUI();
 
@@ -744,12 +753,22 @@
         badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold shrink-0';
         icon.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
         text.textContent = 'Connecting...';
+
+        profileCard.classList.add('hidden');
+        if (isAutoReconnect) {
+          if (autoReconnectNotice) autoReconnectNotice.classList.remove('hidden');
+          authBox.classList.add('hidden');
+        } else {
+          if (autoReconnectNotice) autoReconnectNotice.classList.add('hidden');
+          authBox.classList.remove('hidden');
+        }
       } else {
         badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold shrink-0';
         icon.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
         text.textContent = 'Disconnected';
 
         profileCard.classList.add('hidden');
+        if (autoReconnectNotice) autoReconnectNotice.classList.add('hidden');
         authBox.classList.remove('hidden');
       }
     }
@@ -970,9 +989,7 @@
     socketClient.on('session:ready', (payload) => {
       if (payload.user) {
         const googleUser = payload.user;
-        document.getElementById('navGoogleAvatar').src =
-          googleUser.pictureUrl ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(googleUser.givenName || 'User')}&background=10b981&color=fff`;
+        document.getElementById('navGoogleAvatar').src = googleUser.pictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(googleUser.givenName || 'User')}&background=10b981&color=fff`;
         document.getElementById('navGoogleGivenName').textContent = googleUser.givenName || 'User';
         document.getElementById('sessionIdentifierDisplay').textContent = `Google Sub ID: ${googleUser.googleId}`;
       }
@@ -985,7 +1002,7 @@
       }
 
       renderDatabaseStatistics(payload.database, payload.globalStats);
-      updateConnectionUIState(payload.status, payload.profile);
+      updateConnectionUIState(payload.status, payload.profile, Boolean(payload.isAutoReconnect));
       renderPluginsList(payload.plugins || []);
 
       if (Array.isArray(payload.logs)) {
@@ -997,7 +1014,7 @@
         selectPluginForEditing(payload.plugins[0].fileName);
       }
     });
-
+    
     socketClient.on('session:reset', (payload) => {
       updateConnectionUIState('DISCONNECTED', null);
       renderDatabaseStatistics(payload.database, payload.globalStats);
@@ -1005,7 +1022,7 @@
     });
 
     socketClient.on('connection:status', (payload) => {
-      updateConnectionUIState(payload.status, payload.profile);
+      updateConnectionUIState(payload.status, payload.profile, Boolean(payload.isAutoReconnect));
     });
 
     socketClient.on('qr:update', (payload) => {
