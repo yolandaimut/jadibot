@@ -367,7 +367,7 @@
               </div>
               <div class="flex items-center gap-2 font-mono-code">
                 <span id="cpuSourceBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                  SIMULATION
+                  CONNECTING
                 </span>
                 <span id="cpuUsageValue" class="text-sm font-extrabold accent-text">
                   0%
@@ -380,25 +380,37 @@
             </div>
           </div>
 
-          <div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-5 flex flex-col">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-rose-500"></span>
-                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
-                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                <h2 class="ml-2 text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code">
-                  Real-Time Baileys CLI Terminal
-                </h2>
-              </div>
+<!-- --- komponen real-time baileys cli terminal --- -->
+<div class="flex-1 rounded-2xl bg-slate-900/75 border border-slate-800 p-4 sm:p-5 flex flex-col">
+  <div class="flex items-center justify-between gap-2 mb-2.5">
+    <div class="flex items-center gap-1.5 min-w-0">
+      <span class="w-2.5 h-2.5 rounded-full bg-rose-500 flex-shrink-0"></span>
+      <span class="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0"></span>
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+      <h2 class="ml-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-300 font-mono-code truncate">
+        Real-Time Baileys CLI Terminal
+      </h2>
+    </div>
 
-              <button onclick="clearTerminalLogs()" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-all">
-                Clear Logs
-              </button>
-            </div>
+    <div class="flex items-center gap-1.5 flex-shrink-0">
+      <button type="button" onclick="copyTerminalLogs()" title="Salin Log" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-all active:scale-95">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      </button>
 
-            <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 p-4 font-mono-code text-xs space-y-1.5 leading-relaxed">
-            </div>
-          </div>
+      <button type="button" onclick="clearTerminalLogs()" title="Bersihkan Log" class="p-1.5 rounded-lg bg-slate-950 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 transition-all active:scale-95">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="terminalLogOutput" class="flex-1 min-h-[380px] max-h-[460px] overflow-y-auto rounded-xl bg-black border border-slate-800 px-3 pt-1.5 pb-2.5 font-mono-code text-[11px] sm:text-xs space-y-0.5 leading-tight">
+  </div>
+</div>
+
         </div>
       </section>
 
@@ -520,10 +532,8 @@
       reconnectionAttempts: Infinity
     });
 
-    const MAX_CPU_POINTS = 25;
+    const MAX_CPU_POINTS = 99;
     let cpuChartInstance = null;
-    let cpuDummyInterval = null;
-    let hasLiveCpuStream = false;
 
     function hexToRgba(hexColor, alpha) {
       const cleanHex = hexColor.replace('#', '').trim();
@@ -558,19 +568,15 @@
 
       const ctx = canvas.getContext('2d');
       const accentColor = getActiveAccentColor();
-      const initialLabels = Array(MAX_CPU_POINTS).fill('');
-      const initialData = Array.from({ length: MAX_CPU_POINTS }, () =>
-        Math.floor(Math.random() * (45 - 20 + 1)) + 20
-      );
 
       cpuChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: initialLabels,
+          labels: Array(MAX_CPU_POINTS).fill(''),
           datasets: [
             {
               label: 'CPU %',
-              data: initialData,
+              data: Array(MAX_CPU_POINTS).fill(0),
               borderColor: accentColor,
               borderWidth: 2.5,
               backgroundColor: buildCpuGradient(ctx, accentColor),
@@ -584,7 +590,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          animation: { duration: 280 },
+          animation: { duration: 250 },
           interaction: { intersect: false, mode: 'index' },
           plugins: {
             legend: { display: false },
@@ -613,14 +619,12 @@
           }
         }
       });
-
-      startCpuDummyStream();
     }
 
-    function pushCpuDataPoint(cpuPercentage, isLive = false) {
+    function pushCpuDataPoint(cpuPercentage) {
       if (!cpuChartInstance) return;
 
-      const clampedValue = Math.max(0, Math.min(100, Math.round(Number(cpuPercentage) || 0)));
+      const clampedValue = Math.max(0, Math.min(100, Number(cpuPercentage) || 0));
       const dataset = cpuChartInstance.data.datasets[0];
 
       cpuChartInstance.data.labels.shift();
@@ -631,22 +635,11 @@
 
       const valueEl = document.getElementById('cpuUsageValue');
       const sourceEl = document.getElementById('cpuSourceBadge');
-      if (valueEl) valueEl.textContent = `${clampedValue}%`;
+      if (valueEl) valueEl.textContent = `${clampedValue.toFixed(1)}%`;
       if (sourceEl) {
-        sourceEl.textContent = isLive ? 'LIVE' : 'SIMULATION';
-        sourceEl.className = isLive
-          ? 'text-[10px] px-2 py-0.5 rounded accent-soft-bg accent-text border accent-border'
-          : 'text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400';
+        sourceEl.textContent = 'LIVE';
+        sourceEl.className = 'text-[10px] px-2 py-0.5 rounded accent-soft-bg accent-text border accent-border';
       }
-    }
-
-    function startCpuDummyStream() {
-      if (cpuDummyInterval) clearInterval(cpuDummyInterval);
-      cpuDummyInterval = setInterval(() => {
-        if (hasLiveCpuStream) return;
-        const simulatedCpu = Math.floor(Math.random() * (70 - 15 + 1)) + 15;
-        pushCpuDataPoint(simulatedCpu, false);
-      }, 1000);
     }
 
     function refreshCpuChartTheme() {
@@ -659,15 +652,18 @@
     }
 
     socketClient.on('cpu-update', (payload) => {
-      hasLiveCpuStream = true;
       const cpuValue = typeof payload === 'number'
         ? payload
         : (payload?.usage ?? payload?.cpu ?? payload?.percent ?? 0);
-      pushCpuDataPoint(cpuValue, true);
+      pushCpuDataPoint(cpuValue);
     });
 
     socketClient.on('disconnect', () => {
-      hasLiveCpuStream = false;
+      const sourceEl = document.getElementById('cpuSourceBadge');
+      if (sourceEl) {
+        sourceEl.textContent = 'OFFLINE';
+        sourceEl.className = 'text-[10px] px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400';
+      }
     });
 
     window.addEventListener('DOMContentLoaded', initCpuHeartbeatChart);
@@ -963,8 +959,38 @@
         .replace(/>/g, '&gt;');
     }
 
+    // --- salin seluruh isi teks log terminal ke clipboard ---
+    async function copyTerminalLogs() {
+      const terminalBox = document.getElementById('terminalLogOutput');
+      if (!terminalBox) return;
+
+      const logText = terminalBox.innerText.trim();
+      if (!logText) {
+        showTopToast('Terminal masih kosong', true);
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(logText);
+        showTopToast('Log terminal berhasil disalin');
+      } catch {
+        const tempArea = document.createElement('textarea');
+        tempArea.value = logText;
+        tempArea.style.position = 'fixed';
+        tempArea.style.opacity = '0';
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempArea);
+        showTopToast('Log terminal disalin');
+      }
+    }
+
+    // --- bersihkan seluruh baris log pada terminal ---
     function clearTerminalLogs() {
-      document.getElementById('terminalLogOutput').innerHTML = '';
+      const terminalBox = document.getElementById('terminalLogOutput');
+      if (!terminalBox) return;
+      terminalBox.innerHTML = '';
       showTopToast('Tampilan terminal dibersihkan');
     }
 
