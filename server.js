@@ -1,3 +1,35 @@
+// --- entry point utama surya core platform ---
+import express from 'express';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import fs from 'fs';
+import path from 'path';
+import { pathToFileURL } from 'url';
+import {
+  PLUGINS_ROOT_DIR,
+  SERVER_PORT,
+  SESSIONS_VOLUME_ROOT,
+  SYSTEM_ROOT_DIR,
+  initPersistentDirectories
+} from './core/config.js';
+import { initializeDefaultPlugin, watchPluginsDirectory } from './core/plugin-manager.js';
+import { restoreExistingSessionsOnBoot } from './core/session-manager.js';
+import { registerHttpRoutes, registerSocketHandlers } from './core/socket-routes.js';
+
+const app = express();
+app.set('trust proxy', 1);
+app.use(express.json());
+
+const httpServer = createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
+});
+
 // --- muat seluruh modul sistem surya core dari folder system/ ---
 async function loadSystemCoreModules() {
   const loadedModules = {
@@ -69,8 +101,4 @@ async function bootstrap() {
   });
 }
 
-// --- panggil bootstrap utama saat file dijalankan ---
-bootstrap().catch((bootError) => {
-  console.error('[SURYA CORE FATAL] Failed to run bootstrap:', bootError);
-  process.exit(1);
-});
+bootstrap();
