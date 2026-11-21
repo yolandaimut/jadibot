@@ -485,7 +485,7 @@ export async function startWhatsAppSession(
 
         const normalizedBotJid = jidNormalizedUser(client.user?.id || '');
         const cleanPhoneNumber = normalizedBotJid.split('@')[0];
-        const whatsappName = client.user?.name || client.user?.verifiedName || CONFIG.botName;
+        const whatsappName = client.user?.name || client.user?.verifiedName || CONFIG.platformName;
 
         if (client.user) {
           client.user.jid = normalizedBotJid;
@@ -533,7 +533,7 @@ export async function startWhatsAppSession(
           userStats: latestDatabase,
           globalStats: getGlobalPlatformStatistics(activeBotSessions)
         });
-        emitLog(googleUserId, 'SUCCESS', `Terhubung sebagai ${whatsappName} (+${cleanPhoneNumber}) [Sesi: ${activeSessionName}]`);
+        emitLog(googleUserId, 'SUCCESS', `Connected as ${whatsappName} (+${cleanPhoneNumber})`); // [${activeSessionName}]`);
       }
 
       if (connection === 'close') {
