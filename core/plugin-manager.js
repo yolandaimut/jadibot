@@ -313,17 +313,25 @@ export async function executeDynamicPlugins({
       : { date: '', time: '' };
 
   const senderName = users?.name || m.pushname || 'User';
-  const packname = (setting.packname || CONFIG.packname)
+  const botName = setting.botName || CONFIG.platformName;
+  const packname = (setting.packname || botName)
     .replaceAll('+date', date)
     .replaceAll('+time', time)
     .replaceAll('+name', senderName);
-  const author = (setting.author || CONFIG.author)
+  const author = (setting.author || 'Surya Core')
     .replaceAll('+date', date)
     .replaceAll('+time', time)
     .replaceAll('+name', senderName);
 
   const executionContext = {
-    cfg: coreModules.mapping?.cfg || CONFIG,
+    cfg: {
+      ...(coreModules.mapping?.cfg || CONFIG),
+      botName,
+      header: setting.header || CONFIG.header,
+      footer: setting.footer || CONFIG.footer,
+      isNoPrefix: setting.isNoPrefix ?? true,
+      allowedPc: setting.allowedPc ?? true
+    },
     func: coreModules.functions,
     extra: coreModules.extra,
     utils: coreModules.utils,
