@@ -40,7 +40,7 @@ let cachedWriteExif = undefined;
 async function convertToStickerBuffer(mediaObj, metadata, shape) {
   if (cachedWriteExif === undefined) {
     try {
-      const stickerMod = await import('../lib/sticker.js');
+      const stickerMod = await import('./sticker.js');
       cachedWriteExif = typeof stickerMod.writeExif === 'function' ? stickerMod.writeExif : null;
     } catch {
       cachedWriteExif = null;
