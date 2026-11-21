@@ -14,6 +14,7 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import QRCode from 'qrcode';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -25,15 +26,16 @@ const executeFileAsync = promisify(execFile);
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDirectoryPath = path.dirname(currentFilePath);
 
-// --- konfigurasi google oauth 2.0 client id ---
+// --- konfigurasi google oauth 2.0 dan durasi cookie sesi 30 hari ---
 const GOOGLE_CLIENT_ID = '404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com';
 const googleOAuthClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+const SESSION_COOKIE_NAME = 'jadibot_session';
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 // --- konfigurasi server express dan socket.io untuk railway ---
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json());
-app.use(express.static(path.join(currentDirectoryPath, 'public')));
 
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -47,6 +49,7 @@ const io = new SocketIOServer(httpServer, {
 
 const SERVER_PORT = process.env.PORT || 3000;
 const PLUGINS_ROOT_DIR = path.join(currentDirectoryPath, 'plugins');
+const PUBLIC_ROOT_DIR = path.join(currentDirectoryPath, 'public');
 
 // --- fungsi deteksi dan pembuatan direktori volume railway ---
 function resolveRailwayVolumeRoot() {
@@ -81,8 +84,157 @@ if (!fs.existsSync(PLUGINS_ROOT_DIR)) {
   fs.mkdirSync(PLUGINS_ROOT_DIR, { recursive: true });
 }
 
-// --- penyimpanan state sesi bot aktif di memori ---
+// --- lokasi file database.json utama dan direktori sesi ---
+const MAIN_DATABASE_FILE_PATH = path.join(currentDirectoryPath, 'database.json');
+const SESSIONS_ROOT_FOLDER_PATH = path.join(currentDirectoryPath, 'sessions');
+
+// --- muat atau buat secret signing sesi persisten agar user tidak logout saat restart ---
+function resolvePersistentSessionSecret() {
+  if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.length >= 16) {
+    return process.env.SESSION_SECRET;
+  }
+
+  const secretFilePath = path.join(SESSIONS_VOLUME_ROOT, '.session_secret');
+  try {
+    if (fs.existsSync(secretFilePath)) {
+      const existingSecret = fs.readFileSync(secretFilePath, 'utf-8').trim();
+      if (existingSecret.length >= 32) {
+        return existingSecret;
+      }
+    }
+    const generatedSecret = crypto.randomBytes(48).toString('hex');
+    fs.writeFileSync(secretFilePath, generatedSecret, 'utf-8');
+    return generatedSecret;
+  } catch {
+    return crypto.createHash('sha256').update(`${GOOGLE_CLIENT_ID}_jadibot_fallback`).digest('hex');
+  }
+}
+
+const SESSION_SIGNING_SECRET = resolvePersistentSessionSecret();
+
+// --- fungsi parsing header cookie mentah menjadi objek key-value ---
+function parseCookieHeader(rawCookieHeader) {
+  const cookiesMap = {};
+  if (!rawCookieHeader || typeof rawCookieHeader !== 'string') {
+    return cookiesMap;
+  }
+
+  const cookiePairs = rawCookieHeader.split(';');
+  for (const pair of cookiePairs) {
+    const separatorIndex = pair.indexOf('=');
+    if (separatorIndex === -1) continue;
+    const key = pair.slice(0, separatorIndex).trim();
+    const rawValue = pair.slice(separatorIndex + 1).trim();
+    if (!key) continue;
+    try {
+      cookiesMap[key] = decodeURIComponent(rawValue);
+    } catch {
+      cookiesMap[key] = rawValue;
+    }
+  }
+  return cookiesMap;
+}
+
+// --- fungsi pembuatan token sesi tertandatangani hmac-sha256 ---
+function createSignedSessionToken(userPayload) {
+  const sessionData = {
+    googleId: userPayload.googleId,
+    email: userPayload.email,
+    fullName: userPayload.fullName,
+    givenName: userPayload.givenName,
+    pictureUrl: userPayload.pictureUrl,
+    iat: Date.now(),
+    exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000
+  };
+
+  const encodedPayload = Buffer.from(JSON.stringify(sessionData), 'utf-8').toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', SESSION_SIGNING_SECRET)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  return `${encodedPayload}.${signature}`;
+}
+
+// --- fungsi verifikasi token sesi secara sinkron dan cepat ---
+function verifySignedSessionToken(sessionToken) {
+  if (!sessionToken || typeof sessionToken !== 'string') {
+    return null;
+  }
+
+  const tokenParts = sessionToken.split('.');
+  if (tokenParts.length !== 2) {
+    return null;
+  }
+
+  const [encodedPayload, providedSignature] = tokenParts;
+  const expectedSignature = crypto
+    .createHmac('sha256', SESSION_SIGNING_SECRET)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  const providedBuffer = Buffer.from(providedSignature, 'utf-8');
+  const expectedBuffer = Buffer.from(expectedSignature, 'utf-8');
+
+  if (
+    providedBuffer.length !== expectedBuffer.length ||
+    !crypto.timingSafeEqual(providedBuffer, expectedBuffer)
+  ) {
+    return null;
+  }
+
+  try {
+    const decodedJson = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf-8'));
+    if (!decodedJson || !decodedJson.googleId || !decodedJson.exp || Date.now() >= decodedJson.exp) {
+      return null;
+    }
+    return decodedJson;
+  } catch {
+    return null;
+  }
+}
+
+// --- fungsi ambil user terautentikasi langsung dari cookie request atau socket ---
+function getSessionUserFromCookieHeader(rawCookieHeader) {
+  const cookiesMap = parseCookieHeader(rawCookieHeader);
+  return verifySignedSessionToken(cookiesMap[SESSION_COOKIE_NAME]);
+}
+
+// --- fungsi pasang cookie sesi httponly pada response express ---
+function setSessionCookie(request, response, sessionToken) {
+  const isHttps = request.secure || request.headers['x-forwarded-proto'] === 'https';
+  const cookieDirectives = [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionToken)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${SESSION_MAX_AGE_SECONDS}`
+  ];
+  if (isHttps) {
+    cookieDirectives.push('Secure');
+  }
+  response.setHeader('Set-Cookie', cookieDirectives.join('; '));
+}
+
+// --- fungsi hapus cookie sesi saat user logout ---
+function clearSessionCookie(request, response) {
+  const isHttps = request.secure || request.headers['x-forwarded-proto'] === 'https';
+  const cookieDirectives = [
+    `${SESSION_COOKIE_NAME}=`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0'
+  ];
+  if (isHttps) {
+    cookieDirectives.push('Secure');
+  }
+  response.setHeader('Set-Cookie', cookieDirectives.join('; '));
+}
+
+// --- penyimpanan state sesi bot aktif dan riwayat log di memori ---
 const activeBotSessions = new Map();
+const userTerminalLogsCache = new Map();
 const silentLogger = pino({ level: 'silent' });
 
 // --- inisialisasi plugin default jika folder plugins kosong ---
@@ -114,7 +266,7 @@ export default async function executePlugin(context) {
 
 initializeDefaultPlugin();
 
-// --- fungsi verifikasi jwt token google oauth 2.0 ---
+// --- fungsi verifikasi jwt token google oauth 2.0 saat proses login ---
 async function verifyGoogleCredentialToken(idTokenString) {
   if (!idTokenString || typeof idTokenString !== 'string') {
     throw new Error('Token kredensial Google tidak ditemukan.');
@@ -149,19 +301,26 @@ async function verifyGoogleCredentialToken(idTokenString) {
   }
 }
 
-// --- fungsi logger custom yang memancarkan log ke terminal frontend ---
+// --- fungsi logger custom yang menyimpan riwayat dan memancarkan ke frontend ---
 function emitTerminalLog(googleUserId, logLevel, logMessage) {
   const timestampText = new Date().toLocaleTimeString('id-ID', { hour12: false });
-  io.to(`user_${googleUserId}`).emit('terminal:log', {
+  const logEntry = {
     timestamp: timestampText,
     level: logLevel,
     message: logMessage
-  });
-}
+  };
 
-// --- lokasi file database.json utama dan direktori sesi di dalam volume ---
-const MAIN_DATABASE_FILE_PATH = path.join(currentDirectoryPath, 'database.json');
-const SESSIONS_ROOT_FOLDER_PATH = path.join(currentDirectoryPath, 'sessions');
+  if (!userTerminalLogsCache.has(googleUserId)) {
+    userTerminalLogsCache.set(googleUserId, []);
+  }
+  const userLogs = userTerminalLogsCache.get(googleUserId);
+  userLogs.push(logEntry);
+  if (userLogs.length > 60) {
+    userLogs.shift();
+  }
+
+  io.to(`user_${googleUserId}`).emit('terminal:log', logEntry);
+}
 
 // --- fungsi baca seluruh data dari database.json utama secara aman ---
 function readMasterDatabaseFile() {
@@ -273,7 +432,6 @@ function getGlobalPlatformStatistics() {
 }
 
 // --- fungsi utama koneksi whatsapp baileys dengan dynamic session mapping ---
-// --- fungsi utama koneksi whatsapp baileys dengan dynamic session mapping ---
 async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phoneNumberInput = '') {
   const existingSession = activeBotSessions.get(googleUserId);
 
@@ -307,7 +465,6 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
   let activeSessionName = botDatabase.sessionName;
 
   if (connectionMethod === 'pairing' && cleanedPhoneInput) {
-    // --- Jika nomor telepon diinput, cek apakah folder sesi dengan nama nomor tersebut sudah ada ---
     const targetFolder = getUserSessionFolderPath(googleUserId, cleanedPhoneInput);
     const hasExistingCreds = fs.existsSync(path.join(targetFolder, 'creds.json'));
 
@@ -373,6 +530,10 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
       const latestDatabase = readBotDatabase(googleUserId);
       latestDatabase.totalMessagesSent += 1;
       writeBotDatabaseAtomic(googleUserId, latestDatabase);
+      io.to(`user_${googleUserId}`).emit('stats:update', {
+        userStats: latestDatabase,
+        globalStats: getGlobalPlatformStatistics()
+      });
       return sendResult;
     };
 
@@ -385,7 +546,7 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
       isDeletingSession: false
     });
 
-    // --- Jika credentials sudah ter-register (sesi lama ada), jangan minta pairing code baru, biarkan langsung connect ---
+    // --- terbitkan kode pairing jika metode pairing dipilih dan sesi belum terdaftar ---
     if (connectionMethod === 'pairing' && cleanedPhoneInput && !whatsappSocket.authState.creds.registered) {
       setTimeout(async () => {
         try {
@@ -462,7 +623,6 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
         currentRecord.status = 'CONNECTED';
         currentRecord.profile = connectedProfile;
 
-        // --- Kirim event status connected dan update stats ke frontend secara instan ---
         io.to(`user_${googleUserId}`).emit('connection:status', {
           status: 'CONNECTED',
           profile: connectedProfile
@@ -545,6 +705,10 @@ async function startWhatsAppSession(googleUserId, connectionMethod = 'qr', phone
             currentDatabase.uniqueUsers.push(cleanSenderNumber);
           }
           writeBotDatabaseAtomic(googleUserId, currentDatabase);
+          io.to(`user_${googleUserId}`).emit('stats:update', {
+            userStats: currentDatabase,
+            globalStats: getGlobalPlatformStatistics()
+          });
 
           if (currentDatabase.settings.autoRead) {
             try {
@@ -648,7 +812,6 @@ async function destroyBotSession(googleUserId, triggerLogout = true) {
     }
   }
 
-  // --- bersihkan mapping sesi tanpa merusak struktur database.json ---
   currentDatabase.sessionName = null;
   currentDatabase.phoneNumber = null;
   writeBotDatabaseAtomic(googleUserId, currentDatabase);
@@ -734,7 +897,6 @@ async function validateAndSavePlugin(googleUserId, rawFileName, pluginSourceCode
   try {
     fs.writeFileSync(tempValidationPath, pluginSourceCode, 'utf-8');
 
-    // --- uji sintaks javascript menggunakan node --check ---
     try {
       await executeFileAsync(process.execPath, ['--check', tempValidationPath]);
     } catch (syntaxError) {
@@ -751,7 +913,6 @@ async function validateAndSavePlugin(googleUserId, rawFileName, pluginSourceCode
       };
     }
 
-    // --- uji import modul esm dan keberadaan fungsi default ---
     try {
       const moduleCheckUrl = `${pathToFileURL(tempValidationPath).href}?check=${Date.now()}`;
       const evaluatedModule = await import(moduleCheckUrl);
@@ -781,7 +942,6 @@ async function validateAndSavePlugin(googleUserId, rawFileName, pluginSourceCode
       };
     }
 
-    // --- ganti file plugin secara atomic dan terapkan hot-reload ---
     fs.renameSync(tempValidationPath, finalPluginPath);
     emitTerminalLog(googleUserId, 'SUCCESS', `Plugin [${finalFileName}] lulus uji sintaks dan dimuat (Hot-Reload).`);
 
@@ -844,9 +1004,8 @@ async function executeDynamicPlugins(googleUserId, contextPayload) {
 
 // --- pulihkan otomatis sesi yang tersimpan di volume saat server menyala ---
 function restoreExistingSessionsOnBoot() {
-  // Cek direktori utama tempat folder-folder sesi disimpan
   const targetSessionsDir = SESSIONS_ROOT_FOLDER_PATH;
-  
+
   if (!fs.existsSync(targetSessionsDir)) {
     fs.mkdirSync(targetSessionsDir, { recursive: true });
     return;
@@ -861,9 +1020,7 @@ function restoreExistingSessionsOnBoot() {
         const sessionFolderPath = path.join(targetSessionsDir, sessionFolderName);
         const credsFilePath = path.join(sessionFolderPath, 'creds.json');
 
-        // Jika file creds.json ada (artinya sesi aktif dan tidak logout)
         if (fs.existsSync(credsFilePath)) {
-          // Cari tahu googleUserId mana yang memiliki sesi ini dari master database.json
           const masterDb = readMasterDatabaseFile();
           let matchedGoogleId = null;
 
@@ -875,15 +1032,12 @@ function restoreExistingSessionsOnBoot() {
             }
           }
 
-          // Jika tidak ketemu di database tapi foldernya ada, ekstrak dari nama folder jika formatnya cocok
           if (!matchedGoogleId && sessionFolderName.includes('_')) {
-            // Contoh jika sessionName atau folder dinamai dari nomor atau ID
-            matchedGoogleId = sessionFolderName; 
+            matchedGoogleId = sessionFolderName;
           }
 
           if (matchedGoogleId) {
             console.log(`[BOOT AUTO-START] Memulihkan sesi WhatsApp otomatis untuk User ID: ${matchedGoogleId} (Sesi: ${sessionFolderName})`);
-            // Jalankan ulang koneksi sesi di background tanpa intervensi QR
             startWhatsAppSession(matchedGoogleId, 'reconnect', '');
           }
         }
@@ -894,7 +1048,38 @@ function restoreExistingSessionsOnBoot() {
   }
 }
 
-// --- endpoint konfigurasi publik untuk menyediakan client id ke frontend ---
+// --- server-side route guards untuk mencegah flicker dan bypass halaman ---
+app.get('/', (request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+  if (sessionUser) {
+    return response.redirect(302, '/dashboard');
+  }
+  return response.redirect(302, '/login');
+});
+
+app.get(['/login', '/login.html'], (request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+  if (sessionUser) {
+    return response.redirect(302, '/dashboard');
+  }
+  return response.sendFile(path.join(PUBLIC_ROOT_DIR, 'login.html'));
+});
+
+app.get(['/dashboard', '/dashboard.html'], (request, response) => {
+  response.setHeader('Cache-Control', 'no-store');
+  const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+  if (!sessionUser) {
+    return response.redirect(302, '/login');
+  }
+  return response.sendFile(path.join(PUBLIC_ROOT_DIR, 'dashboard.html'));
+});
+
+// --- sajikan aset statis tanpa otomatis membuka index.html ---
+app.use(express.static(PUBLIC_ROOT_DIR, { index: false }));
+
+// --- endpoint konfigurasi publik untuk menyediakan client id ke halaman login ---
 app.get('/api/auth/config', (request, response) => {
   response.status(200).json({
     googleClientId: GOOGLE_CLIENT_ID,
@@ -902,11 +1087,15 @@ app.get('/api/auth/config', (request, response) => {
   });
 });
 
-// --- endpoint verifikasi login google oauth 2.0 ---
+// --- endpoint verifikasi login google oauth 2.0 dan penerbitan cookie sesi 30 hari ---
 app.post('/api/auth/google', async (request, response) => {
   try {
     const { credential } = request.body || {};
     const verifiedUser = await verifyGoogleCredentialToken(credential);
+    const signedToken = createSignedSessionToken(verifiedUser);
+
+    setSessionCookie(request, response, signedToken);
+
     response.status(200).json({
       isAuthenticated: true,
       user: verifiedUser
@@ -919,6 +1108,24 @@ app.post('/api/auth/google', async (request, response) => {
   }
 });
 
+// --- endpoint status sesi saat ini berdasarkan cookie httponly ---
+app.get('/api/auth/me', (request, response) => {
+  const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+  if (!sessionUser) {
+    return response.status(401).json({ isAuthenticated: false });
+  }
+  return response.status(200).json({
+    isAuthenticated: true,
+    user: sessionUser
+  });
+});
+
+// --- endpoint logout untuk menghapus cookie sesi dari browser ---
+app.post('/api/auth/logout', (request, response) => {
+  clearSessionCookie(request, response);
+  response.status(200).json({ isLoggedOut: true });
+});
+
 // --- endpoint healthcheck untuk monitoring railway ---
 app.get('/health', (request, response) => {
   response.status(200).json({
@@ -928,69 +1135,63 @@ app.get('/health', (request, response) => {
   });
 });
 
-// --- penanganan komunikasi socket.io terproteksi token google ---
+// --- fungsi sinkronisasi state sesi ke socket klien ---
+function syncSessionStateToSocket(clientSocket, sessionUser) {
+  const googleUserId = sessionUser.googleId;
+  const userDatabase = readBotDatabase(googleUserId);
+  let currentBotState = activeBotSessions.get(googleUserId);
+  const sessionFolder = getUserSessionFolderPath(googleUserId);
+
+  if ((!currentBotState || currentBotState.status !== 'CONNECTED') && fs.existsSync(path.join(sessionFolder, 'creds.json'))) {
+    startWhatsAppSession(googleUserId, 'reconnect', userDatabase.phoneNumber || '');
+    currentBotState = activeBotSessions.get(googleUserId);
+  }
+
+  const resolvedStatus = currentBotState ? currentBotState.status : 'DISCONNECTED';
+  const resolvedProfile = currentBotState ? currentBotState.profile : null;
+
+  clientSocket.emit('session:ready', {
+    user: sessionUser,
+    volumePath: sessionFolder,
+    status: resolvedStatus,
+    profile: resolvedProfile,
+    database: userDatabase,
+    globalStats: getGlobalPlatformStatistics(),
+    plugins: getAvailablePluginsList(),
+    logs: userTerminalLogsCache.get(googleUserId) || []
+  });
+
+  if (resolvedStatus === 'CONNECTED' && resolvedProfile) {
+    clientSocket.emit('connection:status', {
+      status: 'CONNECTED',
+      profile: resolvedProfile
+    });
+  }
+}
+
+// --- penanganan komunikasi socket.io terproteksi otomatis oleh cookie sesi ---
 io.on('connection', (clientSocket) => {
-  let authenticatedGoogleId = null;
+  const sessionUser = getSessionUserFromCookieHeader(clientSocket.handshake.headers.cookie);
 
-  // --- autentikasi sesi socket menggunakan kredensial google ---
-  clientSocket.on('session:authenticate', async (payload) => {
-    try {
-      const verifiedUser = await verifyGoogleCredentialToken(payload?.credential);
-      authenticatedGoogleId = verifiedUser.googleId;
+  if (!sessionUser) {
+    clientSocket.emit('auth:expired', {
+      errorMessage: 'Sesi login telah berakhir, silakan masuk kembali.'
+    });
+    clientSocket.disconnect(true);
+    return;
+  }
 
-      const userRoomName = `user_${authenticatedGoogleId}`;
-      clientSocket.join(userRoomName);
+  const authenticatedGoogleId = sessionUser.googleId;
+  clientSocket.join(`user_${authenticatedGoogleId}`);
+  syncSessionStateToSocket(clientSocket, sessionUser);
 
-      const userDatabase = readBotDatabase(authenticatedGoogleId);
-      let currentBotState = activeBotSessions.get(authenticatedGoogleId);
-      
-      const sessionFolder = getUserSessionFolderPath(authenticatedGoogleId);
-      
-      // Jika sesi belum aktif di memori tapi file creds.json ada di volume, langsung jalankan reconnect
-      if ((!currentBotState || currentBotState.status !== 'CONNECTED') && fs.existsSync(path.join(sessionFolder, 'creds.json'))) {
-        // Jalankan tanpa menunggu agar tidak memblokir respon autentikasi
-        startWhatsAppSession(authenticatedGoogleId, 'reconnect', userDatabase.phoneNumber || '');
-        // Ambil ulang state terbaru setelah dipicu
-        currentBotState = activeBotSessions.get(authenticatedGoogleId);
-      }
-
-      const pluginsList = getAvailablePluginsList();
-
-      // Kirim data session:ready ke klien yang baru bergabung ke room
-      clientSocket.emit('session:ready', {
-        user: verifiedUser,
-        volumePath: getUserSessionFolderPath(authenticatedGoogleId),
-        status: currentBotState ? currentBotState.status : 'DISCONNECTED',
-        profile: currentBotState ? currentBotState.profile : null,
-        database: userDatabase,
-        globalStats: getGlobalPlatformStatistics(),
-        plugins: pluginsList
-      });
-
-      // PENTING: Jika bot sebenarnya sudah berstatus CONNECTED di memori, 
-      // pastikan klien langsung menerima status terhubung secara eksplisit.
-      if (currentBotState && currentBotState.status === 'CONNECTED' && currentBotState.profile) {
-        clientSocket.emit('connection:status', {
-          status: 'CONNECTED',
-          profile: currentBotState.profile
-        });
-      }
-
-      emitTerminalLog(
-        authenticatedGoogleId,
-        'INFO',
-        `OAuth Terverifikasi: ${verifiedUser.givenName} (Sesi aktif dimuat)`
-      );
-    } catch (socketAuthError) {
-      clientSocket.emit('auth:expired', {
-        errorMessage: socketAuthError.message
-      });
-    }
+  // --- sinkronisasi ulang saat pengguna kembali ke tab browser ---
+  clientSocket.on('session:sync', () => {
+    syncSessionStateToSocket(clientSocket, sessionUser);
   });
 
   // --- mulai koneksi baru via qr atau phone pairing ---
   clientSocket.on('session:connect', async (payload) => {
-    if (!authenticatedGoogleId) return;
     const method = payload?.method === 'pairing' ? 'pairing' : 'qr';
     const phoneNumber = payload?.phoneNumber || '';
 
@@ -1007,21 +1208,24 @@ io.on('connection', (clientSocket) => {
     await startWhatsAppSession(authenticatedGoogleId, method, phoneNumber);
   });
 
-  // --- hapus sesi dan database.json milik user ---
+  // --- hapus sesi dan mapping bot milik user ---
   clientSocket.on('session:logout', async () => {
-    if (!authenticatedGoogleId) return;
     await destroyBotSession(authenticatedGoogleId, true);
   });
 
-  // --- ubah toggle pengaturan bot di dalam database.json ---
+  // --- ubah toggle pengaturan bot dan pancarkan pembaruan ui ---
   clientSocket.on('settings:toggle', (payload) => {
-    if (!authenticatedGoogleId) return;
     const settingKey = payload?.key;
     if (settingKey !== 'autoRead' && settingKey !== 'publicMode') return;
 
     const currentDatabase = readBotDatabase(authenticatedGoogleId);
     currentDatabase.settings[settingKey] = !currentDatabase.settings[settingKey];
     writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+    io.to(`user_${authenticatedGoogleId}`).emit('stats:update', {
+      userStats: currentDatabase,
+      globalStats: getGlobalPlatformStatistics()
+    });
 
     emitTerminalLog(
       authenticatedGoogleId,
@@ -1032,7 +1236,6 @@ io.on('connection', (clientSocket) => {
 
   // --- simpan dan hot-reload plugin dari developer ide ---
   clientSocket.on('plugin:save', async (payload) => {
-    if (!authenticatedGoogleId) return;
     const { fileName, codeContent } = payload || {};
 
     emitTerminalLog(authenticatedGoogleId, 'INFO', `Menguji validitas sintaks plugin [${fileName}]...`);
@@ -1061,7 +1264,6 @@ io.on('connection', (clientSocket) => {
 
   // --- hapus file plugin dari folder plugins ---
   clientSocket.on('plugin:delete', (payload) => {
-    if (!authenticatedGoogleId) return;
     const targetFileName = String(payload?.fileName || '').replace(/[^a-zA-Z0-9_.-]/g, '');
     const fullTargetPath = path.join(PLUGINS_ROOT_DIR, targetFileName);
 
