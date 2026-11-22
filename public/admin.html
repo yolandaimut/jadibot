@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Admin — JadiBot Core</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800;1,900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    :root[data-theme="emerald"] {
+      --accent-main: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --accent-border: rgba(16, 185, 129, 0.35);
+      --gradient-start: #34d399;
+      --gradient-mid: #10b981;
+      --gradient-end: #06b6d4;
+    }
+
+    :root[data-theme="cyan"] {
+      --accent-main: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.14);
+      --accent-border: rgba(6, 182, 212, 0.35);
+      --gradient-start: #38bdf8;
+      --gradient-mid: #06b6d4;
+      --gradient-end: #3b82f6;
+    }
+
+    :root[data-theme="violet"] {
+      --accent-main: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --accent-border: rgba(139, 92, 246, 0.35);
+      --gradient-start: #c084fc;
+      --gradient-mid: #8b5cf6;
+      --gradient-end: #ec4899;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      background-color: #060911;
+      color: #f1f5f9;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .brand-display-style {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 0.02em;
+      padding-right: 0.25rem;
+      font-size: 0.95rem;
+      line-height: 1.25rem;
+    }
+
+    @media (min-width: 640px) {
+      .brand-display-style {
+        font-size: 1.2rem;
+        line-height: 1.5rem;
+      }
+    }
+
+    @keyframes futuristicFlow {
+      0% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+      50% { background-position: 100% 50%; filter: drop-shadow(0 0 16px var(--accent-border)); }
+      100% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+    }
+
+    @keyframes toastProgressDrain {
+      from { transform: scaleX(1); }
+      to { transform: scaleX(0); }
+    }
+
+    .cyber-toast-progress {
+      transform-origin: left center;
+      animation: toastProgressDrain 3.6s linear forwards;
+    }
+
+    .animated-brand-title {
+      background: linear-gradient(270deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: futuristicFlow 6s ease infinite;
+    }
+
+    .accent-bg { background-color: var(--accent-main); }
+    .accent-bg:hover { background-color: var(--accent-hover); }
+    .accent-text { color: var(--accent-main); }
+    .accent-border { border-color: var(--accent-border); }
+    .accent-soft-bg { background-color: var(--accent-soft); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-slate-700 selection:text-white">
+
+  <!-- --- header navigasi khusus panel admin --- -->
+  <header class="sticky top-0 z-40 flex items-center justify-between gap-2 w-full px-3 py-2.5 sm:px-6 sm:py-3 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 border accent-border flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent-main)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <div class="flex items-center gap-2 min-w-0">
+        <h1 class="brand-display-style animated-brand-title select-none whitespace-nowrap">JadiBot Core</h1>
+        <span class="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono-code text-[9px] font-bold uppercase shrink-0">Admin</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <a href="/dashboard" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        <span class="hidden sm:inline">Kembali ke Dashboard</span>
+        <span class="sm:hidden">Dash</span>
+      </a>
+
+      <button type="button" onclick="logoutAdminSession()" class="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-xs font-semibold transition-all">
+        Logout
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-6 space-y-6">
+
+    <!-- --- info akun admin terverifikasi --- -->
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900/70 border border-slate-800 text-xs">
+      <div class="flex items-center gap-3 min-w-0">
+        <img id="adminAvatarImg" src="https://ui-avatars.com/api/?name=A&background=10b981&color=fff" alt="Admin" class="w-9 h-9 rounded-full object-cover border accent-border shrink-0" />
+        <div class="min-w-0">
+          <p id="adminDisplayName" class="font-bold text-white truncate">Memverifikasi sesi admin...</p>
+          <p id="adminEmailLabel" class="text-[11px] font-mono-code text-slate-400 truncate">-</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="applyAdminTheme('emerald')" title="Emerald" class="w-4 h-4 rounded-full bg-emerald-500 border border-white/30 hover:scale-110 transition-transform"></button>
+        <button type="button" onclick="applyAdminTheme('cyan')" title="Cyan" class="w-4 h-4 rounded-full bg-cyan-500 border border-white/30 hover:scale-110 transition-transform"></button>
+        <button type="button" onclick="applyAdminTheme('violet')" title="Violet" class="w-4 h-4 rounded-full bg-violet-500 border border-white/30 hover:scale-110 transition-transform"></button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- --- form khusus admin untuk perpanjangan masa aktif user berdasarkan google id --- -->
+      <section id="adminExtendSubscriptionSection" class="lg:col-span-7 rounded-2xl bg-slate-900/80 border border-slate-800 p-5 sm:p-6 space-y-5 shadow-2xl">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono-code text-[10px] font-bold uppercase">Admin Only</span>
+              <h2 class="text-sm font-bold text-white truncate">Perpanjangan Masa Aktif User</h2>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">
+              Perbarui langsung properti <span class="font-mono-code text-slate-300">subscription.expiresAt</span> milik user target di <span class="font-mono-code text-slate-300">database.json</span>.
+            </p>
+          </div>
+        </div>
+
+        <form id="adminExtendSubscriptionForm" class="space-y-4 text-xs" novalidate>
+          <div>
+            <label for="adminTargetGoogleIdInput" class="block text-slate-300 font-semibold mb-1.5">
+              Google ID / User ID Target
+            </label>
+            <input
+              id="adminTargetGoogleIdInput"
+              name="googleUserId"
+              type="text"
+              required
+              autocomplete="off"
+              placeholder="Masukkan Google Sub ID target (contoh: 1094827162534...)"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500/60 text-sm text-white font-mono-code focus:outline-none transition-colors"
+            />
+          </div>
+
+          <div>
+            <span class="block text-slate-300 font-semibold mb-1.5">Pilih Paket Durasi Perpanjangan</span>
+            <div class="grid grid-cols-3 gap-2.5">
+              <label class="cursor-pointer">
+                <input type="radio" name="adminDurationDays" value="7" class="peer sr-only" />
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 text-center transition-all hover:border-slate-700">
+                  <p class="font-bold text-white text-xs">7 Hari</p>
+                  <p class="text-[10px] font-mono-code text-emerald-400 mt-0.5">+7d</p>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="adminDurationDays" value="30" class="peer sr-only" checked />
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 text-center transition-all hover:border-slate-700">
+                  <p class="font-bold text-white text-xs">30 Hari</p>
+                  <p class="text-[10px] font-mono-code text-emerald-400 mt-0.5">+30d</p>
+                </div>
+              </label>
+
+              <label class="cursor-pointer">
+                <input type="radio" name="adminDurationDays" value="90" class="peer sr-only" />
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 text-center transition-all hover:border-slate-700">
+                  <p class="font-bold text-white text-xs">90 Hari</p>
+                  <p class="text-[10px] font-mono-code text-emerald-400 mt-0.5">+90d</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="adminExtendFeedbackBox" class="hidden rounded-xl border px-3.5 py-2.5 text-[11px] leading-relaxed break-words"></div>
+
+          <button
+            id="adminExtendSubmitBtn"
+            type="submit"
+            class="w-full py-2.5 px-4 rounded-xl accent-bg text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait"
+          >
+            <svg id="adminExtendSpinnerIcon" class="hidden w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span id="adminExtendBtnLabel">Proses Perpanjangan Masa Aktif</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- --- kartu utilitas cepat dan status server khusus admin --- -->
+      <section class="lg:col-span-5 space-y-6">
+        <div class="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+          <div class="border-b border-slate-800/80 pb-3">
+            <h2 class="text-sm font-bold text-white">Utilitas Platform Admin</h2>
+            <p class="text-[11px] text-slate-400 mt-0.5">Akses cepat pencadangan dan status volume server</p>
+          </div>
+
+          <div class="space-y-2.5 text-xs font-mono-code">
+            <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
+              <span class="text-slate-400">Server Status</span>
+              <span id="serverHealthStatus" class="text-emerald-400 font-bold">Memeriksa...</span>
+            </div>
+            <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-slate-800">
+              <span class="text-slate-400">Server Uptime</span>
+              <span id="serverUptimeLabel" class="text-white">-</span>
+            </div>
+            <div class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+              <span class="block text-slate-400">Volume Root</span>
+              <span id="serverVolumeRoot" class="block text-[11px] text-slate-200 truncate">-</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5 pt-1">
+            <button type="button" onclick="downloadAdminBackupZip()" class="py-2.5 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 font-semibold text-xs transition-all active:scale-95">
+              Unduh Backup ZIP
+            </button>
+            <button type="button" onclick="refreshServerHealth()" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all active:scale-95">
+              Cek Health Server
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="cyberToastContainer" class="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-80 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
+
+  <script>
+    const EXCLUSIVE_ADMIN_EMAIL = 'suryadev2105@gmail.com';
+    const EXCLUSIVE_ADMIN_GOOGLE_ID = '113793372874509761088';
+
+    // --- escape karakter html ---
+    function escapeHtml(rawString) {
+      return String(rawString ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // --- tampilkan cyber toast pada halaman admin ---
+    function showAdminToast(title, message, variant = 'success') {
+      const container = document.getElementById('cyberToastContainer');
+      if (!container) return;
+
+      const styles = {
+        success: {
+          border: 'border-emerald-500/35',
+          badge: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+          bar: 'bg-emerald-400'
+        },
+        danger: {
+          border: 'border-rose-500/35',
+          badge: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+          bar: 'bg-rose-500'
+        },
+        info: {
+          border: 'border-sky-500/35',
+          badge: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+          bar: 'bg-sky-400'
+        }
+      };
+
+      const theme = styles[variant] || styles.info;
+      const card = document.createElement('div');
+      card.className = `pointer-events-auto relative overflow-hidden rounded-2xl bg-slate-950/95 backdrop-blur-xl border ${theme.border} p-3.5 transition-all duration-300 translate-y-4 opacity-0`;
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-xs font-bold text-white truncate">${escapeHtml(title)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 leading-snug break-words">${escapeHtml(message)}</p>
+          </div>
+          <button type="button" onclick="this.closest('.pointer-events-auto').remove()" class="text-slate-500 hover:text-white text-xs">✕</button>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-800/80">
+          <div class="h-full ${theme.bar} cyber-toast-progress"></div>
+        </div>
+      `;
+
+      container.appendChild(card);
+      requestAnimationFrame(() => {
+        card.classList.remove('translate-y-4', 'opacity-0');
+        card.classList.add('translate-y-0', 'opacity-100');
+      });
+
+      setTimeout(() => {
+        card.classList.remove('translate-y-0', 'opacity-100');
+        card.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => card.remove(), 300);
+      }, 3600);
+    }
+
+    // --- sinkronisasi tema dengan preferensi dashboard ---
+    function applyAdminTheme(themeName, notify = true) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('jadibot_theme_pref', themeName);
+      if (notify) showAdminToast('Tema Diubah', `Tema aksen aktif: ${themeName.toUpperCase()}`, 'info');
+    }
+
+    (function initSavedTheme() {
+      const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+
+    // --- verifikasi ulang sesi admin eksklusif di sisi klien ---
+    async function verifyAdminSession() {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (!res.ok) {
+          window.location.replace('/login');
+          return;
+        }
+
+        const data = await res.json();
+        const user = data?.user;
+        const email = String(user?.email || '').trim().toLowerCase();
+        const googleId = String(user?.googleId || '').trim();
+        const isAllowed = Boolean(data?.isAdmin) && (email === EXCLUSIVE_ADMIN_EMAIL || googleId === EXCLUSIVE_ADMIN_GOOGLE_ID);
+
+        if (!isAllowed) {
+          window.location.replace('/dashboard');
+          return;
+        }
+
+        document.getElementById('adminDisplayName').textContent = user.fullName || user.givenName || 'Admin';
+        document.getElementById('adminEmailLabel').textContent = `${user.email || '-'} • Sub: ${user.googleId || '-'}`;
+        if (user.pictureUrl) {
+          document.getElementById('adminAvatarImg').src = user.pictureUrl;
+        }
+      } catch {
+        window.location.replace('/login');
+      }
+    }
+
+    // --- muat status health server ---
+    async function refreshServerHealth() {
+      const statusEl = document.getElementById('serverHealthStatus');
+      const uptimeEl = document.getElementById('serverUptimeLabel');
+      const volumeEl = document.getElementById('serverVolumeRoot');
+
+      try {
+        const res = await fetch('/health', { credentials: 'same-origin' });
+        const data = await res.json();
+        const totalSec = Math.floor(Number(data?.uptime || 0));
+        const hrs = Math.floor(totalSec / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+
+        if (statusEl) statusEl.textContent = String(data?.status || 'ok').toUpperCase();
+        if (uptimeEl) uptimeEl.textContent = `${hrs}j ${mins}m ${secs}d`;
+        if (volumeEl) volumeEl.textContent = data?.volumeRoot || '-';
+      } catch {
+        if (statusEl) {
+          statusEl.textContent = 'OFFLINE';
+          statusEl.className = 'text-rose-400 font-bold';
+        }
+      }
+    }
+
+    function downloadAdminBackupZip() {
+      window.location.href = '/api/backup/download';
+      showAdminToast('Backup ZIP', 'Mengunduh arsip plugins & database.json...', 'info');
+    }
+
+    async function logoutAdminSession() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch {
+      }
+      window.location.replace('/login');
+    }
+
+    // --- logika terisolasi submit perpanjangan masa aktif user khusus halaman admin ---
+    (function initAdminSubscriptionExtension() {
+      const formEl = document.getElementById('adminExtendSubscriptionForm');
+      const userIdInput = document.getElementById('adminTargetGoogleIdInput');
+      const submitBtn = document.getElementById('adminExtendSubmitBtn');
+      const spinnerIcon = document.getElementById('adminExtendSpinnerIcon');
+      const btnLabel = document.getElementById('adminExtendBtnLabel');
+      const feedbackBox = document.getElementById('adminExtendFeedbackBox');
+
+      if (!formEl || !userIdInput || !submitBtn) return;
+
+      function renderAdminFeedback(messageText, isError = false) {
+        if (!feedbackBox) return;
+        feedbackBox.textContent = messageText;
+        feedbackBox.className = isError
+          ? 'rounded-xl border border-rose-500/35 bg-rose-500/10 text-rose-300 px-3.5 py-2.5 text-[11px] leading-relaxed break-words'
+          : 'rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-emerald-300 px-3.5 py-2.5 text-[11px] leading-relaxed break-words';
+      }
+
+      function setSubmittingState(isLoading) {
+        submitBtn.disabled = isLoading;
+        if (spinnerIcon) spinnerIcon.classList.toggle('hidden', !isLoading);
+        if (btnLabel) {
+          btnLabel.textContent = isLoading
+            ? 'Memperbarui Database...'
+            : 'Proses Perpanjangan Masa Aktif';
+        }
+      }
+
+      formEl.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const targetGoogleId = String(userIdInput.value || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+        const selectedRadio = formEl.querySelector('input[name="adminDurationDays"]:checked');
+        const durationDays = Number(selectedRadio?.value || 0);
+
+        if (!targetGoogleId) {
+          renderAdminFeedback('Google ID / User ID target wajib diisi dengan format yang valid.', true);
+          userIdInput.focus();
+          return;
+        }
+
+        if (![7, 30, 90].includes(durationDays)) {
+          renderAdminFeedback('Pilih paket durasi perpanjangan yang tersedia (7, 30, atau 90 Hari).', true);
+          return;
+        }
+
+        setSubmittingState(true);
+        if (feedbackBox) feedbackBox.classList.add('hidden');
+
+        try {
+          const response = await fetch('/api/admin/subscription/extend', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              googleUserId: targetGoogleId,
+              durationDays
+            })
+          });
+
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok || !result.isSuccess) {
+            throw new Error(result.errorMessage || `Permintaan ditolak server (HTTP ${response.status}).`);
+          }
+
+          const updatedExpiresAt = Number(result.subscription?.expiresAt || result.expiresAt || 0);
+          const formattedExpiry = updatedExpiresAt > 0
+            ? new Intl.DateTimeFormat('id-ID', {
+                timeZone: 'Asia/Jakarta',
+                dateStyle: 'medium',
+                timeStyle: 'short'
+              }).format(new Date(updatedExpiresAt))
+            : '-';
+
+          const successMsg = `Akun ${targetGoogleId} diperpanjang +${durationDays} hari (hingga ${formattedExpiry} WIB).`;
+          renderAdminFeedback(successMsg, false);
+          showAdminToast('Perpanjangan Berhasil', successMsg, 'success');
+          userIdInput.value = '';
+        } catch (requestError) {
+          renderAdminFeedback(requestError.message || 'Terjadi kesalahan saat menghubungi server.', true);
+          showAdminToast('Gagal Memproses', requestError.message || 'Permintaan gagal.', 'danger');
+        } finally {
+          setSubmittingState(false);
+        }
+      });
+    })();
+
+    window.addEventListener('DOMContentLoaded', () => {
+      verifyAdminSession();
+      refreshServerHealth();
+    });
+  </script>
+</body>
+</html>

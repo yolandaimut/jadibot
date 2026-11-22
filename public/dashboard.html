@@ -147,6 +147,7 @@
           <svg class="w-3.5 h-3.5 text-slate-400 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
 
+        <!-- --- dropdown profil dengan injeksi server-side tombol admin tanpa flicker --- -->
         <div id="userDropdownMenuPopup" class="hidden absolute right-0 top-10 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50 text-xs divide-y divide-slate-800/80">
           <div class="px-3 py-2">
             <div class="flex items-center justify-between gap-2">
@@ -205,7 +206,7 @@
 
     <!-- --- banner pengumuman global bergaya terminal tanpa jeda kiri dengan scroll internal --- -->
     <div id="globalAnnouncementBanner" class="hidden rounded-xl bg-sky-500/10 border border-sky-500/30 px-3.5 py-2.5 flex items-start justify-between gap-2.5 text-xs text-sky-200">
-      <div class="block min-w-0 flex-1 max-h-24 overflow-y-auto pr-1.5 leading-relaxed break-words [overflow-wrap:anywhere]"><span class="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono-code text-[10px] font-bold">INFO</span> <span id="globalAnnouncementText" class="ml-1 whitespace-pre-wrap"></span></div>
+      <div class="block min-w-0 flex-1 max-h-24 overflow-y-auto pr-1.5 leading-relaxed break-words [overflow-wrap:anywhere]"><span id="globalAnnouncementBadge" class="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono-code text-[10px] font-bold">INFO</span> <span id="globalAnnouncementText" class="ml-1 whitespace-pre-wrap"></span></div>
       <button type="button" onclick="document.getElementById('globalAnnouncementBanner').classList.add('hidden')" class="self-start text-sky-400 hover:text-white shrink-0 leading-none p-0.5">✕</button>
     </div>
 
@@ -414,6 +415,12 @@
           <div id="adminAnnouncementEditorCard" class="hidden rounded-2xl bg-slate-900/75 border border-sky-500/30 p-5 space-y-3">
             <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
               <h2 class="text-xs font-bold uppercase tracking-wider text-sky-300 font-mono-code">Pengumuman Global (Admin)</h2>
+              <select id="adminAnnouncementLevelSelect" class="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-mono-code text-slate-200 focus:outline-none focus:border-sky-500">
+                <option value="info">INFO</option>
+                <option value="success">SUCCESS</option>
+                <option value="warn">WARN</option>
+                <option value="danger">DANGER</option>
+              </select>
             </div>
             <textarea id="adminAnnouncementInput" rows="2" placeholder="Ketik pengumuman untuk semua pengguna online..." class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-sky-500"></textarea>
             <div class="flex items-center gap-2">
@@ -566,7 +573,16 @@
               <label class="text-slate-400">Jeda per grup (detik):</label>
               <input id="broadcastDelayInput" type="number" min="2" max="15" value="4" class="w-20 px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-white font-mono-code text-center" />
             </div>
-            <button onclick="sendGroupBroadcast()" class="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-all active:scale-95">
+            <div id="broadcastProgressWrapper" class="hidden rounded-xl bg-slate-950 border border-slate-800 p-3 space-y-1.5 text-[11px] font-mono-code">
+              <div class="flex items-center justify-between gap-2">
+                <span id="broadcastProgressLabel" class="text-slate-300">Menyiapkan broadcast...</span>
+                <span id="broadcastProgressStats" class="text-sky-400">0/0</span>
+              </div>
+              <div class="h-1.5 w-full rounded-full bg-slate-900 overflow-hidden">
+                <div id="broadcastProgressBarFill" class="h-full bg-sky-400 transition-all duration-300 rounded-full" style="width: 0%"></div>
+              </div>
+            </div>
+            <button id="broadcastSendSubmitBtn" onclick="sendGroupBroadcast()" class="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
               Kirim Broadcast ke Semua Grup
             </button>
           </div>
@@ -592,7 +608,10 @@
               </div>
               <div class="flex items-center gap-2">
                 <input id="manageUserSearchInput" oninput="renderManagedUsersTable()" type="text" placeholder="Cari nomor / nama..." class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-slate-600 w-40" />
-                <button onclick="requestManagedEntities()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">Refresh</button>
+                <button id="refreshUsersBtn" type="button" onclick="requestManagedEntities('users')" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait">
+                  <svg id="refreshUsersIcon" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  <span>Refresh</span>
+                </button>
               </div>
             </div>
 
@@ -617,7 +636,13 @@
                 <h2 class="text-sm font-bold text-white">Manajemen Grup Aktif</h2>
                 <p class="text-[11px] text-slate-400">Kontrol akses bot pada grup terdaftar</p>
               </div>
-              <input id="manageGroupSearchInput" oninput="renderManagedGroupsTable()" type="text" placeholder="Cari grup..." class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-slate-600 w-40" />
+              <div class="flex items-center gap-2">
+                <input id="manageGroupSearchInput" oninput="renderManagedGroupsTable()" type="text" placeholder="Cari grup..." class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-slate-600 w-40" />
+                <button id="refreshGroupsBtn" type="button" onclick="requestManagedEntities('groups')" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait">
+                  <svg id="refreshGroupsIcon" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
 
             <div class="overflow-x-auto max-h-[220px] overflow-y-auto">
@@ -787,6 +812,10 @@
         <h3 class="text-sm font-bold text-white">Perpanjang Masa Aktif Bot</h3>
         <button onclick="closeRenewModal()" class="text-slate-400 hover:text-white">✕</button>
       </div>
+      <div id="renewCurrentPlanMeta" class="rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-[11px] font-mono-code text-slate-300 flex items-center justify-between">
+        <span>Paket: <strong class="text-white">Starter</strong></span>
+        <span>Slot: <strong class="accent-text">1</strong></span>
+      </div>
       <div class="grid grid-cols-3 gap-2.5 text-center text-xs">
         <button onclick="orderPackageViaWhatsApp('7 Hari', 'Rp 10.000')" class="p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500/50 space-y-1 transition-all">
           <p class="font-bold text-white">7 Hari</p>
@@ -808,6 +837,9 @@
   <div id="cyberToastContainer" class="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-80 z-50 flex flex-col gap-2.5 pointer-events-none"></div>
 
   <script>
+    const EXCLUSIVE_ADMIN_EMAIL = 'suryadev2105@gmail.com';
+    const EXCLUSIVE_ADMIN_GOOGLE_ID = '113793372874509761088';
+
     let botStartTimeMs = Date.now();
     let loadedPluginsCache = [];
     let featureCatalogCache = [];
@@ -823,6 +855,10 @@
     let managedUsersCache = [];
     let managedGroupsCache = [];
     let pendingDeleteUserJid = null;
+    let latestTrafficSeries = null;
+    let lastSubscriptionMeta = null;
+    let refreshStartedAt = 0;
+    let refreshFallbackTimer = null;
 
     const socketClient = io({
       withCredentials: true,
@@ -834,6 +870,24 @@
     const MAX_CPU_POINTS = 25;
     let cpuChartInstance = null;
     let trafficChartInstance = null;
+
+    // --- escape karakter html termasuk tanda kutip tunggal dan ganda ---
+    function escapeHtmlString(rawString) {
+      return String(rawString ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // --- verifikasi hak akses admin eksklusif ---
+    function checkExclusiveAdminUser(userObj) {
+      if (!userObj) return false;
+      const email = String(userObj.email || '').trim().toLowerCase();
+      const googleId = String(userObj.googleId || '').trim();
+      return email === EXCLUSIVE_ADMIN_EMAIL || googleId === EXCLUSIVE_ADMIN_GOOGLE_ID;
+    }
 
     // --- tampilkan notifikasi cyber glass toast dengan progress bar ---
     function showCyberToast(title, message, variant = 'success') {
@@ -992,13 +1046,27 @@
       });
     }
 
-    function updateTrafficHistoryChart(historyObj) {
-      if (!trafficChartInstance || !historyObj) return;
-      const keys = Object.keys(historyObj).sort();
-      trafficChartInstance.data.labels = keys.map((d) => d.slice(5));
-      trafficChartInstance.data.datasets[0].data = keys.map((d) => Number(historyObj[d]?.in || 0));
-      trafficChartInstance.data.datasets[1].data = keys.map((d) => Number(historyObj[d]?.out || 0));
-      trafficChartInstance.update('none');
+    // --- perbarui grafik trafik 7 hari dari array trafficSeries maupun objek history ---
+    function updateTrafficHistoryChart(trafficInput) {
+      if (!trafficChartInstance) initTrafficHistoryChart();
+      if (!trafficChartInstance || !trafficInput) return;
+
+      if (Array.isArray(trafficInput)) {
+        latestTrafficSeries = trafficInput;
+        trafficChartInstance.data.labels = trafficInput.map((item) => item.label || String(item.date || '').slice(5));
+        trafficChartInstance.data.datasets[0].data = trafficInput.map((item) => Number(item.in || 0));
+        trafficChartInstance.data.datasets[1].data = trafficInput.map((item) => Number(item.out || 0));
+        trafficChartInstance.update('none');
+        return;
+      }
+
+      if (typeof trafficInput === 'object') {
+        const keys = Object.keys(trafficInput).sort();
+        trafficChartInstance.data.labels = keys.map((d) => d.slice(5));
+        trafficChartInstance.data.datasets[0].data = keys.map((d) => Number(trafficInput[d]?.in || 0));
+        trafficChartInstance.data.datasets[1].data = keys.map((d) => Number(trafficInput[d]?.out || 0));
+        trafficChartInstance.update('none');
+      }
     }
 
     function pushSystemMetricsPoint(payload) {
@@ -1148,10 +1216,7 @@
 
       for (const [key, btnEl] of Object.entries(buttons)) {
         if (!btnEl) continue;
-        if (key === 'developer' && !isCurrentUserAdmin) {
-          btnEl.className = 'hidden';
-          continue;
-        }
+        if (key === 'developer' && !isCurrentUserAdmin) continue;
         btnEl.className = key === targetTab ? activeTabClasses : inactiveTabClasses;
       }
 
@@ -1160,7 +1225,7 @@
         if (trafficChartInstance) trafficChartInstance.resize();
       }
       if (targetTab === 'manage') {
-        requestManagedEntities();
+        requestManagedEntities('all');
         renderFeatureCatalogUI();
       }
     }
@@ -1202,17 +1267,39 @@
       closeRenewModal();
     }
 
-    function renderSubscriptionCountdown(expiresAtMs) {
+    // --- render status masa aktif dan metadata paket langganan ---
+    function renderSubscriptionCountdown(subscriptionOrExpiresAt) {
       const pill = document.getElementById('subscriptionCountdownPill');
       if (!pill) return;
-      const diffMs = Number(expiresAtMs || 0) - Date.now();
+
+      const isObj = subscriptionOrExpiresAt && typeof subscriptionOrExpiresAt === 'object';
+      const expiresAtMs = isObj ? Number(subscriptionOrExpiresAt.expiresAt || 0) : Number(subscriptionOrExpiresAt || 0);
+      const planName = isObj && subscriptionOrExpiresAt.plan ? String(subscriptionOrExpiresAt.plan) : 'Starter';
+      const isReseller = Boolean(isObj && subscriptionOrExpiresAt.isReseller);
+      const maxSlots = isObj && subscriptionOrExpiresAt.maxSlots ? Number(subscriptionOrExpiresAt.maxSlots) : 1;
+
+      if (isObj) lastSubscriptionMeta = subscriptionOrExpiresAt;
+
+      const diffMs = expiresAtMs - Date.now();
       const daysLeft = Math.max(0, Math.ceil(diffMs / 86400000));
-      if (daysLeft <= 0) {
-        pill.textContent = 'Masa Aktif: Habis';
+      const resellerTag = isReseller ? ` • Reseller (${maxSlots} Slot)` : ` • ${maxSlots} Slot`;
+
+      if (expiresAtMs > 0 && daysLeft <= 0) {
+        pill.textContent = `${planName}${resellerTag} • Habis`;
         pill.className = 'px-2 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300';
+      } else if (expiresAtMs > 0) {
+        pill.textContent = `${planName}${resellerTag} • Sisa ${daysLeft} Hari`;
+        pill.className = isReseller
+          ? 'px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300'
+          : 'px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300';
       } else {
-        pill.textContent = `Aktif • Sisa ${daysLeft} Hari`;
+        pill.textContent = `${planName}${resellerTag} • Aktif`;
         pill.className = 'px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300';
+      }
+
+      const metaInfo = document.getElementById('renewCurrentPlanMeta');
+      if (metaInfo) {
+        metaInfo.innerHTML = `<span>Paket: <strong class="text-white">${escapeHtmlString(planName)}</strong></span><span>Slot: <strong class="accent-text">${maxSlots}</strong></span>`;
       }
     }
 
@@ -1240,16 +1327,52 @@
       }).join('');
     }
 
+    // --- render banner pengumuman global dengan alignment items-start dan level warna ---
     function renderGlobalAnnouncementBanner(announcementObj) {
       const banner = document.getElementById('globalAnnouncementBanner');
+      const badgeEl = document.getElementById('globalAnnouncementBadge');
       const textEl = document.getElementById('globalAnnouncementText');
       const adminInput = document.getElementById('adminAnnouncementInput');
+      const levelSelect = document.getElementById('adminAnnouncementLevelSelect');
       if (!banner || !textEl) return;
 
       const text = String(announcementObj?.text || '').trim();
+      const rawLevel = String(announcementObj?.level || 'info').toLowerCase();
+      const level = ['info', 'warn', 'success', 'danger'].includes(rawLevel) ? rawLevel : 'info';
+
+      const levelStyles = {
+        info: {
+          banner: 'rounded-xl bg-sky-500/10 border border-sky-500/30 px-3.5 py-2.5 flex items-start justify-between gap-2.5 text-xs text-sky-200',
+          badge: 'px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono-code text-[10px] font-bold',
+          label: 'INFO'
+        },
+        success: {
+          banner: 'rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2.5 flex items-start justify-between gap-2.5 text-xs text-emerald-200',
+          badge: 'px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono-code text-[10px] font-bold',
+          label: 'SUCCESS'
+        },
+        warn: {
+          banner: 'rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 flex items-start justify-between gap-2.5 text-xs text-amber-200',
+          badge: 'px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono-code text-[10px] font-bold',
+          label: 'WARN'
+        },
+        danger: {
+          banner: 'rounded-xl bg-rose-500/10 border border-rose-500/35 px-3.5 py-2.5 flex items-start justify-between gap-2.5 text-xs text-rose-200',
+          badge: 'px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono-code text-[10px] font-bold',
+          label: 'ALERT'
+        }
+      };
+
+      const chosen = levelStyles[level];
       if (adminInput && document.activeElement !== adminInput) adminInput.value = text;
+      if (levelSelect && document.activeElement !== levelSelect) levelSelect.value = level;
 
       if (text) {
+        banner.className = chosen.banner;
+        if (badgeEl) {
+          badgeEl.className = chosen.badge;
+          badgeEl.textContent = chosen.label;
+        }
         textEl.textContent = text;
         banner.classList.remove('hidden');
       } else {
@@ -1259,13 +1382,12 @@
 
     function publishGlobalAnnouncement() {
       const text = document.getElementById('adminAnnouncementInput')?.value.trim() || '';
-      socketClient.emit('announcement:set', { text });
-      showCyberToast('Pengumuman', 'Pengumuman global dikirim ke semua pengguna.', 'info');
+      const level = document.getElementById('adminAnnouncementLevelSelect')?.value || 'info';
+      socketClient.emit('announcement:set', { text, level });
     }
 
     function clearGlobalAnnouncement() {
-      socketClient.emit('announcement:set', { text: '' });
-      showCyberToast('Pengumuman', 'Pengumuman global dihapus.', 'info');
+      socketClient.emit('announcement:set', { text: '', level: 'info' });
     }
 
     function sendGroupBroadcast() {
@@ -1275,6 +1397,19 @@
         showCyberToast('Pesan Kosong', 'Isi pesan broadcast terlebih dahulu.', 'danger');
         return;
       }
+
+      const progressBox = document.getElementById('broadcastProgressWrapper');
+      const progressLabel = document.getElementById('broadcastProgressLabel');
+      const progressStats = document.getElementById('broadcastProgressStats');
+      const progressFill = document.getElementById('broadcastProgressBarFill');
+      const submitBtn = document.getElementById('broadcastSendSubmitBtn');
+
+      if (progressBox) progressBox.classList.remove('hidden');
+      if (progressLabel) progressLabel.textContent = 'Mengambil daftar grup aktif...';
+      if (progressStats) progressStats.textContent = '0/0';
+      if (progressFill) progressFill.style.width = '0%';
+      if (submitBtn) submitBtn.disabled = true;
+
       socketClient.emit('broadcast:groups', { message, delaySeconds });
       showCyberToast('Broadcast Dimulai', `Mengirim ke semua grup aktif (jeda ${delaySeconds} detik)...`, 'info');
     }
@@ -1346,27 +1481,48 @@
     }
 
     function toggleBotFeatureCategory(categoryName) {
-      const normalized = String(categoryName).toLowerCase();
+      const normalized = String(categoryName || '').trim().toLowerCase();
+      if (!normalized) return;
+
       if (currentDisabledCategories.includes(normalized)) {
         currentDisabledCategories = currentDisabledCategories.filter((c) => c !== normalized);
       } else {
         currentDisabledCategories = [...currentDisabledCategories, normalized];
       }
-      socketClient.emit('settings:update', { disabledCategories: currentDisabledCategories });
+
+      socketClient.emit('catalog:toggleCategory', { category: normalized });
       renderFeatureCatalogUI();
     }
 
     function renderFeatureCatalogUI() {
       const container = document.getElementById('featureCatalogContainer');
-      const query = String(document.getElementById('catalogSearchInput')?.value || '').toLowerCase();
+      const query = String(document.getElementById('catalogSearchInput')?.value || '').trim().toLowerCase();
       if (!container) return;
 
       const grouped = {};
       for (const item of featureCatalogCache) {
-        const matchedCmds = item.commands.filter((c) => c.includes(query) || item.category.includes(query));
+        const categoryKey = String(item.category || 'general').toLowerCase();
+        const commands = Array.isArray(item.commands) ? item.commands : [];
+        const aliases = Array.isArray(item.aliases) ? item.aliases : [];
+        const usageText = String(item.usage || '').trim();
+
+        const matchedCmds = commands.filter((cmd) => {
+          if (!query) return true;
+          const cmdLower = String(cmd).toLowerCase();
+          const aliasMatch = aliases.some((al) => String(al).toLowerCase().includes(query));
+          return cmdLower.includes(query) || categoryKey.includes(query) || usageText.toLowerCase().includes(query) || aliasMatch;
+        });
+
         if (matchedCmds.length === 0) continue;
-        if (!grouped[item.category]) grouped[item.category] = [];
-        grouped[item.category].push(...matchedCmds);
+        if (!grouped[categoryKey]) grouped[categoryKey] = [];
+        grouped[categoryKey].push({
+          commands: matchedCmds,
+          aliases,
+          usage: usageText,
+          limit: Number(item.limit || 0),
+          premiumOnly: Boolean(item.premiumOnly),
+          ownerOnly: Boolean(item.ownerOnly)
+        });
       }
 
       const categories = Object.keys(grouped).sort();
@@ -1377,30 +1533,52 @@
 
       container.innerHTML = categories.map((cat) => {
         const isOff = currentDisabledCategories.includes(cat);
-        const cmdsHtml = [...new Set(grouped[cat])].map((c) => `<span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono-code text-slate-300">.${escapeHtmlString(c)}</span>`).join('');
+        const chipsHtml = grouped[cat].flatMap((entry) => {
+          const aliasHint = entry.aliases.length > 0 ? `Alias: ${entry.aliases.map((a) => `.${a}`).join(', ')}` : '';
+          const limitBadge = entry.limit > 0 ? `<span class="text-[9px] text-slate-400">L:${entry.limit}</span>` : '';
+          const premBadge = entry.premiumOnly ? '<span class="px-1 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold">PRO</span>' : '';
+          const ownerBadge = entry.ownerOnly ? '<span class="px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">OWN</span>' : '';
+
+          return entry.commands.map((cmd) => {
+            const cmdUsage = entry.usage ? ` ${entry.usage}` : '';
+            return `<span title="${escapeHtmlString(aliasHint)}" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono-code text-slate-200"><span>.${escapeHtmlString(cmd)}${escapeHtmlString(cmdUsage)}</span>${limitBadge}${premBadge}${ownerBadge}</span>`;
+          });
+        }).join('');
+
         return `
           <div class="p-3 rounded-xl bg-slate-950 border ${isOff ? 'border-slate-800/50 opacity-60' : 'border-slate-800'} space-y-2">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono-code">${escapeHtmlString(cat)}</span>
-              <button onclick="toggleBotFeatureCategory('${escapeHtmlString(cat)}')" class="px-2 py-0.5 rounded text-[10px] font-semibold ${isOff ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'}">
+              <button type="button" data-category="${escapeHtmlString(cat)}" onclick="toggleBotFeatureCategory(this.dataset.category)" class="px-2 py-0.5 rounded text-[10px] font-semibold ${isOff ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'}">
                 ${isOff ? 'Nonaktif' : 'Aktif'}
               </button>
             </div>
-            <div class="flex flex-wrap gap-1">${cmdsHtml}</div>
+            <div class="flex flex-wrap gap-1">${chipsHtml}</div>
           </div>
         `;
       }).join('');
     }
 
-    function renderDatabaseStatistics(databaseObject, globalStatsObject) {
+    function renderDatabaseStatistics(databaseObject, globalStatsObject, trafficSeriesArg) {
       if (databaseObject) {
         animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
         animateMetricCounter('statMessagesSent', databaseObject.totalMessagesSent || 0);
         animateMetricCounter('statUniqueUsers', Array.isArray(databaseObject.uniqueUsers) ? databaseObject.uniqueUsers.length : 0);
 
         if (databaseObject.startTime) botStartTimeMs = databaseObject.startTime;
-        if (databaseObject.expiresAt) renderSubscriptionCountdown(databaseObject.expiresAt);
-        if (databaseObject.trafficHistory) updateTrafficHistoryChart(databaseObject.trafficHistory);
+
+        const resolvedSub = databaseObject.subscription
+          ? { ...databaseObject.subscription }
+          : (databaseObject.expiresAt ? { expiresAt: databaseObject.expiresAt } : lastSubscriptionMeta);
+        if (resolvedSub) renderSubscriptionCountdown(resolvedSub);
+
+        if (Array.isArray(trafficSeriesArg)) {
+          updateTrafficHistoryChart(trafficSeriesArg);
+        } else if (Array.isArray(latestTrafficSeries)) {
+          updateTrafficHistoryChart(latestTrafficSeries);
+        } else if (databaseObject.trafficHistory) {
+          updateTrafficHistoryChart(databaseObject.trafficHistory);
+        }
 
         const autoReadBtn = document.getElementById('toggleAutoReadBtn');
         const publicModeBtn = document.getElementById('togglePublicModeBtn');
@@ -1408,23 +1586,31 @@
         const isAutoRead = databaseObject.settings?.autoRead ?? true;
         const isPublicMode = databaseObject.settings?.publicMode ?? true;
 
-        autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
-        autoReadBtn.className = isAutoRead
-          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
-          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+        if (autoReadBtn) {
+          autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
+          autoReadBtn.className = isAutoRead
+            ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+            : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+        }
 
-        publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
-        publicModeBtn.className = isPublicMode
-          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
-          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+        if (publicModeBtn) {
+          publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
+          publicModeBtn.className = isPublicMode
+            ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
+            : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
+        }
 
         populateSettingsForm(databaseObject.settings);
       }
 
       if (globalStatsObject) {
-        document.getElementById('globalActiveBotsCount').textContent = globalStatsObject.totalActiveBots || 0;
-        const combinedTraffic = (globalStatsObject.globalMessagesReceived || 0) + (globalStatsObject.globalMessagesSent || 0);
-        document.getElementById('globalTotalTrafficCount').textContent = combinedTraffic.toLocaleString('id-ID');
+        const botsEl = document.getElementById('globalActiveBotsCount');
+        const trafficEl = document.getElementById('globalTotalTrafficCount');
+        if (botsEl) botsEl.textContent = globalStatsObject.totalActiveBots || 0;
+        if (trafficEl) {
+          const combinedTraffic = (globalStatsObject.globalMessagesReceived || 0) + (globalStatsObject.globalMessagesSent || 0);
+          trafficEl.textContent = combinedTraffic.toLocaleString('id-ID');
+        }
       }
     }
 
@@ -1578,10 +1764,6 @@
       if (isTerminalAutoScrollEnabled) terminalBox.scrollTop = terminalBox.scrollHeight;
     }
 
-    function escapeHtmlString(rawString) {
-      return String(rawString).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
     async function copyTerminalLogs() {
       const terminalBox = document.getElementById('terminalLogOutput');
       const logText = terminalBox?.innerText.trim() || '';
@@ -1642,18 +1824,51 @@
       showTopToast('Menghapus sesi bot Anda...');
     }
 
-    function requestManagedEntities() {
+    // --- kontrol animasi spin tombol refresh manajemen user dan grup ---
+    function setRefreshSpinState(isSpinning, targetScope = 'all') {
+      const pairs = [
+        { key: 'users', btn: document.getElementById('refreshUsersBtn'), icon: document.getElementById('refreshUsersIcon') },
+        { key: 'groups', btn: document.getElementById('refreshGroupsBtn'), icon: document.getElementById('refreshGroupsIcon') }
+      ];
+
+      pairs.forEach(({ key, btn, icon }) => {
+        if (isSpinning && targetScope !== 'all' && targetScope !== key) return;
+        if (btn) btn.disabled = isSpinning;
+        if (icon) icon.classList.toggle('animate-spin', isSpinning);
+      });
+    }
+
+    function stopRefreshSpinSmoothly() {
+      if (refreshFallbackTimer) {
+        clearTimeout(refreshFallbackTimer);
+        refreshFallbackTimer = null;
+      }
+      const remainingDelay = Math.max(0, 350 - (Date.now() - refreshStartedAt));
+      setTimeout(() => setRefreshSpinState(false, 'all'), remainingDelay);
+    }
+
+    function requestManagedEntities(targetScope = 'all') {
+      refreshStartedAt = Date.now();
+      setRefreshSpinState(true, targetScope);
+      if (refreshFallbackTimer) clearTimeout(refreshFallbackTimer);
+      refreshFallbackTimer = setTimeout(() => {
+        setRefreshSpinState(false, 'all');
+        refreshFallbackTimer = null;
+      }, 8000);
       socketClient.emit('manage:list');
     }
 
-    // --- render tabel user dengan satu kolom aksi terpadu ---
+    // --- render tabel user aman terhadap tanda kutip tunggal via atribut dataset ---
     function renderManagedUsersTable() {
       const tbody = document.getElementById('managedUsersTableBody');
       const query = String(document.getElementById('manageUserSearchInput')?.value || '').toLowerCase();
       if (!tbody) return;
 
       const filtered = managedUsersCache.filter(
-        (u) => u.number.toLowerCase().includes(query) || String(u.name || '').toLowerCase().includes(query)
+        (u) =>
+          String(u.number || '').toLowerCase().includes(query) ||
+          String(u.name || '').toLowerCase().includes(query) ||
+          String(u.jid || '').toLowerCase().includes(query)
       );
 
       if (filtered.length === 0) {
@@ -1661,34 +1876,38 @@
         return;
       }
 
-      tbody.innerHTML = filtered.map((u) => `
-        <tr class="hover:bg-slate-950/60">
-          <td class="py-2 pr-2">
-            <p class="font-semibold text-slate-200 truncate max-w-[140px]">${escapeHtmlString(u.name)}</p>
-            <p class="text-[10px] font-mono-code text-slate-500">+${escapeHtmlString(u.number)}</p>
-          </td>
-          <td class="py-2 px-2">
-            <input type="number" min="0" value="${u.limit}" onchange="updateManagedUser('${u.jid}', { limit: Number(this.value) })" class="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs font-mono-code text-white" />
-          </td>
-          <td class="py-2 px-2">
-            <button onclick="updateManagedUser('${u.jid}', { premium: ${!u.premium} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.premium ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-slate-800 text-slate-400'}">
-              ${u.premium ? 'Premium' : 'Reguler'}
-            </button>
-          </td>
-          <td class="py-2 pl-2 text-right">
-            <div class="inline-flex items-center justify-end gap-1.5">
-              <button onclick="updateManagedUser('${u.jid}', { banned: ${!u.banned} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
-                ${u.banned ? 'Banned' : 'Aktif'}
+      tbody.innerHTML = filtered.map((u) => {
+        const isLid = String(u.jid || '').endsWith('@lid');
+        const lidTag = isLid ? '<span class="ml-1 px-1 rounded bg-amber-500/15 text-amber-300 text-[9px]">LID</span>' : '';
+        return `
+          <tr class="hover:bg-slate-950/60">
+            <td class="py-2 pr-2">
+              <p class="font-semibold text-slate-200 truncate max-w-[140px]">${escapeHtmlString(u.name)}</p>
+              <p class="text-[10px] font-mono-code text-slate-500">+${escapeHtmlString(u.number)}${lidTag}</p>
+            </td>
+            <td class="py-2 px-2">
+              <input type="number" min="0" value="${Number(u.limit || 0)}" data-jid="${escapeHtmlString(u.jid)}" onchange="updateManagedUser(this.dataset.jid, { limit: Number(this.value) })" class="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs font-mono-code text-white" />
+            </td>
+            <td class="py-2 px-2">
+              <button type="button" data-jid="${escapeHtmlString(u.jid)}" onclick="updateManagedUser(this.dataset.jid, { premium: ${!u.premium} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.premium ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-slate-800 text-slate-400'}">
+                ${u.premium ? 'Premium' : 'Reguler'}
               </button>
-              <button onclick="openDeleteUserModal('${u.jid}', '${escapeHtmlString(u.name)}', '${escapeHtmlString(u.number)}')" title="Hapus User" class="p-1 rounded bg-slate-950 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition-all active:scale-95">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
+            </td>
+            <td class="py-2 pl-2 text-right">
+              <div class="inline-flex items-center justify-end gap-1.5">
+                <button type="button" data-jid="${escapeHtmlString(u.jid)}" onclick="updateManagedUser(this.dataset.jid, { banned: ${!u.banned} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
+                  ${u.banned ? 'Banned' : 'Aktif'}
+                </button>
+                <button type="button" data-jid="${escapeHtmlString(u.jid)}" data-name="${escapeHtmlString(u.name)}" data-number="${escapeHtmlString(u.number)}" onclick="openDeleteUserModal(this.dataset.jid, this.dataset.name, this.dataset.number)" title="Hapus User" class="p-1 rounded bg-slate-950 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition-all active:scale-95">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function openDeleteUserModal(jid, name, number) {
@@ -1719,27 +1938,27 @@
 
     function renderManagedGroupsTable() {
       const tbody = document.getElementById('managedGroupsTableBody');
-      const query = String(document.getElementById('manageGroupSearchInput')?.value || '').toLowerCase();
+      const query = String(document.getElementById('manageGroupSearchInput')?.value || '').trim().toLowerCase();
       if (!tbody) return;
 
       const filtered = managedGroupsCache.filter(
-        (g) => String(g.subject || '').toLowerCase().includes(query) || g.jid.toLowerCase().includes(query)
+        (g) => String(g.subject || '').toLowerCase().includes(query) || String(g.jid || '').toLowerCase().includes(query)
       );
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-slate-500">Belum ada grup terdata.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-slate-500">Belum ada grup aktif terdata.</td></tr>';
         return;
       }
 
       tbody.innerHTML = filtered.map((g) => `
         <tr class="hover:bg-slate-950/60">
           <td class="py-2 pr-2">
-            <p class="font-semibold text-slate-200 truncate max-w-[200px]">${escapeHtmlString(g.subject)}</p>
-            <p class="text-[10px] font-mono-code text-slate-500 truncate max-w-[200px]">${escapeHtmlString(g.jid)}</p>
+            <p class="font-semibold text-slate-200 truncate max-w-[180px] sm:max-w-[240px]">${escapeHtmlString(g.subject || g.jid)}</p>
+            <p class="text-[10px] font-mono-code text-slate-500 truncate max-w-[180px] sm:max-w-[240px]">${escapeHtmlString(g.jid)}</p>
           </td>
-          <td class="py-2 px-2 font-mono-code text-slate-300">${g.participantsCount}</td>
+          <td class="py-2 px-2 font-mono-code text-slate-300 whitespace-nowrap">${Number(g.participantsCount || 0)}</td>
           <td class="py-2 pl-2 text-right">
-            <button onclick="updateManagedGroup('${g.jid}', { banned: ${!g.banned} })" class="px-2.5 py-1 rounded text-[10px] font-semibold ${g.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
+            <button type="button" data-jid="${escapeHtmlString(g.jid)}" onclick="updateManagedGroup(this.dataset.jid, { banned: ${!g.banned} })" class="px-2.5 py-1 rounded text-[10px] font-semibold ${g.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
               ${g.banned ? 'Banned' : 'Aktif'}
             </button>
           </td>
@@ -1794,15 +2013,15 @@
         const card = document.createElement('div');
         card.className = `flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-950 border ${isEnabled ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/50 opacity-60'} transition-all`;
         card.innerHTML = `
-          <button onclick="selectPluginForEditing('${pluginItem.fileName}')" class="text-left flex-1 min-w-0">
+          <button type="button" data-file="${escapeHtmlString(pluginItem.fileName)}" onclick="selectPluginForEditing(this.dataset.file)" class="text-left flex-1 min-w-0">
             <p class="text-xs font-bold text-slate-200 font-mono-code truncate">${escapeHtmlString(pluginItem.fileName)}</p>
             <p class="text-[10px] text-slate-500 mt-0.5">${escapeHtmlString(pluginItem.category || 'root')} • ${isEnabled ? 'Aktif' : 'Nonaktif'}</p>
           </button>
           <div class="flex items-center gap-1 shrink-0">
-            <button onclick="togglePluginActiveState('${pluginItem.fileName}')" class="px-2 py-1 rounded-lg text-[10px] font-semibold ${isEnabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' : 'bg-slate-800 text-slate-400'}">
+            <button type="button" data-file="${escapeHtmlString(pluginItem.fileName)}" onclick="togglePluginActiveState(this.dataset.file)" class="px-2 py-1 rounded-lg text-[10px] font-semibold ${isEnabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' : 'bg-slate-800 text-slate-400'}">
               ${isEnabled ? 'ON' : 'OFF'}
             </button>
-            <button onclick="deletePluginFile('${pluginItem.fileName}')" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all">
+            <button type="button" data-file="${escapeHtmlString(pluginItem.fileName)}" onclick="deletePluginFile(this.dataset.file)" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </button>
           </div>
@@ -1954,6 +2173,7 @@ export default {
     socketClient.on('cpu-update', pushSystemMetricsPoint);
 
     socketClient.on('disconnect', () => {
+      setRefreshSpinState(false, 'all');
       const sourceEl = document.getElementById('cpuSourceBadge');
       if (sourceEl) {
         sourceEl.textContent = 'OFFLINE';
@@ -1964,25 +2184,35 @@ export default {
     socketClient.on('auth:expired', () => { window.location.replace('/login'); });
 
     socketClient.on('session:ready', (payload) => {
-      isCurrentUserAdmin = Boolean(payload.isAdmin);
+      isCurrentUserAdmin = Boolean(payload.isAdmin) && checkExclusiveAdminUser(payload.user);
       if (payload.adminWaNumber) adminWhatsAppNumber = payload.adminWaNumber;
 
       const ideBtn = document.getElementById('navTabDeveloper');
       const roleBadge = document.getElementById('navRoleBadge');
       const backupMenuBtn = document.getElementById('navBackupZipMenuBtn');
       const adminAnnCard = document.getElementById('adminAnnouncementEditorCard');
+      const devView = document.getElementById('workspaceDeveloperView');
+      const adminPanelLink = document.getElementById('navAdminPanelLink');
 
-      if (ideBtn) {
-        ideBtn.classList.toggle('hidden', !isCurrentUserAdmin);
-        ideBtn.classList.toggle('flex', isCurrentUserAdmin);
+      if (isCurrentUserAdmin) {
+        if (ideBtn) {
+          ideBtn.classList.remove('hidden');
+          ideBtn.classList.add('flex');
+        }
+        if (backupMenuBtn) {
+          backupMenuBtn.classList.remove('hidden');
+          backupMenuBtn.classList.add('flex');
+        }
+        if (adminAnnCard) adminAnnCard.classList.remove('hidden');
+      } else {
+        // --- hapus elemen eksklusif admin dari dom untuk user biasa ---
+        if (ideBtn) ideBtn.remove();
+        if (backupMenuBtn) backupMenuBtn.remove();
+        if (adminAnnCard) adminAnnCard.remove();
+        if (devView) devView.remove();
+        if (adminPanelLink) adminPanelLink.remove();
       }
-      if (backupMenuBtn) {
-        backupMenuBtn.classList.toggle('hidden', !isCurrentUserAdmin);
-        backupMenuBtn.classList.toggle('flex', isCurrentUserAdmin);
-      }
-      if (adminAnnCard) {
-        adminAnnCard.classList.toggle('hidden', !isCurrentUserAdmin);
-      }
+
       if (roleBadge) {
         roleBadge.textContent = isCurrentUserAdmin ? 'Admin' : 'User';
         roleBadge.className = isCurrentUserAdmin
@@ -2011,7 +2241,7 @@ export default {
       }
 
       featureCatalogCache = payload.catalog || [];
-      renderDatabaseStatistics(payload.database, payload.globalStats);
+      renderDatabaseStatistics(payload.database, payload.globalStats, payload.trafficSeries);
       renderTopCommandsLeaderboard(payload.topCommands || []);
       renderGlobalAnnouncementBanner(payload.announcement);
       updateConnectionUIState(payload.status, payload.profile, Boolean(payload.isAutoReconnect));
@@ -2037,8 +2267,18 @@ export default {
 
     socketClient.on('connection:status', (payload) => {
       updateConnectionUIState(payload.status, payload.profile, Boolean(payload.isAutoReconnect));
-      if (String(payload?.status).toUpperCase() === 'DISCONNECTED' && payload?.reason) {
-        notifyBotDisconnectIfAllowed(payload.reason);
+      if (String(payload?.status).toUpperCase() !== 'DISCONNECTED' || !payload?.reason) return;
+
+      const reason = String(payload.reason);
+      notifyBotDisconnectIfAllowed(reason);
+
+      if (reason === 'SUBSCRIPTION_EXPIRED') {
+        showCyberToast('Masa Aktif Habis', 'Langganan bot Anda telah berakhir. Silakan perpanjang paket.', 'danger');
+        openRenewModal();
+      } else if (reason === 'RELINK_REQUIRED') {
+        showCyberToast('Tautan Ulang Diperlukan', 'Sesi WhatsApp kadaluarsa, silakan scan QR atau Pairing ulang.', 'danger');
+      } else if (reason === 'LOGGED_OUT') {
+        showCyberToast('Sesi Terputus', 'Sesi bot telah logout atau dihapus dari perangkat.', 'danger');
       }
     });
 
@@ -2067,23 +2307,62 @@ export default {
     });
 
     socketClient.on('stats:update', (payload) => {
-      renderDatabaseStatistics(payload.userStats || payload.database, payload.globalStats);
+      renderDatabaseStatistics(payload.userStats || payload.database, payload.globalStats, payload.trafficSeries);
       if (payload.topCommands) renderTopCommandsLeaderboard(payload.topCommands);
     });
 
-    socketClient.on('announcement:update', (announcementObj) => {
-      renderGlobalAnnouncementBanner(announcementObj);
+    socketClient.on('announcement:update', renderGlobalAnnouncementBanner);
+
+    socketClient.on('announcement:result', (res) => {
+      if (res?.isSuccess) {
+        const hasText = Boolean(res.announcement?.text);
+        showCyberToast('Pengumuman', hasText ? 'Pengumuman global berhasil dipancarkan.' : 'Pengumuman global dihapus.', 'success');
+      } else {
+        showCyberToast('Akses Ditolak', res?.errorMessage || 'Gagal memperbarui pengumuman global.', 'danger');
+      }
     });
 
-    socketClient.on('catalog:update', (catalogList) => {
-      featureCatalogCache = catalogList || [];
+    const handleCatalogRefresh = (catalogList) => {
+      featureCatalogCache = Array.isArray(catalogList) ? catalogList : [];
       renderFeatureCatalogUI();
+    };
+    socketClient.on('catalog:update', handleCatalogRefresh);
+    socketClient.on('catalog:data', handleCatalogRefresh);
+
+    socketClient.on('broadcast:progress', (prog) => {
+      const progressBox = document.getElementById('broadcastProgressWrapper');
+      const progressLabel = document.getElementById('broadcastProgressLabel');
+      const progressStats = document.getElementById('broadcastProgressStats');
+      const progressFill = document.getElementById('broadcastProgressBarFill');
+
+      const current = Number(prog?.current || 0);
+      const total = Math.max(1, Number(prog?.total || 1));
+      const successCount = Number(prog?.successCount || 0);
+      const failedCount = Number(prog?.failedCount || 0);
+      const percent = Math.min(100, Math.round((current / total) * 100));
+
+      if (progressBox) progressBox.classList.remove('hidden');
+      if (progressLabel) progressLabel.textContent = `Mengirim ${current}/${total} grup (${percent}%)`;
+      if (progressStats) progressStats.textContent = `✓ ${successCount} | ✗ ${failedCount}`;
+      if (progressFill) progressFill.style.width = `${percent}%`;
     });
 
     socketClient.on('broadcast:result', (res) => {
+      const submitBtn = document.getElementById('broadcastSendSubmitBtn');
+      const progressLabel = document.getElementById('broadcastProgressLabel');
+      const progressFill = document.getElementById('broadcastProgressBarFill');
+
+      if (submitBtn) submitBtn.disabled = false;
+
       if (res?.isSuccess) {
-        showCyberToast('Broadcast Selesai', `Terkirim ke ${res.sentCount}/${res.totalGroups} grup.`, 'success');
+        const sent = Number(res.sentCount ?? res.successCount ?? 0);
+        const total = Number(res.totalGroups ?? res.total ?? 0);
+        const failed = Number(res.failedCount ?? 0);
+        if (progressLabel) progressLabel.textContent = `Selesai: ${sent}/${total} grup`;
+        if (progressFill) progressFill.style.width = '100%';
+        showCyberToast('Broadcast Selesai', `Terkirim ke ${sent}/${total} grup${failed > 0 ? ` (${failed} gagal)` : ''}.`, 'success');
       } else {
+        if (progressLabel) progressLabel.textContent = 'Broadcast dihentikan.';
         showCyberToast('Broadcast Gagal', res?.errorMessage || 'Gagal mengirim broadcast.', 'danger');
       }
     });
@@ -2093,10 +2372,11 @@ export default {
     });
 
     socketClient.on('manage:data', (payload) => {
-      managedUsersCache = payload?.users || [];
-      managedGroupsCache = payload?.groups || [];
+      managedUsersCache = Array.isArray(payload?.users) ? payload.users : [];
+      managedGroupsCache = Array.isArray(payload?.groups) ? payload.groups : [];
       renderManagedUsersTable();
       renderManagedGroupsTable();
+      stopRefreshSpinSmoothly();
     });
 
     socketClient.on('manage:user:deleted', (payload) => {
@@ -2122,675 +2402,6 @@ export default {
     socketClient.on('plugin:error', (payload) => {
       updateCodeInspectorReport(`[Runtime Error - ${payload.fileName || 'Plugin'}]\n${payload.errorMessage || ''}`, true);
     });
-
-// --- sinkronisasi integrasi penuh backend terbaru dan perbaikan bug ui dashboard ---
-(function initFullDashboardIntegration() {
-  let latestTrafficSeries = null;
-  let lastSubscriptionMeta = null;
-
-  // --- lengkapi escape karakter html termasuk tanda kutip tunggal dan ganda ---
-  escapeHtmlString = function (rawString) {
-    return String(rawString ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  };
-  window.escapeHtmlString = escapeHtmlString;
-
-  // --- suntikkan pemilih level pengumuman pada panel admin ---
-  const adminCard = document.getElementById('adminAnnouncementEditorCard');
-  if (adminCard && !document.getElementById('adminAnnouncementLevelSelect')) {
-    const headerRow = adminCard.querySelector('.flex.items-center.justify-between');
-    if (headerRow) {
-      const levelSelect = document.createElement('select');
-      levelSelect.id = 'adminAnnouncementLevelSelect';
-      levelSelect.className = 'px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-mono-code text-slate-200 focus:outline-none focus:border-sky-500';
-      levelSelect.innerHTML = [
-        '<option value="info">INFO</option>',
-        '<option value="success">SUCCESS</option>',
-        '<option value="warn">WARN</option>',
-        '<option value="danger">DANGER</option>'
-      ].join('');
-      headerRow.appendChild(levelSelect);
-    }
-  }
-
-  // --- suntikkan indikator progres live broadcast pada kartu broadcast grup ---
-  const broadcastInput = document.getElementById('broadcastGroupMessageInput');
-  if (broadcastInput && !document.getElementById('broadcastProgressWrapper')) {
-    const broadcastCard = broadcastInput.closest('.rounded-2xl');
-    const sendButton = broadcastCard ? broadcastCard.querySelector('button') : null;
-    if (broadcastCard && sendButton) {
-      sendButton.id = 'broadcastSendSubmitBtn';
-      const progressBox = document.createElement('div');
-      progressBox.id = 'broadcastProgressWrapper';
-      progressBox.className = 'hidden rounded-xl bg-slate-950 border border-slate-800 p-3 space-y-1.5 text-[11px] font-mono-code';
-      progressBox.innerHTML = [
-        '<div class="flex items-center justify-between gap-2">',
-        '  <span id="broadcastProgressLabel" class="text-slate-300">Menyiapkan broadcast...</span>',
-        '  <span id="broadcastProgressStats" class="text-sky-400">0/0</span>',
-        '</div>',
-        '<div class="h-1.5 w-full rounded-full bg-slate-900 overflow-hidden">',
-        '  <div id="broadcastProgressBarFill" class="h-full bg-sky-400 transition-all duration-300 rounded-full" style="width: 0%"></div>',
-        '</div>'
-      ].join('');
-      broadcastCard.insertBefore(progressBox, sendButton);
-    }
-  }
-
-  // --- render status masa aktif dan metadata paket langganan ---
-  renderSubscriptionCountdown = function (subscriptionOrExpiresAt) {
-    const pill = document.getElementById('subscriptionCountdownPill');
-    if (!pill) return;
-
-    const isObj = subscriptionOrExpiresAt && typeof subscriptionOrExpiresAt === 'object';
-    const expiresAtMs = isObj
-      ? Number(subscriptionOrExpiresAt.expiresAt || 0)
-      : Number(subscriptionOrExpiresAt || 0);
-    const planName = isObj && subscriptionOrExpiresAt.plan
-      ? String(subscriptionOrExpiresAt.plan)
-      : 'Starter';
-    const isReseller = Boolean(isObj && subscriptionOrExpiresAt.isReseller);
-    const maxSlots = isObj && subscriptionOrExpiresAt.maxSlots
-      ? Number(subscriptionOrExpiresAt.maxSlots)
-      : 1;
-
-    if (isObj) lastSubscriptionMeta = subscriptionOrExpiresAt;
-
-    const diffMs = expiresAtMs - Date.now();
-    const daysLeft = Math.max(0, Math.ceil(diffMs / 86400000));
-    const resellerTag = isReseller ? ` • Reseller (${maxSlots} Slot)` : ` • ${maxSlots} Slot`;
-
-    if (expiresAtMs > 0 && daysLeft <= 0) {
-      pill.textContent = `${planName}${resellerTag} • Habis`;
-      pill.className = 'px-2 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300';
-    } else if (expiresAtMs > 0) {
-      pill.textContent = `${planName}${resellerTag} • Sisa ${daysLeft} Hari`;
-      pill.className = isReseller
-        ? 'px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300'
-        : 'px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300';
-    } else {
-      pill.textContent = `${planName}${resellerTag} • Aktif`;
-      pill.className = 'px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-300';
-    }
-
-    const renewModal = document.getElementById('renewSubscriptionModal');
-    if (renewModal) {
-      let metaInfo = document.getElementById('renewCurrentPlanMeta');
-      if (!metaInfo) {
-        metaInfo = document.createElement('div');
-        metaInfo.id = 'renewCurrentPlanMeta';
-        metaInfo.className = 'rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-[11px] font-mono-code text-slate-300 flex items-center justify-between';
-        const gridEl = renewModal.querySelector('.grid');
-        if (gridEl && gridEl.parentNode) gridEl.parentNode.insertBefore(metaInfo, gridEl);
-      }
-      metaInfo.innerHTML = `<span>Paket: <strong class="text-white">${escapeHtmlString(planName)}</strong></span><span>Slot: <strong class="accent-text">${maxSlots}</strong></span>`;
-    }
-  };
-  window.renderSubscriptionCountdown = renderSubscriptionCountdown;
-
-  // --- perbarui grafik trafik 7 hari mendukung array trafficSeries maupun objek history ---
-  updateTrafficHistoryChart = function (trafficInput) {
-    if (!trafficChartInstance) initTrafficHistoryChart();
-    if (!trafficChartInstance || !trafficInput) return;
-
-    if (Array.isArray(trafficInput)) {
-      latestTrafficSeries = trafficInput;
-      trafficChartInstance.data.labels = trafficInput.map((item) => item.label || String(item.date || '').slice(5));
-      trafficChartInstance.data.datasets[0].data = trafficInput.map((item) => Number(item.in || 0));
-      trafficChartInstance.data.datasets[1].data = trafficInput.map((item) => Number(item.out || 0));
-      trafficChartInstance.update('none');
-      return;
-    }
-
-    if (typeof trafficInput === 'object') {
-      const keys = Object.keys(trafficInput).sort();
-      trafficChartInstance.data.labels = keys.map((d) => d.slice(5));
-      trafficChartInstance.data.datasets[0].data = keys.map((d) => Number(trafficInput[d]?.in || 0));
-      trafficChartInstance.data.datasets[1].data = keys.map((d) => Number(trafficInput[d]?.out || 0));
-      trafficChartInstance.update('none');
-    }
-  };
-  window.updateTrafficHistoryChart = updateTrafficHistoryChart;
-
-  // --- sinkronkan statistik database, masa aktif subscription, dan grafik trafik ---
-  renderDatabaseStatistics = function (databaseObject, globalStatsObject, trafficSeriesArg) {
-    if (databaseObject) {
-      animateMetricCounter('statMessagesReceived', databaseObject.totalMessagesReceived || 0);
-      animateMetricCounter('statMessagesSent', databaseObject.totalMessagesSent || 0);
-      animateMetricCounter('statUniqueUsers', Array.isArray(databaseObject.uniqueUsers) ? databaseObject.uniqueUsers.length : 0);
-
-      if (databaseObject.startTime) botStartTimeMs = databaseObject.startTime;
-
-      const resolvedSub = databaseObject.subscription
-        ? { ...databaseObject.subscription }
-        : (databaseObject.expiresAt ? { expiresAt: databaseObject.expiresAt } : lastSubscriptionMeta);
-      if (resolvedSub) renderSubscriptionCountdown(resolvedSub);
-
-      if (Array.isArray(trafficSeriesArg)) {
-        updateTrafficHistoryChart(trafficSeriesArg);
-      } else if (Array.isArray(latestTrafficSeries)) {
-        updateTrafficHistoryChart(latestTrafficSeries);
-      } else if (databaseObject.trafficHistory) {
-        updateTrafficHistoryChart(databaseObject.trafficHistory);
-      }
-
-      const autoReadBtn = document.getElementById('toggleAutoReadBtn');
-      const publicModeBtn = document.getElementById('togglePublicModeBtn');
-
-      const isAutoRead = databaseObject.settings?.autoRead ?? true;
-      const isPublicMode = databaseObject.settings?.publicMode ?? true;
-
-      if (autoReadBtn) {
-        autoReadBtn.textContent = isAutoRead ? 'Aktif' : 'Nonaktif';
-        autoReadBtn.className = isAutoRead
-          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
-          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
-      }
-
-      if (publicModeBtn) {
-        publicModeBtn.textContent = isPublicMode ? 'Aktif' : 'Nonaktif';
-        publicModeBtn.className = isPublicMode
-          ? 'px-3 py-1 rounded-lg font-semibold accent-bg text-slate-950 transition-all'
-          : 'px-3 py-1 rounded-lg font-semibold bg-slate-800 text-slate-400 transition-all';
-      }
-
-      populateSettingsForm(databaseObject.settings);
-    }
-
-    if (globalStatsObject) {
-      const botsEl = document.getElementById('globalActiveBotsCount');
-      const trafficEl = document.getElementById('globalTotalTrafficCount');
-      if (botsEl) botsEl.textContent = globalStatsObject.totalActiveBots || 0;
-      if (trafficEl) {
-        const combinedTraffic = (globalStatsObject.globalMessagesReceived || 0) + (globalStatsObject.globalMessagesSent || 0);
-        trafficEl.textContent = combinedTraffic.toLocaleString('id-ID');
-      }
-    }
-  };
-  window.renderDatabaseStatistics = renderDatabaseStatistics;
-
-  // --- render banner pengumuman global sesuai level (info, success, warn, danger) ---
-  renderGlobalAnnouncementBanner = function (announcementObj) {
-    const banner = document.getElementById('globalAnnouncementBanner');
-    const textEl = document.getElementById('globalAnnouncementText');
-    const adminInput = document.getElementById('adminAnnouncementInput');
-    const levelSelect = document.getElementById('adminAnnouncementLevelSelect');
-    if (!banner || !textEl) return;
-
-    const text = String(announcementObj?.text || '').trim();
-    const rawLevel = String(announcementObj?.level || 'info').toLowerCase();
-    const level = ['info', 'warn', 'success', 'danger'].includes(rawLevel) ? rawLevel : 'info';
-
-    const levelStyles = {
-      info: {
-        banner: 'rounded-xl bg-sky-500/10 border border-sky-500/30 px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-sky-200',
-        badge: 'px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono-code text-[10px] font-bold shrink-0',
-        label: 'INFO'
-      },
-      success: {
-        banner: 'rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-emerald-200',
-        badge: 'px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono-code text-[10px] font-bold shrink-0',
-        label: 'SUCCESS'
-      },
-      warn: {
-        banner: 'rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-amber-200',
-        badge: 'px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono-code text-[10px] font-bold shrink-0',
-        label: 'WARN'
-      },
-      danger: {
-        banner: 'rounded-xl bg-rose-500/10 border border-rose-500/35 px-4 py-2.5 flex items-center justify-between gap-3 text-xs text-rose-200',
-        badge: 'px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono-code text-[10px] font-bold shrink-0',
-        label: 'ALERT'
-      }
-    };
-
-    const chosen = levelStyles[level];
-    const badgeEl = banner.querySelector('span');
-    if (adminInput && document.activeElement !== adminInput) adminInput.value = text;
-    if (levelSelect && document.activeElement !== levelSelect) levelSelect.value = level;
-
-    if (text) {
-      banner.className = chosen.banner;
-      if (badgeEl) {
-        badgeEl.className = chosen.badge;
-        badgeEl.textContent = chosen.label;
-      }
-      textEl.textContent = text;
-      banner.classList.remove('hidden');
-    } else {
-      banner.classList.add('hidden');
-    }
-  };
-  window.renderGlobalAnnouncementBanner = renderGlobalAnnouncementBanner;
-
-  // --- kirim pengumuman global beserta level ke backend ---
-  publishGlobalAnnouncement = function () {
-    const text = document.getElementById('adminAnnouncementInput')?.value.trim() || '';
-    const level = document.getElementById('adminAnnouncementLevelSelect')?.value || 'info';
-    socketClient.emit('announcement:set', { text, level });
-  };
-  window.publishGlobalAnnouncement = publishGlobalAnnouncement;
-
-  clearGlobalAnnouncement = function () {
-    socketClient.emit('announcement:set', { text: '', level: 'info' });
-  };
-  window.clearGlobalAnnouncement = clearGlobalAnnouncement;
-
-  // --- gunakan event khusus catalog:toggleCategory agar sinkron dengan log terminal ---
-  toggleBotFeatureCategory = function (categoryName) {
-    const normalized = String(categoryName || '').trim().toLowerCase();
-    if (!normalized) return;
-
-    if (currentDisabledCategories.includes(normalized)) {
-      currentDisabledCategories = currentDisabledCategories.filter((c) => c !== normalized);
-    } else {
-      currentDisabledCategories = [...currentDisabledCategories, normalized];
-    }
-
-    socketClient.emit('catalog:toggleCategory', { category: normalized });
-    renderFeatureCatalogUI();
-  };
-  window.toggleBotFeatureCategory = toggleBotFeatureCategory;
-
-  // --- render katalog fitur dengan pencarian case-insensitive dan metadata lengkap ---
-  renderFeatureCatalogUI = function () {
-    const container = document.getElementById('featureCatalogContainer');
-    const query = String(document.getElementById('catalogSearchInput')?.value || '').trim().toLowerCase();
-    if (!container) return;
-
-    const grouped = {};
-    for (const item of featureCatalogCache) {
-      const categoryKey = String(item.category || 'general').toLowerCase();
-      const commands = Array.isArray(item.commands) ? item.commands : [];
-      const aliases = Array.isArray(item.aliases) ? item.aliases : [];
-      const usageText = String(item.usage || '').trim();
-
-      const matchedCmds = commands.filter((cmd) => {
-        if (!query) return true;
-        const cmdLower = String(cmd).toLowerCase();
-        const aliasMatch = aliases.some((al) => String(al).toLowerCase().includes(query));
-        return (
-          cmdLower.includes(query) ||
-          categoryKey.includes(query) ||
-          usageText.toLowerCase().includes(query) ||
-          aliasMatch
-        );
-      });
-
-      if (matchedCmds.length === 0) continue;
-      if (!grouped[categoryKey]) grouped[categoryKey] = [];
-      grouped[categoryKey].push({
-        commands: matchedCmds,
-        aliases,
-        usage: usageText,
-        limit: Number(item.limit || 0),
-        premiumOnly: Boolean(item.premiumOnly),
-        ownerOnly: Boolean(item.ownerOnly)
-      });
-    }
-
-    const categories = Object.keys(grouped).sort();
-    if (categories.length === 0) {
-      container.innerHTML = '<p class="text-xs text-slate-500">Belum ada fitur yang cocok.</p>';
-      return;
-    }
-
-    container.innerHTML = categories.map((cat) => {
-      const isOff = currentDisabledCategories.includes(cat);
-      const chipsHtml = grouped[cat].flatMap((entry) => {
-        const aliasHint = entry.aliases.length > 0 ? `Alias: ${entry.aliases.map((a) => `.${a}`).join(', ')}` : '';
-        const limitBadge = entry.limit > 0
-          ? `<span class="text-[9px] text-slate-400">L:${entry.limit}</span>`
-          : '';
-        const premBadge = entry.premiumOnly
-          ? '<span class="px-1 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold">PRO</span>'
-          : '';
-        const ownerBadge = entry.ownerOnly
-          ? '<span class="px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">OWN</span>'
-          : '';
-
-        return entry.commands.map((cmd) => {
-          const cmdUsage = entry.usage ? ` ${entry.usage}` : '';
-          return `<span title="${escapeHtmlString(aliasHint)}" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono-code text-slate-200"><span>.${escapeHtmlString(cmd)}${escapeHtmlString(cmdUsage)}</span>${limitBadge}${premBadge}${ownerBadge}</span>`;
-        });
-      }).join('');
-
-      return `
-        <div class="p-3 rounded-xl bg-slate-950 border ${isOff ? 'border-slate-800/50 opacity-60' : 'border-slate-800'} space-y-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-bold uppercase tracking-wider text-slate-200 font-mono-code">${escapeHtmlString(cat)}</span>
-            <button type="button" data-category="${escapeHtmlString(cat)}" onclick="toggleBotFeatureCategory(this.dataset.category)" class="px-2 py-0.5 rounded text-[10px] font-semibold ${isOff ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'}">
-              ${isOff ? 'Nonaktif' : 'Aktif'}
-            </button>
-          </div>
-          <div class="flex flex-wrap gap-1">${chipsHtml}</div>
-        </div>
-      `;
-    }).join('');
-  };
-  window.renderFeatureCatalogUI = renderFeatureCatalogUI;
-
-  // --- render tabel user aman terhadap tanda kutip tunggal via atribut dataset ---
-  renderManagedUsersTable = function () {
-    const tbody = document.getElementById('managedUsersTableBody');
-    const query = String(document.getElementById('manageUserSearchInput')?.value || '').toLowerCase();
-    if (!tbody) return;
-
-    const filtered = managedUsersCache.filter(
-      (u) =>
-        String(u.number || '').toLowerCase().includes(query) ||
-        String(u.name || '').toLowerCase().includes(query) ||
-        String(u.jid || '').toLowerCase().includes(query)
-    );
-
-    if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-slate-500">Belum ada user terdata.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = filtered.map((u) => {
-      const isLid = String(u.jid || '').endsWith('@lid');
-      const lidTag = isLid ? '<span class="ml-1 px-1 rounded bg-amber-500/15 text-amber-300 text-[9px]">LID</span>' : '';
-      return `
-        <tr class="hover:bg-slate-950/60">
-          <td class="py-2 pr-2">
-            <p class="font-semibold text-slate-200 truncate max-w-[140px]">${escapeHtmlString(u.name)}</p>
-            <p class="text-[10px] font-mono-code text-slate-500">+${escapeHtmlString(u.number)}${lidTag}</p>
-          </td>
-          <td class="py-2 px-2">
-            <input type="number" min="0" value="${Number(u.limit || 0)}" data-jid="${escapeHtmlString(u.jid)}" onchange="updateManagedUser(this.dataset.jid, { limit: Number(this.value) })" class="w-16 px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs font-mono-code text-white" />
-          </td>
-          <td class="py-2 px-2">
-            <button type="button" data-jid="${escapeHtmlString(u.jid)}" onclick="updateManagedUser(this.dataset.jid, { premium: ${!u.premium} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.premium ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-slate-800 text-slate-400'}">
-              ${u.premium ? 'Premium' : 'Reguler'}
-            </button>
-          </td>
-          <td class="py-2 pl-2 text-right">
-            <div class="inline-flex items-center justify-end gap-1.5">
-              <button type="button" data-jid="${escapeHtmlString(u.jid)}" onclick="updateManagedUser(this.dataset.jid, { banned: ${!u.banned} })" class="px-2 py-1 rounded text-[10px] font-semibold ${u.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
-                ${u.banned ? 'Banned' : 'Aktif'}
-              </button>
-              <button type="button" data-jid="${escapeHtmlString(u.jid)}" data-name="${escapeHtmlString(u.name)}" data-number="${escapeHtmlString(u.number)}" onclick="openDeleteUserModal(this.dataset.jid, this.dataset.name, this.dataset.number)" title="Hapus User" class="p-1 rounded bg-slate-950 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition-all active:scale-95">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  };
-  window.renderManagedUsersTable = renderManagedUsersTable;
-
-  // --- reset indikator progres sebelum memulai broadcast grup ---
-  sendGroupBroadcast = function () {
-    const message = document.getElementById('broadcastGroupMessageInput')?.value.trim() || '';
-    const delaySeconds = Number(document.getElementById('broadcastDelayInput')?.value || 4);
-    if (!message) {
-      showCyberToast('Pesan Kosong', 'Isi pesan broadcast terlebih dahulu.', 'danger');
-      return;
-    }
-
-    const progressBox = document.getElementById('broadcastProgressWrapper');
-    const progressLabel = document.getElementById('broadcastProgressLabel');
-    const progressStats = document.getElementById('broadcastProgressStats');
-    const progressFill = document.getElementById('broadcastProgressBarFill');
-    const submitBtn = document.getElementById('broadcastSendSubmitBtn');
-
-    if (progressBox) progressBox.classList.remove('hidden');
-    if (progressLabel) progressLabel.textContent = 'Mengambil daftar grup aktif...';
-    if (progressStats) progressStats.textContent = '0/0';
-    if (progressFill) progressFill.style.width = '0%';
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
-    }
-
-    socketClient.emit('broadcast:groups', { message, delaySeconds });
-    showCyberToast('Broadcast Dimulai', `Mengirim ke semua grup aktif (jeda ${delaySeconds} detik)...`, 'info');
-  };
-  window.sendGroupBroadcast = sendGroupBroadcast;
-
-  // --- daftarkan ulang listener socket untuk sinkronisasi penuh backend terbaru ---
-  socketClient.off('catalog:update');
-  socketClient.off('catalog:data');
-  socketClient.off('broadcast:progress');
-  socketClient.off('broadcast:result');
-  socketClient.off('announcement:result');
-
-  const handleCatalogRefresh = (catalogList) => {
-    featureCatalogCache = Array.isArray(catalogList) ? catalogList : [];
-    renderFeatureCatalogUI();
-  };
-  socketClient.on('catalog:update', handleCatalogRefresh);
-  socketClient.on('catalog:data', handleCatalogRefresh);
-
-  socketClient.on('session:ready', (payload) => {
-    if (Array.isArray(payload?.trafficSeries)) {
-      updateTrafficHistoryChart(payload.trafficSeries);
-    }
-    if (payload?.database?.subscription) {
-      renderSubscriptionCountdown(payload.database.subscription);
-    }
-  });
-
-  socketClient.on('stats:update', (payload) => {
-    if (Array.isArray(payload?.trafficSeries)) {
-      updateTrafficHistoryChart(payload.trafficSeries);
-    }
-    const subSource = payload?.userStats?.subscription || payload?.database?.subscription;
-    if (subSource) {
-      renderSubscriptionCountdown(subSource);
-    }
-  });
-
-  socketClient.on('connection:status', (payload) => {
-    if (String(payload?.status || '').toUpperCase() !== 'DISCONNECTED' || !payload?.reason) return;
-    const reason = String(payload.reason);
-    if (reason === 'SUBSCRIPTION_EXPIRED') {
-      showCyberToast('Masa Aktif Habis', 'Langganan bot Anda telah berakhir. Silakan perpanjang paket.', 'danger');
-      openRenewModal();
-    } else if (reason === 'RELINK_REQUIRED') {
-      showCyberToast('Tautan Ulang Diperlukan', 'Sesi WhatsApp kadaluarsa, silakan scan QR atau Pairing ulang.', 'danger');
-    } else if (reason === 'LOGGED_OUT') {
-      showCyberToast('Sesi Terputus', 'Sesi bot telah logout atau dihapus dari perangkat.', 'danger');
-    }
-  });
-
-  socketClient.on('announcement:result', (res) => {
-    if (res?.isSuccess) {
-      const hasText = Boolean(res.announcement?.text);
-      showCyberToast('Pengumuman', hasText ? 'Pengumuman global berhasil dipancarkan.' : 'Pengumuman global dihapus.', 'success');
-    } else {
-      showCyberToast('Akses Ditolak', res?.errorMessage || 'Gagal memperbarui pengumuman global.', 'danger');
-    }
-  });
-
-  socketClient.on('broadcast:progress', (prog) => {
-    const progressBox = document.getElementById('broadcastProgressWrapper');
-    const progressLabel = document.getElementById('broadcastProgressLabel');
-    const progressStats = document.getElementById('broadcastProgressStats');
-    const progressFill = document.getElementById('broadcastProgressBarFill');
-
-    const current = Number(prog?.current || 0);
-    const total = Math.max(1, Number(prog?.total || 1));
-    const successCount = Number(prog?.successCount || 0);
-    const failedCount = Number(prog?.failedCount || 0);
-    const percent = Math.min(100, Math.round((current / total) * 100));
-
-    if (progressBox) progressBox.classList.remove('hidden');
-    if (progressLabel) progressLabel.textContent = `Mengirim ${current}/${total} grup (${percent}%)`;
-    if (progressStats) progressStats.textContent = `✓ ${successCount} | ✗ ${failedCount}`;
-    if (progressFill) progressFill.style.width = `${percent}%`;
-  });
-
-  socketClient.on('broadcast:result', (res) => {
-    const submitBtn = document.getElementById('broadcastSendSubmitBtn');
-    const progressLabel = document.getElementById('broadcastProgressLabel');
-    const progressFill = document.getElementById('broadcastProgressBarFill');
-
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
-    }
-
-    if (res?.isSuccess) {
-      const sent = Number(res.sentCount ?? res.successCount ?? 0);
-      const total = Number(res.totalGroups ?? res.total ?? 0);
-      const failed = Number(res.failedCount ?? 0);
-      if (progressLabel) progressLabel.textContent = `Selesai: ${sent}/${total} grup`;
-      if (progressFill) progressFill.style.width = '100%';
-      showCyberToast('Broadcast Selesai', `Terkirim ke ${sent}/${total} grup${failed > 0 ? ` (${failed} gagal)` : ''}.`, 'success');
-    } else {
-      if (progressLabel) progressLabel.textContent = 'Broadcast dihentikan.';
-      showCyberToast('Broadcast Gagal', res?.errorMessage || 'Gagal mengirim broadcast.', 'danger');
-    }
-  });
-})();
-
-// --- refaktor ui manajemen user dan manajemen grup aktif dengan tombol refresh animasi spin ---
-(function initManageUsersAndGroupsUI() {
-  let refreshStartedAt = 0;
-  let refreshFallbackTimer = null;
-  let activeRefreshTarget = 'all';
-
-  const refreshIconSvg = (iconId) => (
-    `<svg id="${iconId}" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">` +
-    `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>` +
-    `</svg>`
-  );
-
-  const refreshBtnClass = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait';
-
-  // --- perbarui tombol refresh manajemen user dengan ikon di kiri teks ---
-  const userSearchInput = document.getElementById('manageUserSearchInput');
-  if (userSearchInput && userSearchInput.parentElement) {
-    const existingUserBtn = userSearchInput.parentElement.querySelector('button');
-    if (existingUserBtn) {
-      existingUserBtn.id = 'refreshUsersBtn';
-      existingUserBtn.type = 'button';
-      existingUserBtn.className = refreshBtnClass;
-      existingUserBtn.setAttribute('onclick', "requestManagedEntities('users')");
-      existingUserBtn.innerHTML = `${refreshIconSvg('refreshUsersIcon')}<span>Refresh</span>`;
-    }
-  }
-
-  // --- lengkapi header manajemen grup aktif dengan kolom cari dan tombol refresh ---
-  const groupSearchInput = document.getElementById('manageGroupSearchInput');
-  if (groupSearchInput && !document.getElementById('refreshGroupsBtn')) {
-    const controlsWrap = document.createElement('div');
-    controlsWrap.className = 'flex items-center gap-2';
-
-    const groupRefreshBtn = document.createElement('button');
-    groupRefreshBtn.id = 'refreshGroupsBtn';
-    groupRefreshBtn.type = 'button';
-    groupRefreshBtn.className = refreshBtnClass;
-    groupRefreshBtn.setAttribute('onclick', "requestManagedEntities('groups')");
-    groupRefreshBtn.innerHTML = `${refreshIconSvg('refreshGroupsIcon')}<span>Refresh</span>`;
-
-    groupSearchInput.parentElement.insertBefore(controlsWrap, groupSearchInput);
-    controlsWrap.appendChild(groupSearchInput);
-    controlsWrap.appendChild(groupRefreshBtn);
-  }
-
-  // --- atur state animasi berputar saat proses pemuatan data berlangsung ---
-  function setRefreshSpinState(isSpinning, targetScope = 'all') {
-    const pairs = [
-      { key: 'users', btn: document.getElementById('refreshUsersBtn'), icon: document.getElementById('refreshUsersIcon') },
-      { key: 'groups', btn: document.getElementById('refreshGroupsBtn'), icon: document.getElementById('refreshGroupsIcon') }
-    ];
-
-    pairs.forEach(({ key, btn, icon }) => {
-      if (isSpinning && targetScope !== 'all' && targetScope !== key) return;
-      if (btn) btn.disabled = isSpinning;
-      if (icon) icon.classList.toggle('animate-spin', isSpinning);
-    });
-  }
-
-  // --- hentikan animasi putar setelah data selesai dimuat dengan transisi mulus ---
-  function stopRefreshSpinSmoothly() {
-    if (refreshFallbackTimer) {
-      clearTimeout(refreshFallbackTimer);
-      refreshFallbackTimer = null;
-    }
-
-    const elapsedMs = Date.now() - refreshStartedAt;
-    const remainingDelay = Math.max(0, 350 - elapsedMs);
-
-    setTimeout(() => {
-      setRefreshSpinState(false, 'all');
-      activeRefreshTarget = 'all';
-    }, remainingDelay);
-  }
-
-  // --- panggil pengambilan data manajemen user dan grup disertai animasi spin ---
-  requestManagedEntities = function (targetScope = 'all') {
-    activeRefreshTarget = targetScope;
-    refreshStartedAt = Date.now();
-    setRefreshSpinState(true, targetScope);
-
-    if (refreshFallbackTimer) clearTimeout(refreshFallbackTimer);
-    refreshFallbackTimer = setTimeout(() => {
-      setRefreshSpinState(false, 'all');
-      refreshFallbackTimer = null;
-    }, 8000);
-
-    socketClient.emit('manage:list');
-  };
-  window.requestManagedEntities = requestManagedEntities;
-
-  // --- render tabel daftar grup aktif lengkap dengan nama grup, jumlah anggota, dan aksi ---
-  renderManagedGroupsTable = function () {
-    const tbody = document.getElementById('managedGroupsTableBody');
-    const query = String(document.getElementById('manageGroupSearchInput')?.value || '').trim().toLowerCase();
-    if (!tbody) return;
-
-    const filtered = managedGroupsCache.filter(
-      (g) =>
-        String(g.subject || '').toLowerCase().includes(query) ||
-        String(g.jid || '').toLowerCase().includes(query)
-    );
-
-    if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-slate-500">Belum ada grup aktif terdata.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = filtered.map((g) => `
-      <tr class="hover:bg-slate-950/60">
-        <td class="py-2 pr-2">
-          <p class="font-semibold text-slate-200 truncate max-w-[180px] sm:max-w-[240px]">${escapeHtmlString(g.subject || g.jid)}</p>
-          <p class="text-[10px] font-mono-code text-slate-500 truncate max-w-[180px] sm:max-w-[240px]">${escapeHtmlString(g.jid)}</p>
-        </td>
-        <td class="py-2 px-2 font-mono-code text-slate-300 whitespace-nowrap">${Number(g.participantsCount || 0)}</td>
-        <td class="py-2 pl-2 text-right">
-          <button type="button" data-jid="${escapeHtmlString(g.jid)}" onclick="updateManagedGroup(this.dataset.jid, { banned: ${!g.banned} })" class="px-2.5 py-1 rounded text-[10px] font-semibold ${g.banned ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}">
-            ${g.banned ? 'Banned' : 'Aktif'}
-          </button>
-        </td>
-      </tr>
-    `).join('');
-  };
-  window.renderManagedGroupsTable = renderManagedGroupsTable;
-
-  // --- sinkronkan listener manage:data untuk memperbarui kedua tabel dan menghentikan animasi spin ---
-  socketClient.off('manage:data');
-  socketClient.on('manage:data', (payload) => {
-    managedUsersCache = Array.isArray(payload?.users) ? payload.users : [];
-    managedGroupsCache = Array.isArray(payload?.groups) ? payload.groups : [];
-    renderManagedUsersTable();
-    renderManagedGroupsTable();
-    stopRefreshSpinSmoothly();
-  });
-
-  socketClient.on('disconnect', () => {
-    setRefreshSpinState(false, 'all');
-  });
-})();
   </script>
 </body>
 </html>
