@@ -1,4 +1,4 @@
-// --- manajer plugin rekursif multi-kategori, validator sintaks, toggle, dan hot-reload ---
+// --- manajer plugin rekursif multi-kategori, katalog fitur, validator sintaks, dan hot-reload ---
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -14,7 +14,7 @@ import {
 const executeFileAsync = promisify(execFile);
 const pluginModuleCache = new Map();
 
-// --- baca daftar plugin nonaktif dari volume ---
+// --- baca daftar plugin nonaktif global dari volume ---
 export function readDisabledPluginsSet() {
   if (!fs.existsSync(DISABLED_PLUGINS_FILE_PATH)) {
     return new Set();
@@ -154,6 +154,50 @@ export function getAvailablePluginsList() {
       updatedAt: fileStat.mtimeMs
     };
   });
+}
+
+// --- bangun katalog perintah otomatis tanpa mengekspos source code untuk semua pengguna ---
+export async function getFeatureCatalogList() {
+  const relativeFiles = scanPluginFilesRecursive(PLUGINS_ROOT_DIR);
+  const disabledSet = readDisabledPluginsSet();
+  const catalogItems = [];
+
+  for (const relativeFilePath of relativeFiles) {
+    if (disabledSet.has(relativeFilePath)) continue;
+
+    try {
+      const mod = await loadPluginModuleWithHotReload(relativeFilePath, false);
+      const pluginObj = mod?.default;
+      if (!pluginObj || typeof pluginObj !== 'object') continue;
+
+      const pathParts = relativeFilePath.split('/');
+      const folderCategory = pathParts.length > 1 ? pathParts[0] : 'general';
+      const resolvedCategory = String(pluginObj.type || folderCategory).toLowerCase();
+
+      const cmdList = Array.isArray(pluginObj.cmd)
+        ? pluginObj.cmd.map((c) => String(c))
+        : (typeof pluginObj.cmd === 'string' && pluginObj.cmd.trim() ? [pluginObj.cmd.trim()] : []);
+
+      if (cmdList.length === 0) continue;
+
+      const aliasList = Array.isArray(pluginObj.alias) ? pluginObj.alias.map((a) => String(a)) : [];
+
+      catalogItems.push({
+        fileName: relativeFilePath,
+        category: resolvedCategory,
+        commands: cmdList,
+        aliases: aliasList,
+        usage: String(pluginObj.use || ''),
+        limit: typeof pluginObj.limit === 'number' ? pluginObj.limit : (pluginObj.limit ? 1 : 0),
+        premiumOnly: Boolean(pluginObj.premium || pluginObj.prem),
+        ownerOnly: Boolean(pluginObj.owner)
+      });
+    } catch {
+      // --- lewati plugin yang gagal dimuat agar katalog tetap tampil ---
+    }
+  }
+
+  return catalogItems.sort((a, b) => a.category.localeCompare(b.category));
 }
 
 // --- buat plugin bawaan format objek di kategori info jika folder plugins kosong ---
@@ -358,7 +402,7 @@ export function deletePluginFile(googleUserId, rawFileName, emitLog) {
   return true;
 }
 
-// --- dispatcher eksekusi plugin dengan pencocokan cmd, alias, limit, restrict, dan status aktif ---
+// --- dispatcher eksekusi plugin dengan filter kategori per-bot, limit, dan restrict ---
 export async function executeDynamicPlugins({
   googleUserId,
   m,
@@ -379,6 +423,11 @@ export async function executeDynamicPlugins({
   if (groups?.banned && !m.isOwner && !m.fromMe) return;
 
   const dbSettings = botDatabase?.settings || {};
+  const disabledBotCategories = new Set(
+    (Array.isArray(dbSettings.disabledCategories) ? dbSettings.disabledCategories : [])
+      .map((cat) => String(cat).toLowerCase())
+  );
+
   const setting = {
     ...(m.setting || {}),
     botName: dbSettings.botName || m.setting?.botName || CONFIG.platformName,
@@ -443,6 +492,12 @@ export async function executeDynamicPlugins({
       const plugin = await loadPluginModuleWithHotReload(relativeFilePath, false);
       const pluginObj = plugin?.default;
       if (!pluginObj || typeof pluginObj !== 'object') continue;
+
+      const pathParts = relativeFilePath.split('/');
+      const folderCat = pathParts.length > 1 ? pathParts[0] : 'general';
+      const pluginCategory = String(pluginObj.type || folderCat).toLowerCase();
+
+      if (disabledBotCategories.has(pluginCategory)) continue;
 
       if (typeof pluginObj.before === 'function') {
         const shouldStop = await pluginObj.before(m, client, executionContext);
@@ -526,10 +581,11 @@ export function watchPluginsDirectory(io) {
     fs.watch(PLUGINS_ROOT_DIR, { recursive: true }, (_eventType, changedFile) => {
       if (!changedFile || String(changedFile).includes('.temp_')) return;
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
+      debounceTimer = setTimeout(async () => {
         const normalizedRelPath = String(changedFile).replaceAll('\\', '/');
         pluginModuleCache.delete(normalizedRelPath);
         io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:data', await getFeatureCatalogList());
       }, 300);
     });
   } catch {

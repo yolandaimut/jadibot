@@ -1,4 +1,4 @@
-// --- manajer sesi baileys, dynamic session mapping, auto-connect, soft restart, dan serializer pesan ---
+// --- manajer sesi baileys, auto-connect, soft restart, broadcast grup, dan serializer pesan ---
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
@@ -13,20 +13,29 @@ import makeWASocket, {
   jidNormalizedUser
 } from '@whiskeysockets/baileys';
 import {
+  ADMIN_WA_NUMBER,
   AUTO_CONNECT_MAX_RETRIES,
   AUTO_CONNECT_TIMEOUT_MS,
   SESSIONS_ROOT_FOLDER_PATH,
   CONFIG
 } from './config.js';
 import {
+  buildLast7DaysTrafficSeries,
+  getGlobalAnnouncement,
   getGlobalPlatformStatistics,
   getUserSessionFolderPath,
+  incrementDailyTrafficRecord,
+  isPlatformAdminById,
   isPlatformAdminUser,
   readBotDatabase,
   readMasterDatabaseFile,
   writeBotDatabaseAtomic
 } from './database.js';
-import { executeDynamicPlugins, getAvailablePluginsList } from './plugin-manager.js';
+import {
+  executeDynamicPlugins,
+  getAvailablePluginsList,
+  getFeatureCatalogList
+} from './plugin-manager.js';
 import Extra from '../system/extra.js';
 
 const extraInstance = new Extra();
@@ -54,11 +63,40 @@ export function emitTerminalLog(io, googleUserId, logLevel, logMessage) {
   io.to(`user_${googleUserId}`).emit('terminal:log', logEntry);
 }
 
-// --- sinkronkan pengaturan dashboard ke global.db.setting agar langsung aktif di extra.js ---
+// --- ambil 5 perintah paling populer dari global.db.statistic ---
+export function getTopCommandsLeaderboard(limitCount = 5) {
+  const statsMap = global.db?.statistic || {};
+  return Object.entries(statsMap)
+    .map(([cmdKey, info]) => ({
+      name: info?.name || cmdKey,
+      hit: Number(info?.hit || 0),
+      hittoday: Number(info?.hittoday || 0),
+      lastused: Number(info?.lastused || 0)
+    }))
+    .filter((item) => item.hit > 0)
+    .sort((a, b) => b.hit - a.hit)
+    .slice(0, limitCount);
+}
+
+// --- cek apakah masa aktif langganan bot sudah habis (admin bebas batas) ---
+export function isBotSubscriptionExpired(googleUserId, botDatabase) {
+  if (isPlatformAdminById(googleUserId)) return false;
+  const expiresAt = Number(botDatabase?.subscription?.expiresAt || 0);
+  if (expiresAt <= 0) return false;
+  return Date.now() > expiresAt;
+}
+
+// --- sinkronkan pengaturan dashboard dan daftar owner ke global.db.setting ---
 export function syncBotSettingsToGlobalDb(botJid, settingsObject) {
   if (!botJid || !settingsObject) return;
   global.db = global.db || {};
   global.db.setting = global.db.setting || {};
+
+  const formattedOwners = (Array.isArray(settingsObject.owners) ? settingsObject.owners : [])
+    .map((num) => String(num).replace(/\D/g, ''))
+    .filter((num) => num.length >= 6)
+    .map((num) => `${num}@s.whatsapp.net`);
+
   global.db.setting[botJid] = {
     ...(global.db.setting[botJid] || {}),
     botName: settingsObject.botName || CONFIG.platformName,
@@ -66,6 +104,7 @@ export function syncBotSettingsToGlobalDb(botJid, settingsObject) {
     author: settingsObject.author || 'Surya Core',
     isNoPrefix: settingsObject.isNoPrefix ?? true,
     allowedPc: settingsObject.allowedPc ?? true,
+    owners: formattedOwners,
     toxic: Array.isArray(settingsObject.toxic) ? settingsObject.toxic : []
   };
 }
@@ -262,7 +301,7 @@ async function serializeIncomingMessage(coreModules, client, rawMessage) {
   };
 }
 
-// --- mulai koneksi whatsapp baileys dengan auto-connect dan fallback disconnected ---
+// --- mulai koneksi whatsapp baileys dengan cek masa aktif, auto-connect, dan fallback ---
 export async function startWhatsAppSession(
   io,
   coreModules,
@@ -273,6 +312,19 @@ export async function startWhatsAppSession(
   forceRestart = false
 ) {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const botDatabase = readBotDatabase(googleUserId);
+
+  if (isBotSubscriptionExpired(googleUserId, botDatabase)) {
+    emitLog(googleUserId, 'ERROR', 'Masa aktif langganan bot Anda telah habis. Silakan perpanjang paket untuk menyalakan bot.');
+    io.to(`user_${googleUserId}`).emit('connection:status', {
+      status: 'DISCONNECTED',
+      profile: null,
+      isAutoReconnect: false,
+      reason: 'SUBSCRIPTION_EXPIRED'
+    });
+    return;
+  }
+
   const existingSession = activeBotSessions.get(googleUserId);
   const isAutoReconnect = connectionMethod === 'reconnect';
 
@@ -310,7 +362,6 @@ export async function startWhatsAppSession(
     }
   }
 
-  const botDatabase = readBotDatabase(googleUserId);
   const cleanedPhoneInput = String(phoneNumberInput || '').replace(/[^0-9]/g, '');
   let activeSessionName = botDatabase.sessionName;
 
@@ -425,19 +476,22 @@ export async function startWhatsAppSession(
       syncFullHistory: false
     });
 
-    // --- pasang method client.reply, client.sendReact, client.sendStickerFromUrl, dll ---
+    // --- pasang method helper client baileys ---
     extraInstance.registerComponents(client);
 
-    // --- intercept pengiriman pesan untuk menghitung statistik secara atomic ---
+    // --- intercept pengiriman pesan untuk menghitung statistik dan trafik harian ---
     const originalSendMessage = client.sendMessage.bind(client);
     client.sendMessage = async (recipientJid, messageContent, messageOptions = {}) => {
       const sendResult = await originalSendMessage(recipientJid, messageContent, messageOptions);
       const latestDatabase = readBotDatabase(googleUserId);
       latestDatabase.totalMessagesSent += 1;
+      incrementDailyTrafficRecord(latestDatabase, 'out');
       writeBotDatabaseAtomic(googleUserId, latestDatabase);
       io.to(`user_${googleUserId}`).emit('stats:update', {
         userStats: latestDatabase,
-        globalStats: getGlobalPlatformStatistics(activeBotSessions)
+        globalStats: getGlobalPlatformStatistics(activeBotSessions),
+        trafficSeries: buildLast7DaysTrafficSeries(latestDatabase.trafficHistory),
+        topCommands: getTopCommandsLeaderboard(5)
       });
       return sendResult;
     };
@@ -485,7 +539,8 @@ export async function startWhatsAppSession(
         io.to(`user_${googleUserId}`).emit('connection:status', {
           status: 'DISCONNECTED',
           profile: null,
-          isAutoReconnect: false
+          isAutoReconnect: false,
+          reason: 'RELINK_REQUIRED'
         });
         return;
       }
@@ -556,7 +611,9 @@ export async function startWhatsAppSession(
         });
         io.to(`user_${googleUserId}`).emit('stats:update', {
           userStats: latestDatabase,
-          globalStats: getGlobalPlatformStatistics(activeBotSessions)
+          globalStats: getGlobalPlatformStatistics(activeBotSessions),
+          trafficSeries: buildLast7DaysTrafficSeries(latestDatabase.trafficHistory),
+          topCommands: getTopCommandsLeaderboard(5)
         });
         emitLog(googleUserId, 'SUCCESS', `Connected as ${whatsappName} (+${cleanPhoneNumber})`);
       }
@@ -575,7 +632,7 @@ export async function startWhatsAppSession(
 
         if (disconnectCode === DisconnectReason.loggedOut || disconnectCode === DisconnectReason.badSession) {
           emitLog(googleUserId, 'ERROR', 'Sesi keluar (Logged Out). Membersihkan kredensial sesi...');
-          await destroyBotSession(io, coreModules, googleUserId, false);
+          await destroyBotSession(io, coreModules, googleUserId, false, disconnectLabel);
           return;
         }
 
@@ -592,7 +649,8 @@ export async function startWhatsAppSession(
           io.to(`user_${googleUserId}`).emit('connection:status', {
             status: 'DISCONNECTED',
             profile: null,
-            isAutoReconnect: false
+            isAutoReconnect: false,
+            reason: disconnectLabel
           });
           return;
         }
@@ -617,12 +675,30 @@ export async function startWhatsAppSession(
       }
     });
 
-    // --- router pesan masuk menuju serializer dan dispatcher plugin objek ---
+    // --- router pesan masuk menuju auto-reply, serializer, dan dispatcher plugin ---
     client.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
 
       for (const messageItem of messages) {
         if (!messageItem.message || messageItem.key.remoteJid === 'status@broadcast') continue;
+
+        const currentDatabase = readBotDatabase(googleUserId);
+        if (isBotSubscriptionExpired(googleUserId, currentDatabase)) {
+          emitLog(googleUserId, 'WARN', 'Masa aktif bot berakhir. Memutus koneksi otomatis...');
+          try {
+            client.end(undefined);
+          } catch {
+            // --- abaikan error saat memutus socket kadaluarsa ---
+          }
+          activeBotSessions.delete(googleUserId);
+          io.to(`user_${googleUserId}`).emit('connection:status', {
+            status: 'DISCONNECTED',
+            profile: null,
+            isAutoReconnect: false,
+            reason: 'SUBSCRIPTION_EXPIRED'
+          });
+          return;
+        }
 
         if (coreModules.store && typeof coreModules.store.saveMessage === 'function') {
           coreModules.store.saveMessage(messageItem, client.user?.id);
@@ -632,7 +708,6 @@ export async function startWhatsAppSession(
           coreModules.database(client, messageItem);
         }
 
-        // --- sinkronkan metadata grup agar m.isAdmin dan m.isBotAdmin akurat ---
         const remoteJid = messageItem.key.remoteJid;
         if (remoteJid?.endsWith('@g.us') && typeof coreModules.metadata === 'function') {
           if (!global.db?.metadata?.[remoteJid]) {
@@ -643,10 +718,10 @@ export async function startWhatsAppSession(
         }
 
         const m = await serializeIncomingMessage(coreModules, client, messageItem);
-        const currentDatabase = readBotDatabase(googleUserId);
 
         if (!m.fromMe) {
           currentDatabase.totalMessagesReceived += 1;
+          incrementDailyTrafficRecord(currentDatabase, 'in');
           const cleanSenderNumber = m.sender.split('@')[0];
           if (!currentDatabase.uniqueUsers.includes(cleanSenderNumber)) {
             currentDatabase.uniqueUsers.push(cleanSenderNumber);
@@ -654,7 +729,9 @@ export async function startWhatsAppSession(
           writeBotDatabaseAtomic(googleUserId, currentDatabase);
           io.to(`user_${googleUserId}`).emit('stats:update', {
             userStats: currentDatabase,
-            globalStats: getGlobalPlatformStatistics(activeBotSessions)
+            globalStats: getGlobalPlatformStatistics(activeBotSessions),
+            trafficSeries: buildLast7DaysTrafficSeries(currentDatabase.trafficHistory),
+            topCommands: getTopCommandsLeaderboard(5)
           });
 
           if (currentDatabase.settings.autoRead) {
@@ -670,6 +747,17 @@ export async function startWhatsAppSession(
           emitLog(googleUserId, 'MSG', `${m.fromMe ? '[OUT]' : '[IN]'} ${m.sender.split('@')[0]}: ${m.body.slice(0, 80)}`);
 
           if (!currentDatabase.settings.publicMode && !m.fromMe) continue;
+
+          // --- jalankan custom auto-reply berbasis kata kunci dari dashboard ---
+          if (!m.fromMe && Array.isArray(currentDatabase.settings.autoReplies) && currentDatabase.settings.autoReplies.length > 0) {
+            const normalizedBody = m.body.trim().toLowerCase();
+            const matchedReply = currentDatabase.settings.autoReplies.find(
+              (item) => item?.trigger && String(item.trigger).trim().toLowerCase() === normalizedBody
+            );
+            if (matchedReply?.response) {
+              await m.reply(matchedReply.response).catch(() => {});
+            }
+          }
 
           await executeDynamicPlugins({
             googleUserId,
@@ -722,9 +810,73 @@ export async function startWhatsAppSession(
     io.to(`user_${googleUserId}`).emit('connection:status', {
       status: 'DISCONNECTED',
       profile: null,
-      isAutoReconnect: false
+      isAutoReconnect: false,
+      reason: sessionError.message
     });
   }
+}
+
+// --- kirim pesan broadcast ke seluruh grup bot dengan jeda anti-spam ---
+export async function broadcastToBotGroups(io, googleUserId, messageText, delaySeconds = 4) {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const activeSession = activeBotSessions.get(googleUserId);
+
+  if (!activeSession || activeSession.status !== 'CONNECTED' || !activeSession.socketInstance) {
+    return { isSuccess: false, errorMessage: 'Bot harus dalam status Connected untuk melakukan broadcast grup.' };
+  }
+
+  const cleanText = String(messageText || '').trim();
+  if (!cleanText) {
+    return { isSuccess: false, errorMessage: 'Isi pesan broadcast tidak boleh kosong.' };
+  }
+
+  const safeDelayMs = Math.max(2, Math.min(30, Number(delaySeconds) || 4)) * 1000;
+  const client = activeSession.socketInstance;
+
+  let targetGroups = [];
+  try {
+    const participating = await client.groupFetchAllParticipating();
+    targetGroups = Object.values(participating || {}).filter(
+      (grp) => grp?.id && !global.db?.groups?.[grp.id]?.banned
+    );
+  } catch {
+    targetGroups = Object.values(global.db?.metadata || {}).filter(
+      (grp) => grp?.id?.endsWith('@g.us') && !global.db?.groups?.[grp.id]?.banned
+    );
+  }
+
+  if (targetGroups.length === 0) {
+    return { isSuccess: false, errorMessage: 'Tidak ada grup aktif yang ditemukan untuk broadcast.' };
+  }
+
+  emitLog(googleUserId, 'INFO', `Memulai broadcast ke ${targetGroups.length} grup (jeda ${safeDelayMs / 1000} detik/grup)...`);
+
+  let successCount = 0;
+  let failedCount = 0;
+
+  for (let idx = 0; idx < targetGroups.length; idx += 1) {
+    const groupItem = targetGroups[idx];
+    try {
+      await client.sendMessage(groupItem.id, { text: cleanText });
+      successCount += 1;
+    } catch {
+      failedCount += 1;
+    }
+
+    io.to(`user_${googleUserId}`).emit('broadcast:progress', {
+      current: idx + 1,
+      total: targetGroups.length,
+      successCount,
+      failedCount
+    });
+
+    if (idx < targetGroups.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, safeDelayMs));
+    }
+  }
+
+  emitLog(googleUserId, 'SUCCESS', `Broadcast selesai. Berhasil: ${successCount}, Gagal: ${failedCount}.`);
+  return { isSuccess: true, total: targetGroups.length, successCount, failedCount };
 }
 
 // --- soft restart koneksi whatsapp tanpa menghapus kredensial sesi ---
@@ -749,7 +901,7 @@ export async function restartWhatsAppSession(io, coreModules, googleUserId) {
 }
 
 // --- hapus sesi kredensial baileys secara bersih tanpa merusak statistik ---
-export async function destroyBotSession(io, coreModules, googleUserId, triggerLogout = true) {
+export async function destroyBotSession(io, coreModules, googleUserId, triggerLogout = true, reasonLabel = 'LOGGED_OUT') {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
   const existingSession = activeBotSessions.get(googleUserId);
   const currentDatabase = readBotDatabase(googleUserId);
@@ -811,17 +963,21 @@ export async function destroyBotSession(io, coreModules, googleUserId, triggerLo
     status: 'DISCONNECTED',
     profile: null,
     isAutoReconnect: false,
+    reason: reasonLabel,
     database: currentDatabase,
     globalStats
   });
   io.to(`user_${googleUserId}`).emit('connection:status', {
     status: 'DISCONNECTED',
     profile: null,
-    isAutoReconnect: false
+    isAutoReconnect: false,
+    reason: reasonLabel
   });
   io.to(`user_${googleUserId}`).emit('stats:update', {
     userStats: currentDatabase,
-    globalStats
+    globalStats,
+    trafficSeries: buildLast7DaysTrafficSeries(currentDatabase.trafficHistory),
+    topCommands: getTopCommandsLeaderboard(5)
   });
   emitLog(googleUserId, 'WARN', 'Sesi kredensial WhatsApp telah dihapus dari volume.');
 }
@@ -889,15 +1045,15 @@ export function restoreExistingSessionsOnBoot(io, coreModules) {
   }
 }
 
-// --- sinkronisasi state sesi dan daftar plugin ke klien dashboard ---
-export function syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser) {
+// --- sinkronisasi state sesi, analitik, katalog fitur, dan pengumuman ke klien dashboard ---
+export async function syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser) {
   const googleUserId = sessionUser.googleId;
   const isAdmin = isPlatformAdminUser(sessionUser);
   const userDatabase = readBotDatabase(googleUserId);
   let currentBotState = activeBotSessions.get(googleUserId);
   const discoveredSession = findValidUserSession(googleUserId);
 
-  if (!currentBotState && discoveredSession) {
+  if (!currentBotState && discoveredSession && !isBotSubscriptionExpired(googleUserId, userDatabase)) {
     startWhatsAppSession(io, coreModules, googleUserId, 'reconnect', userDatabase.phoneNumber || '', 1, false);
     currentBotState = activeBotSessions.get(googleUserId);
   }
@@ -905,16 +1061,22 @@ export function syncSessionStateToSocket(io, coreModules, clientSocket, sessionU
   const resolvedStatus = currentBotState ? currentBotState.status : 'DISCONNECTED';
   const resolvedProfile = currentBotState ? currentBotState.profile : null;
   const isAutoReconnect = Boolean(currentBotState?.isAutoReconnect);
+  const catalogList = await getFeatureCatalogList();
 
   clientSocket.emit('session:ready', {
     user: sessionUser,
     isAdmin,
+    adminWaNumber: ADMIN_WA_NUMBER,
     volumePath: discoveredSession?.folderPath || getUserSessionFolderPath(googleUserId),
     status: resolvedStatus,
     profile: resolvedProfile,
     isAutoReconnect,
     database: userDatabase,
     globalStats: getGlobalPlatformStatistics(activeBotSessions),
+    trafficSeries: buildLast7DaysTrafficSeries(userDatabase.trafficHistory),
+    topCommands: getTopCommandsLeaderboard(5),
+    announcement: getGlobalAnnouncement(),
+    catalog: catalogList,
     plugins: isAdmin ? getAvailablePluginsList() : [],
     logs: userTerminalLogsCache.get(googleUserId) || []
   });

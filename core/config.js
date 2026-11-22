@@ -30,6 +30,8 @@ export const GOOGLE_CLIENT_ID =
 
 export const ADMIN_EMAILS = parseEnvList(process.env.ADMIN_EMAILS);
 export const ADMIN_GOOGLE_IDS = parseEnvList(process.env.ADMIN_GOOGLE_IDS);
+export const ADMIN_WA_NUMBER = String(process.env.ADMIN_WA_NUMBER || '6285126904781').replace(/\D/g, '');
+export const DEFAULT_TRIAL_DAYS = Math.max(1, parseInt(process.env.DEFAULT_TRIAL_DAYS || '30', 10) || 30);
 
 export const SESSION_COOKIE_NAME = 'jadibot_session';
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
@@ -165,6 +167,7 @@ export function initPersistentDirectories() {
   global.db.groups = global.db.groups || {};
   global.db.setting = global.db.setting || {};
   global.db.metadata = global.db.metadata || {};
+  global.db.statistic = global.db.statistic || {};
 }
 
 export default CONFIG;

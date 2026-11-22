@@ -18,29 +18,33 @@ import {
   verifyGoogleCredentialToken
 } from './auth.js';
 import {
+  buildLast7DaysTrafficSeries,
   calculateDirectorySizeBytes,
   getGlobalPlatformStatistics,
   isPlatformAdminUser,
   readBotDatabase,
+  setGlobalAnnouncement,
   writeBotDatabaseAtomic
 } from './database.js';
 import {
   deletePluginFile,
   getAvailablePluginsList,
+  getFeatureCatalogList,
   scanPluginFilesRecursive,
   togglePluginEnabledState,
   validateAndSavePlugin
 } from './plugin-manager.js';
 import {
   activeBotSessions,
+  broadcastToBotGroups,
   destroyBotSession,
   emitTerminalLog,
+  getTopCommandsLeaderboard,
   restartWhatsAppSession,
   startWhatsAppSession,
   syncBotSettingsToGlobalDb,
   syncSessionStateToSocket
 } from './session-manager.js';
-import lidModule from '../system/lid.js';
 
 let systemMetricsInterval = null;
 let cachedVolumeSizeBytes = 0;
@@ -117,7 +121,7 @@ function startRealtimeSystemBroadcaster(io) {
   systemMetricsInterval.unref();
 }
 
-// --- susun daftar user dan grup aktif untuk panel manajemen dashboard ---
+// --- susun daftar user (termasuk @lid dan @s.whatsapp.net) serta grup aktif ---
 function buildManagedEntitiesPayload(googleUserId) {
   const botDb = readBotDatabase(googleUserId);
   const globalUsers = global.db?.users || {};
@@ -142,7 +146,7 @@ function buildManagedEntitiesPayload(googleUserId) {
   }
 
   for (const [jid, dbEntry] of Object.entries(globalUsers)) {
-    if (!jid.endsWith('@s.whatsapp.net')) continue;
+    if (!/(@s\.whatsapp\.net|@lid)$/i.test(jid)) continue;
     const cleanNum = jid.split('@')[0];
     usersMap.set(jid, {
       jid,
@@ -340,8 +344,13 @@ export function registerSocketHandlers(io, coreModules) {
       }
 
       io.to(`user_${authenticatedGoogleId}`).emit('stats:update', {
-        userStats: currentDatabase,
-        globalStats: getGlobalPlatformStatistics(activeBotSessions)
+        userStats: {
+          ...currentDatabase,
+          expiresAt: currentDatabase.subscription?.expiresAt || 0
+        },
+        globalStats: getGlobalPlatformStatistics(activeBotSessions),
+        trafficSeries: buildLast7DaysTrafficSeries(currentDatabase.trafficHistory),
+        topCommands: getTopCommandsLeaderboard(5)
       });
       emitLog(
         authenticatedGoogleId,
@@ -350,6 +359,7 @@ export function registerSocketHandlers(io, coreModules) {
       );
     });
 
+    // --- perbarui konfigurasi bot, daftar owner, kategori nonaktif, dan auto-reply ---
     clientSocket.on('settings:update', (payload) => {
       const currentDatabase = readBotDatabase(authenticatedGoogleId);
       const nextSettings = { ...currentDatabase.settings };
@@ -375,6 +385,33 @@ export function registerSocketHandlers(io, coreModules) {
           .filter(Boolean)
           .slice(0, 100);
       }
+      if (Array.isArray(payload?.owners)) {
+        nextSettings.owners = Array.from(
+          new Set(
+            payload.owners
+              .map((num) => String(num).replace(/\D/g, ''))
+              .filter((num) => num.length >= 6 && num.length <= 18)
+          )
+        ).slice(0, 20);
+      }
+      if (Array.isArray(payload?.disabledCategories)) {
+        nextSettings.disabledCategories = Array.from(
+          new Set(
+            payload.disabledCategories
+              .map((cat) => String(cat).trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+      }
+      if (Array.isArray(payload?.autoReplies)) {
+        nextSettings.autoReplies = payload.autoReplies
+          .filter((item) => item && String(item.trigger || '').trim() && String(item.response || '').trim())
+          .map((item) => ({
+            trigger: String(item.trigger).trim().slice(0, 80),
+            response: String(item.response).trim().slice(0, 500)
+          }))
+          .slice(0, 30);
+      }
 
       currentDatabase.settings = nextSettings;
       writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
@@ -386,11 +423,86 @@ export function registerSocketHandlers(io, coreModules) {
       }
 
       io.to(`user_${authenticatedGoogleId}`).emit('stats:update', {
-        userStats: currentDatabase,
-        globalStats: getGlobalPlatformStatistics(activeBotSessions)
+        userStats: {
+          ...currentDatabase,
+          expiresAt: currentDatabase.subscription?.expiresAt || 0
+        },
+        globalStats: getGlobalPlatformStatistics(activeBotSessions),
+        trafficSeries: buildLast7DaysTrafficSeries(currentDatabase.trafficHistory),
+        topCommands: getTopCommandsLeaderboard(5)
       });
       clientSocket.emit('settings:saved', { isSuccess: true, settings: nextSettings });
       emitLog(authenticatedGoogleId, 'SUCCESS', 'Konfigurasi bot berhasil diperbarui dari dashboard.');
+    });
+
+    // --- toggle kategori fitur khusus untuk bot milik pengguna ---
+    clientSocket.on('catalog:toggleCategory', (payload) => {
+      const categoryName = String(payload?.category || '').trim().toLowerCase();
+      if (!categoryName) return;
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const disabledSet = new Set(
+        (currentDatabase.settings.disabledCategories || []).map((c) => String(c).toLowerCase())
+      );
+
+      let isEnabledNow = true;
+      if (disabledSet.has(categoryName)) {
+        disabledSet.delete(categoryName);
+        isEnabledNow = true;
+      } else {
+        disabledSet.add(categoryName);
+        isEnabledNow = false;
+      }
+
+      currentDatabase.settings.disabledCategories = Array.from(disabledSet);
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+      io.to(`user_${authenticatedGoogleId}`).emit('stats:update', {
+        userStats: {
+          ...currentDatabase,
+          expiresAt: currentDatabase.subscription?.expiresAt || 0
+        },
+        globalStats: getGlobalPlatformStatistics(activeBotSessions),
+        trafficSeries: buildLast7DaysTrafficSeries(currentDatabase.trafficHistory),
+        topCommands: getTopCommandsLeaderboard(5)
+      });
+      emitLog(
+        authenticatedGoogleId,
+        isEnabledNow ? 'SUCCESS' : 'WARN',
+        `Kategori fitur [${categoryName}] ${isEnabledNow ? 'diaktifkan' : 'dinonaktifkan'} untuk bot Anda.`
+      );
+    });
+
+    // --- pancarkan pengumuman global ke seluruh dashboard online khusus admin ---
+    clientSocket.on('announcement:set', (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Hanya admin yang dapat mengirim pengumuman global.' });
+        return;
+      }
+
+      const updatedAnnouncement = setGlobalAnnouncement(payload?.text || '', payload?.level || 'info');
+      io.emit('announcement:update', updatedAnnouncement);
+      clientSocket.emit('announcement:result', { isSuccess: true, announcement: updatedAnnouncement });
+      emitLog(
+        authenticatedGoogleId,
+        'INFO',
+        updatedAnnouncement.text ? `Pengumuman global dipancarkan: ${updatedAnnouncement.text}` : 'Pengumuman global dihapus.'
+      );
+    });
+
+    // --- kirim broadcast grup dengan jeda anti-spam dan format payload sinkron ---
+    clientSocket.on('broadcast:groups', async (payload) => {
+      const result = await broadcastToBotGroups(
+        io,
+        authenticatedGoogleId,
+        payload?.message,
+        payload?.delaySeconds
+      );
+      clientSocket.emit('broadcast:result', {
+        ...result,
+        sentCount: result?.successCount ?? 0,
+        totalGroups: result?.total ?? 0
+      });
     });
 
     clientSocket.on('manage:list', () => {
@@ -399,7 +511,7 @@ export function registerSocketHandlers(io, coreModules) {
 
     clientSocket.on('manage:user:update', (payload) => {
       const targetJid = String(payload?.jid || '').trim();
-      if (!targetJid.endsWith('@s.whatsapp.net')) return;
+      if (!/(@s\.whatsapp\.net|@lid)$/i.test(targetJid)) return;
 
       global.db = global.db || {};
       global.db.users = global.db.users || {};
@@ -438,6 +550,7 @@ export function registerSocketHandlers(io, coreModules) {
       const targetJid = String(payload?.jid || '').trim();
       if (!/(@s\.whatsapp\.net|@lid)$/i.test(targetJid)) return;
 
+      const lidModule = coreModules.lid || (await import('../system/lid.js').then((m) => m.default).catch(() => null));
       const mappedPairJid = lidModule
         ? (targetJid.endsWith('@lid') ? lidModule.get(targetJid) : lidModule.getLid(targetJid))
         : null;
@@ -480,8 +593,13 @@ export function registerSocketHandlers(io, coreModules) {
       emitLog(authenticatedGoogleId, 'WARN', `User [${labelNumber}] telah dihapus permanen dari database.`);
 
       io.to(`user_${authenticatedGoogleId}`).emit('stats:update', {
-        userStats: currentDatabase,
-        globalStats: getGlobalPlatformStatistics(activeBotSessions)
+        userStats: {
+          ...currentDatabase,
+          expiresAt: currentDatabase.subscription?.expiresAt || 0
+        },
+        globalStats: getGlobalPlatformStatistics(activeBotSessions),
+        trafficSeries: buildLast7DaysTrafficSeries(currentDatabase.trafficHistory),
+        topCommands: getTopCommandsLeaderboard(5)
       });
       io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
       clientSocket.emit('manage:user:deleted', { jid: targetJid, number: labelNumber });
@@ -526,7 +644,9 @@ export function registerSocketHandlers(io, coreModules) {
       const validationResult = await validateAndSavePlugin(authenticatedGoogleId, fileName, codeContent, emitLog);
 
       if (validationResult.isSuccess) {
+        const latestCatalog = await getFeatureCatalogList();
         io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:update', latestCatalog);
         clientSocket.emit('plugin:save:result', {
           isSuccess: true,
           fileName: validationResult.fileName
@@ -546,19 +666,23 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    clientSocket.on('plugin:toggle', (payload) => {
+    clientSocket.on('plugin:toggle', async (payload) => {
       if (!isAdmin) return;
       const result = togglePluginEnabledState(authenticatedGoogleId, payload?.fileName, emitLog);
       if (result.isSuccess) {
+        const latestCatalog = await getFeatureCatalogList();
         io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:update', latestCatalog);
       }
     });
 
-    clientSocket.on('plugin:delete', (payload) => {
+    clientSocket.on('plugin:delete', async (payload) => {
       if (!isAdmin) return;
       const deleted = deletePluginFile(authenticatedGoogleId, payload?.fileName, emitLog);
       if (deleted) {
+        const latestCatalog = await getFeatureCatalogList();
         io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:update', latestCatalog);
       }
     });
   });
