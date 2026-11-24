@@ -1,1 +1,630 @@
-<!doctype html><html lang="id" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panel Admin — JadiBot Core</title><script src="https://cdn.tailwindcss.com"></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"><style>@import url(https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800;1,900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap);:root[data-theme=emerald]{--accent-main:#10b981;--accent-hover:#059669;--accent-soft:rgba(16, 185, 129, 0.14);--accent-border:rgba(16, 185, 129, 0.38);--accent-glow:rgba(16, 185, 129, 0.28);--grid-line:rgba(16, 185, 129, 0.038);--gradient-start:#34d399;--gradient-mid:#10b981;--gradient-end:#06b6d4}:root[data-theme=cyan]{--accent-main:#06b6d4;--accent-hover:#0891b2;--accent-soft:rgba(6, 182, 212, 0.14);--accent-border:rgba(6, 182, 212, 0.38);--accent-glow:rgba(6, 182, 212, 0.28);--grid-line:rgba(6, 182, 212, 0.038);--gradient-start:#38bdf8;--gradient-mid:#06b6d4;--gradient-end:#3b82f6}:root[data-theme=violet]{--accent-main:#8b5cf6;--accent-hover:#7c3aed;--accent-soft:rgba(139, 92, 246, 0.14);--accent-border:rgba(139, 92, 246, 0.38);--accent-glow:rgba(139, 92, 246, 0.28);--grid-line:rgba(139, 92, 246, 0.04);--gradient-start:#c084fc;--gradient-mid:#8b5cf6;--gradient-end:#ec4899}body{font-family:'Plus Jakarta Sans',Inter,sans-serif;background-color:#050810;color:#f1f5f9}@keyframes cyberScroll{0%{background-position:0 0}100%{background-position:40px 40px}}.bg-animated-cyber-grid{background-color:#050810;background-image:linear-gradient(to right,var(--grid-line) 1px,transparent 1px),linear-gradient(to bottom,var(--grid-line) 1px,transparent 1px);background-size:40px 40px;animation:cyberScroll 28s linear infinite}.font-mono-code{font-family:'JetBrains Mono',monospace}.brand-display-style{font-family:Kanit,sans-serif;font-weight:900;font-style:italic;letter-spacing:.02em;padding-right:.25rem;font-size:.95rem;line-height:1.25rem}@media (min-width:640px){.brand-display-style{font-size:1.2rem;line-height:1.5rem}}@keyframes futuristicFlow{0%{background-position:0 50%;filter:drop-shadow(0 0 8px var(--accent-soft))}50%{background-position:100% 50%;filter:drop-shadow(0 0 16px var(--accent-border))}100%{background-position:0 50%;filter:drop-shadow(0 0 8px var(--accent-soft))}}@keyframes toastProgressDrain{from{transform:scaleX(1)}to{transform:scaleX(0)}}.cyber-toast-progress{transform-origin:left center;animation:toastProgressDrain 3.6s linear forwards}.animated-brand-title{background:linear-gradient(270deg,var(--gradient-start),var(--gradient-mid),var(--gradient-end),var(--gradient-start));background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:futuristicFlow 6s ease infinite}.saas-glass-card{background:linear-gradient(180deg,rgba(15,23,42,.72) 0,rgba(7,11,22,.8) 100%);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px -14px rgba(0,0,0,.7),inset 0 1px 0 0 rgba(255,255,255,.04)}.pricing-tier-card{background:rgba(2,6,23,.72);border:1px solid rgba(30,41,59,.95);transition:border-color .22s ease,background .22s ease,box-shadow .22s ease,transform .2s ease}.pricing-tier-card:hover{border-color:rgba(71,85,105,.95);transform:translateY(-1px)}.pricing-tier-input:checked+.pricing-tier-card{border-color:var(--accent-main);background:linear-gradient(180deg,var(--accent-soft) 0,rgba(2,6,23,.92) 100%);box-shadow:0 0 24px -5px var(--accent-glow),inset 0 1px 0 0 var(--accent-border)}.pricing-tier-input:checked+.pricing-tier-card .tier-indicator-dot{border-color:var(--accent-main);background-color:var(--accent-main);box-shadow:0 0 10px var(--accent-main)}.pricing-tier-input:checked+.pricing-tier-card .tier-duration-pill{background-color:var(--accent-main);color:#020617;border-color:transparent}.accent-bg{background-color:var(--accent-main)}.accent-bg:hover{background-color:var(--accent-hover)}.accent-text{color:var(--accent-main)}.accent-border{border-color:var(--accent-border)}.accent-soft-bg{background-color:var(--accent-soft)}.accent-shadow{box-shadow:0 0 20px -4px var(--accent-glow)}::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:rgba(15,23,42,.6)}::-webkit-scrollbar-thumb{background:#334155;border-radius:999px}::-webkit-scrollbar-thumb:hover{background:var(--accent-main)}</style></head><body class="bg-animated-cyber-grid min-h-screen flex flex-col selection:bg-slate-700 selection:text-white antialiased"><header class="sticky top-0 z-40 flex items-center justify-between gap-2 w-full px-4 py-2.5 sm:px-6 sm:py-2.5 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_4px_24px_rgba(0,0,0,0.4)]"><div class="flex items-center gap-2 min-w-0"><div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 border accent-border flex items-center justify-center shrink-0 accent-shadow"><svg class="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent-main)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div class="flex items-center gap-2 min-w-0"><h1 class="brand-display-style animated-brand-title select-none whitespace-nowrap">JadiBot Core</h1><span class="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-300 font-mono-code text-[9px] font-bold uppercase shrink-0">Admin</span></div></div><div class="flex items-center gap-2 shrink-0"><a href="/dashboard" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-all"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg> <span class="hidden sm:inline">Kembali ke Dashboard</span> <span class="sm:hidden">Dash</span> </a><button type="button" onclick="logoutAdminSession()" class="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 text-xs font-semibold transition-all active:scale-95">Logout</button></div></header><main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-3 sm:pt-4 pb-10 space-y-5"><div class="saas-glass-card flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-slate-800/90 text-xs"><div class="flex items-center gap-3 min-w-0"><img id="adminAvatarImg" src="https://ui-avatars.com/api/?name=A&background=10b981&color=fff" alt="Admin" class="w-9 h-9 rounded-full object-cover border accent-border shrink-0"><div class="min-w-0"><div class="flex items-center gap-2"><p id="adminDisplayName" class="font-bold text-white truncate">Memverifikasi sesi admin...</p><span class="w-2 h-2 rounded-full accent-bg shadow-[0_0_8px_var(--accent-main)] shrink-0"></span></div><p id="adminEmailLabel" class="text-[11px] font-mono-code text-slate-400 truncate mt-0.5">-</p></div></div><div class="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80"><span class="text-[10px] font-mono-code text-slate-400 uppercase mr-0.5">Tema</span> <button type="button" onclick='applyAdminTheme("emerald")' title="Emerald" class="w-4 h-4 rounded-full bg-emerald-500 border border-white/30 hover:scale-110 transition-transform"></button> <button type="button" onclick='applyAdminTheme("cyan")' title="Cyan" class="w-4 h-4 rounded-full bg-cyan-500 border border-white/30 hover:scale-110 transition-transform"></button> <button type="button" onclick='applyAdminTheme("violet")' title="Violet" class="w-4 h-4 rounded-full bg-violet-500 border border-white/30 hover:scale-110 transition-transform"></button></div></div><div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6"><section id="adminExtendSubscriptionSection" class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-5"><div class="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-4"><div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><span class="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono-code text-[10px] font-bold uppercase">Admin Only</span><h2 class="text-sm sm:text-base font-bold text-white truncate">Perpanjangan Masa Aktif User</h2></div><p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">Perbarui langsung properti <span class="font-mono-code text-slate-300">subscription.expiresAt</span> milik user target di <span class="font-mono-code text-slate-300">database.json</span>.</p></div></div><form id="adminExtendSubscriptionForm" class="space-y-5 text-xs" novalidate><div class="space-y-1.5"><label for="adminTargetGoogleIdInput" class="block text-slate-200 font-semibold">Google ID / User ID Target</label> <input id="adminTargetGoogleIdInput" name="googleUserId" required autocomplete="off" placeholder="Masukkan Google Sub ID target (contoh: 1094827162534...)" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-200 font-mono-code focus:outline-none transition-colors"></div><div class="space-y-2"><div class="flex items-center justify-between"><span class="block text-slate-200 font-semibold">Pilih Paket Durasi Perpanjangan</span> <span class="text-[10px] font-mono-code text-slate-500">Auto-Extend Tier</span></div><div class="grid grid-cols-1 sm:grid-cols-3 gap-3"><label class="cursor-pointer block"><input type="radio" name="adminDurationDays" value="7" class="pricing-tier-input sr-only"><div class="pricing-tier-card rounded-xl p-3.5 sm:p-4 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 h-full"><div class="flex sm:items-center justify-between gap-2"><span class="text-[10px] font-mono-code uppercase tracking-wider text-slate-400 font-semibold">Starter</span> <span class="tier-indicator-dot hidden sm:inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span></div><div class="sm:my-1"><p class="text-sm sm:text-base font-extrabold text-white">7 Hari</p><p class="text-[10px] text-slate-400 mt-0.5">Akses mingguan</p></div><div class="flex items-center justify-between gap-2 sm:pt-2 sm:border-t sm:border-slate-800/80"><span class="tier-duration-pill px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 font-mono-code text-[11px] font-bold accent-text transition-all">+7d</span> <span class="tier-indicator-dot sm:hidden inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span></div></div></label> <label class="cursor-pointer block"><input type="radio" name="adminDurationDays" value="30" class="pricing-tier-input sr-only" checked="checked"><div class="pricing-tier-card rounded-xl p-3.5 sm:p-4 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 h-full relative"><div class="flex sm:items-center justify-between gap-2"><span class="px-1.5 py-0.5 rounded bg-[var(--accent-soft)] border accent-border text-[9px] font-mono-code uppercase tracking-wider accent-text font-bold">Populer</span> <span class="tier-indicator-dot hidden sm:inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span></div><div class="sm:my-1"><p class="text-sm sm:text-base font-extrabold text-white">30 Hari</p><p class="text-[10px] text-slate-400 mt-0.5">Paket Pro bulanan</p></div><div class="flex items-center justify-between gap-2 sm:pt-2 sm:border-t sm:border-slate-800/80"><span class="tier-duration-pill px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 font-mono-code text-[11px] font-bold accent-text transition-all">+30d</span> <span class="tier-indicator-dot sm:hidden inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span></div></div></label> <label class="cursor-pointer block"><input type="radio" name="adminDurationDays" value="90" class="pricing-tier-input sr-only"><div class="pricing-tier-card rounded-xl p-3.5 sm:p-4 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 h-full"><div class="flex sm:items-center justify-between gap-2"><span class="text-[10px] font-mono-code uppercase tracking-wider text-amber-300 font-semibold">Hemat</span> <span class="tier-indicator-dot hidden sm:inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span></div><div class="sm:my-1"><p class="text-sm sm:text-base font-extrabold text-white">90 Hari</p><p class="text-[10px] text-slate-400 mt-0.5">Paket kuartal penuh</p></div><div class="flex items-center justify-between gap-2 sm:pt-2 sm:border-t sm:border-slate-800/80"><span class="tier-duration-pill px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 font-mono-code text-[11px] font-bold accent-text transition-all">+90d</span> <span class="tier-indicator-dot sm:hidden inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span></div></div></label></div></div><div id="adminExtendFeedbackBox" class="hidden rounded-xl border px-3.5 py-2.5 text-[11px] leading-relaxed break-words"></div><button id="adminExtendSubmitBtn" type="submit" class="w-full py-3 px-4 rounded-xl accent-bg text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait accent-shadow"><svg id="adminExtendSpinnerIcon" class="hidden w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg> <span id="adminExtendBtnLabel">Proses Perpanjangan Masa Aktif</span></button></form></section><section class="lg:col-span-5 space-y-5"><div class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4"><div class="border-b border-slate-800/80 pb-3.5"><h2 class="text-sm sm:text-base font-bold text-white">Utilitas Platform Admin</h2><p class="text-[11px] text-slate-400 mt-0.5">Akses cepat pencadangan arsip dan pemantauan health server</p></div><div class="space-y-2.5 text-xs font-mono-code"><div class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800"><span class="text-slate-400">Server Status</span> <span id="serverHealthStatus" class="text-emerald-400 font-bold">Memeriksa...</span></div><div class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800"><span class="text-slate-400">Server Uptime</span> <span id="serverUptimeLabel" class="text-white">-</span></div><div class="px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1"><span class="block text-slate-400">Volume Root</span> <span id="serverVolumeRoot" class="block text-[11px] text-slate-200 truncate">-</span></div></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1"><button type="button" onclick="downloadAdminBackupZip()" class="py-2.5 px-3.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-300 font-semibold text-xs transition-all active:scale-95">Unduh Backup ZIP</button> <button type="button" onclick="refreshServerHealth()" class="py-2.5 px-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 font-semibold text-xs transition-all active:scale-95">Cek Health Server</button></div></div></section></div></main><div id="cyberToastContainer" class="fixed top-14 sm:top-16 right-4 left-4 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div><script>const EXCLUSIVE_ADMIN_EMAIL="suryadev2105@gmail.com",EXCLUSIVE_ADMIN_GOOGLE_ID="113793372874509761088";function escapeHtml(e){return String(e??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function showAdminToast(e,t,a="success"){const n=document.getElementById("cyberToastContainer");if(!n)return;const o={success:{border:"border-emerald-500/35",badge:"bg-emerald-500/15 text-emerald-400 border-emerald-500/30",bar:"bg-emerald-400"},danger:{border:"border-rose-500/35",badge:"bg-rose-500/15 text-rose-400 border-rose-500/30",bar:"bg-rose-500"},info:{border:"border-sky-500/35",badge:"bg-sky-500/15 text-sky-400 border-sky-500/30",bar:"bg-sky-400"}},r=o[a]||o.info,i=document.createElement("div");i.className=`pointer-events-auto relative overflow-hidden rounded-xl bg-slate-950/95 backdrop-blur-xl border ${r.border} p-3 transition-all duration-300 -translate-y-3 opacity-0`,i.innerHTML=`\n        <div class="flex items-start justify-between gap-2">\n          <div class="min-w-0">\n            <p class="text-xs font-bold text-white truncate">${escapeHtml(e)}</p>\n            <p class="text-[11px] text-slate-400 mt-0.5 leading-snug break-words">${escapeHtml(t)}</p>\n          </div>\n          <button type="button" onclick="this.closest('.pointer-events-auto').remove()" class="text-slate-500 hover:text-white text-xs">✕</button>\n        </div>\n        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-800/80">\n          <div class="h-full ${r.bar} cyber-toast-progress"></div>\n        </div>\n      `,n.appendChild(i),requestAnimationFrame(()=>{i.classList.remove("-translate-y-3","opacity-0"),i.classList.add("translate-y-0","opacity-100")}),setTimeout(()=>{i.classList.remove("translate-y-0","opacity-100"),i.classList.add("-translate-y-2","opacity-0"),setTimeout(()=>i.remove(),300)},3600)}function applyAdminTheme(e,t=!0){document.documentElement.setAttribute("data-theme",e),localStorage.setItem("jadibot_theme_pref",e),t&&showAdminToast("Tema Diubah",`Tema aksen aktif: ${e.toUpperCase()}`,"info")}async function verifyAdminSession(){try{const e=await fetch("/api/auth/me",{credentials:"same-origin"});if(!e.ok)return void window.location.replace("/login");const t=await e.json(),a=t?.user,n=String(a?.email||"").trim().toLowerCase(),o=String(a?.googleId||"").trim();if(!(Boolean(t?.isAdmin)&&(n===EXCLUSIVE_ADMIN_EMAIL||"113793372874509761088"===o)))return void window.location.replace("/dashboard");document.getElementById("adminDisplayName").textContent=a.fullName||a.givenName||"Admin",document.getElementById("adminEmailLabel").textContent=`${a.email||"-"} • Sub: ${a.googleId||"-"}`,a.pictureUrl&&(document.getElementById("adminAvatarImg").src=a.pictureUrl)}catch{window.location.replace("/login")}}async function refreshServerHealth(){const e=document.getElementById("serverHealthStatus"),t=document.getElementById("serverUptimeLabel"),a=document.getElementById("serverVolumeRoot");try{const n=await fetch("/health",{credentials:"same-origin"}),o=await n.json(),r=Math.floor(Number(o?.uptime||0)),i=Math.floor(r/3600),s=Math.floor(r%3600/60),d=r%60;e&&(e.textContent=String(o?.status||"ok").toUpperCase(),e.className="text-emerald-400 font-bold"),t&&(t.textContent=`${i}j ${s}m ${d}d`),a&&(a.textContent=o?.volumeRoot||"-")}catch{e&&(e.textContent="OFFLINE",e.className="text-rose-400 font-bold")}}function downloadAdminBackupZip(){window.location.href="/api/backup/download",showAdminToast("Backup ZIP","Mengunduh arsip plugins & database.json...","info")}async function logoutAdminSession(){try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"})}catch{}window.location.replace("/login")}!function(){const e=localStorage.getItem("jadibot_theme_pref")||"emerald";document.documentElement.setAttribute("data-theme",e)}(),function(){const e=document.getElementById("adminExtendSubscriptionForm"),t=document.getElementById("adminTargetGoogleIdInput"),a=document.getElementById("adminExtendSubmitBtn"),n=document.getElementById("adminExtendSpinnerIcon"),o=document.getElementById("adminExtendBtnLabel"),r=document.getElementById("adminExtendFeedbackBox");function i(e,t=!1){r&&(r.textContent=e,r.className=t?"rounded-xl border border-rose-500/35 bg-rose-500/10 text-rose-300 px-3.5 py-2.5 text-[11px] leading-relaxed break-words":"rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-emerald-300 px-3.5 py-2.5 text-[11px] leading-relaxed break-words")}function s(e){a.disabled=e,n&&n.classList.toggle("hidden",!e),o&&(o.textContent=e?"Memperbarui Database...":"Proses Perpanjangan Masa Aktif")}e&&t&&a&&e.addEventListener("submit",async a=>{a.preventDefault();const n=String(t.value||"").trim().replace(/[^a-zA-Z0-9_-]/g,""),o=e.querySelector('input[name="adminDurationDays"]:checked'),d=Number(o?.value||0);if(!n)return i("Google ID / User ID target wajib diisi dengan format yang valid.",!0),void t.focus();if([7,30,90].includes(d)){s(!0),r&&r.classList.add("hidden");try{const e=await fetch("/api/admin/subscription/extend",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({googleUserId:n,durationDays:d})}),a=await e.json().catch(()=>({}));if(!e.ok||!a.isSuccess)throw new Error(a.errorMessage||`Permintaan ditolak server (HTTP ${e.status}).`);const o=Number(a.subscription?.expiresAt||a.expiresAt||0),r=`Akun ${n} diperpanjang +${d} hari (hingga ${o>0?new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"}).format(new Date(o)):"-"} WIB).`;i(r,!1),showAdminToast("Perpanjangan Berhasil",r,"success"),t.value=""}catch(e){i(e.message||"Terjadi kesalahan saat menghubungi server.",!0),showAdminToast("Gagal Memproses",e.message||"Permintaan gagal.","danger")}finally{s(!1)}}else i("Pilih paket durasi perpanjangan yang tersedia (7, 30, atau 90 Hari).",!0)})}(),window.addEventListener("DOMContentLoaded",()=>{verifyAdminSession(),refreshServerHealth()})</script></body></html>
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Admin — Xu Core</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800;1,900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    /* --- variabel tema dinamis & garis cyber grid --- */
+    :root[data-theme="emerald"] {
+      --accent-main: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --accent-border: rgba(16, 185, 129, 0.38);
+      --accent-glow: rgba(16, 185, 129, 0.28);
+      --grid-line: rgba(16, 185, 129, 0.038);
+      --gradient-start: #34d399;
+      --gradient-mid: #10b981;
+      --gradient-end: #06b6d4;
+    }
+
+    :root[data-theme="cyan"] {
+      --accent-main: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.14);
+      --accent-border: rgba(6, 182, 212, 0.38);
+      --accent-glow: rgba(6, 182, 212, 0.28);
+      --grid-line: rgba(6, 182, 212, 0.038);
+      --gradient-start: #38bdf8;
+      --gradient-mid: #06b6d4;
+      --gradient-end: #3b82f6;
+    }
+
+    :root[data-theme="violet"] {
+      --accent-main: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --accent-border: rgba(139, 92, 246, 0.38);
+      --accent-glow: rgba(139, 92, 246, 0.28);
+      --grid-line: rgba(139, 92, 246, 0.04);
+      --gradient-start: #c084fc;
+      --gradient-mid: #8b5cf6;
+      --gradient-end: #ec4899;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      background-color: #050810;
+      color: #f1f5f9;
+    }
+
+    /* --- animasi micro-scrolling cyber mesh grid --- */
+    @keyframes cyberScroll {
+      0% { background-position: 0px 0px; }
+      100% { background-position: 40px 40px; }
+    }
+
+    .bg-animated-cyber-grid {
+      background-color: #050810;
+      background-image:
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: cyberScroll 28s linear infinite;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .brand-display-style {
+      font-family: 'Kanit', sans-serif;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 0.02em;
+      padding-right: 0.25rem;
+      font-size: 0.95rem;
+      line-height: 1.25rem;
+    }
+
+    @media (min-width: 640px) {
+      .brand-display-style {
+        font-size: 1.2rem;
+        line-height: 1.5rem;
+      }
+    }
+
+    @keyframes futuristicFlow {
+      0% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+      50% { background-position: 100% 50%; filter: drop-shadow(0 0 16px var(--accent-border)); }
+      100% { background-position: 0% 50%; filter: drop-shadow(0 0 8px var(--accent-soft)); }
+    }
+
+    @keyframes toastProgressDrain {
+      from { transform: scaleX(1); }
+      to { transform: scaleX(0); }
+    }
+
+    .cyber-toast-progress {
+      transform-origin: left center;
+      animation: toastProgressDrain 3.6s linear forwards;
+    }
+
+    .animated-brand-title {
+      background: linear-gradient(270deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), var(--gradient-start));
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: futuristicFlow 6s ease infinite;
+    }
+
+    .saas-glass-card {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(7, 11, 22, 0.8) 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 14px 36px -14px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+    }
+
+    /* --- gaya kartu paket saas dengan efek active border glow dinamis --- */
+    .pricing-tier-card {
+      background: rgba(2, 6, 23, 0.72);
+      border: 1px solid rgba(30, 41, 59, 0.95);
+      transition: border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease, transform 0.2s ease;
+    }
+
+    .pricing-tier-card:hover {
+      border-color: rgba(71, 85, 105, 0.95);
+      transform: translateY(-1px);
+    }
+
+    .pricing-tier-input:checked + .pricing-tier-card {
+      border-color: var(--accent-main);
+      background: linear-gradient(180deg, var(--accent-soft) 0%, rgba(2, 6, 23, 0.92) 100%);
+      box-shadow: 0 0 24px -5px var(--accent-glow), inset 0 1px 0 0 var(--accent-border);
+    }
+
+    .pricing-tier-input:checked + .pricing-tier-card .tier-indicator-dot {
+      border-color: var(--accent-main);
+      background-color: var(--accent-main);
+      box-shadow: 0 0 10px var(--accent-main);
+    }
+
+    .pricing-tier-input:checked + .pricing-tier-card .tier-duration-pill {
+      background-color: var(--accent-main);
+      color: #020617;
+      border-color: transparent;
+    }
+
+    .accent-bg { background-color: var(--accent-main); }
+    .accent-bg:hover { background-color: var(--accent-hover); }
+    .accent-text { color: var(--accent-main); }
+    .accent-border { border-color: var(--accent-border); }
+    .accent-soft-bg { background-color: var(--accent-soft); }
+    .accent-shadow { box-shadow: 0 0 20px -4px var(--accent-glow); }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
+  </style>
+</head>
+<body class="bg-animated-cyber-grid min-h-screen flex flex-col selection:bg-slate-700 selection:text-white antialiased">
+
+  <!-- --- header navigasi khusus panel admin anti-overlap mobile --- -->
+  <header class="sticky top-0 z-40 flex items-center justify-between gap-2 w-full px-2.5 py-2 sm:px-6 sm:py-2.5 bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+    <!-- --- grup kiri: ikon perisai, teks xu core admin presisi, dan lencana admin --- -->
+    <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 border accent-border flex items-center justify-center shrink-0 accent-shadow">
+        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--accent-main)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+
+      <div class="flex items-center gap-1.5 min-w-0">
+        <h1 class="brand-display-style animated-brand-title !text-[13px] sm:!text-lg !leading-none !pr-1 select-none truncate">
+          XU CORE ADMIN
+        </h1>
+        <span class="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-300 font-mono-code text-[8px] sm:text-[9px] font-bold uppercase leading-none shrink-0">
+          Admin
+        </span>
+      </div>
+    </div>
+
+    <!-- --- grup kanan: tombol dash ringkas dan logout dengan svg sinkron dashboard --- -->
+    <div class="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-none">
+      <a href="/dashboard" class="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-[11px] sm:text-xs font-semibold text-slate-200 transition-all active:scale-95 whitespace-nowrap">
+        <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        <span class="hidden sm:inline">Kembali ke Dashboard</span>
+        <span class="sm:hidden">Dash</span>
+      </a>
+
+      <button type="button" onclick="logoutAdminSession()" class="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[11px] sm:text-xs font-semibold transition-all active:scale-95 whitespace-nowrap">
+        <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        <span>Logout</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- --- area konten utama admin dengan padding seimbang mobile & desktop --- -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-3 sm:pt-4 pb-10 space-y-5">
+
+    <!-- --- bar identitas akun admin terverifikasi & pemilih tema --- -->
+    <div class="saas-glass-card flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-slate-800/90 text-xs">
+      <div class="flex items-center gap-3 min-w-0">
+        <img id="adminAvatarImg" src="https://ui-avatars.com/api/?name=A&background=10b981&color=fff" alt="Admin" class="w-9 h-9 rounded-full object-cover border accent-border shrink-0" />
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p id="adminDisplayName" class="font-bold text-white truncate">Memverifikasi sesi admin...</p>
+            <span class="w-2 h-2 rounded-full accent-bg shadow-[0_0_8px_var(--accent-main)] shrink-0"></span>
+          </div>
+          <p id="adminEmailLabel" class="text-[11px] font-mono-code text-slate-400 truncate mt-0.5">-</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+        <span class="text-[10px] font-mono-code text-slate-400 uppercase mr-0.5">Tema</span>
+        <button type="button" onclick="applyAdminTheme('emerald')" title="Emerald" class="w-4 h-4 rounded-full bg-emerald-500 border border-white/30 hover:scale-110 transition-transform"></button>
+        <button type="button" onclick="applyAdminTheme('cyan')" title="Cyan" class="w-4 h-4 rounded-full bg-cyan-500 border border-white/30 hover:scale-110 transition-transform"></button>
+        <button type="button" onclick="applyAdminTheme('violet')" title="Violet" class="w-4 h-4 rounded-full bg-violet-500 border border-white/30 hover:scale-110 transition-transform"></button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+
+      <!-- --- form perpanjangan masa aktif user bergaya saas pricing cards --- -->
+      <section id="adminExtendSubscriptionSection" class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-5">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono-code text-[10px] font-bold uppercase">Admin Only</span>
+              <h2 class="text-sm sm:text-base font-bold text-white truncate">Perpanjangan Masa Aktif User</h2>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+              Perbarui langsung properti <span class="font-mono-code text-slate-300">subscription.expiresAt</span> milik user target di <span class="font-mono-code text-slate-300">database.json</span>.
+            </p>
+          </div>
+        </div>
+
+        <form id="adminExtendSubscriptionForm" class="space-y-5 text-xs" novalidate>
+          <div class="space-y-1.5">
+            <label for="adminTargetGoogleIdInput" class="block text-slate-200 font-semibold">
+              Google ID / User ID Target
+            </label>
+            <input
+              id="adminTargetGoogleIdInput"
+              name="googleUserId"
+              type="text"
+              required
+              autocomplete="off"
+              placeholder="Masukkan Google Sub ID target (contoh: 1094827162534...)"
+              class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-200 font-mono-code focus:outline-none transition-colors"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="block text-slate-200 font-semibold">Pilih Paket Durasi Perpanjangan</span>
+              <span class="text-[10px] font-mono-code text-slate-500">Auto-Extend Tier</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- --- kartu durasi 7 hari --- -->
+              <label class="cursor-pointer block">
+                <input type="radio" name="adminDurationDays" value="7" class="pricing-tier-input sr-only" />
+                <div class="pricing-tier-card rounded-xl p-3.5 sm:p-4 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 h-full">
+                  <div class="flex sm:items-center justify-between gap-2">
+                    <span class="text-[10px] font-mono-code uppercase tracking-wider text-slate-400 font-semibold">Starter</span>
+                    <span class="tier-indicator-dot hidden sm:inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span>
+                  </div>
+                  <div class="sm:my-1">
+                    <p class="text-sm sm:text-base font-extrabold text-white">7 Hari</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Akses mingguan</p>
+                  </div>
+                  <div class="flex items-center justify-between gap-2 sm:pt-2 sm:border-t sm:border-slate-800/80">
+                    <span class="tier-duration-pill px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 font-mono-code text-[11px] font-bold accent-text transition-all">+7d</span>
+                    <span class="tier-indicator-dot sm:hidden inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span>
+                  </div>
+                </div>
+              </label>
+
+              <!-- --- kartu durasi 30 hari --- -->
+              <label class="cursor-pointer block">
+                <input type="radio" name="adminDurationDays" value="30" class="pricing-tier-input sr-only" checked />
+                <div class="pricing-tier-card rounded-xl p-3.5 sm:p-4 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 h-full relative">
+                  <div class="flex sm:items-center justify-between gap-2">
+                    <span class="px-1.5 py-0.5 rounded bg-[var(--accent-soft)] border accent-border text-[9px] font-mono-code uppercase tracking-wider accent-text font-bold">Populer</span>
+                    <span class="tier-indicator-dot hidden sm:inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span>
+                  </div>
+                  <div class="sm:my-1">
+                    <p class="text-sm sm:text-base font-extrabold text-white">30 Hari</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Paket Pro bulanan</p>
+                  </div>
+                  <div class="flex items-center justify-between gap-2 sm:pt-2 sm:border-t sm:border-slate-800/80">
+                    <span class="tier-duration-pill px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 font-mono-code text-[11px] font-bold accent-text transition-all">+30d</span>
+                    <span class="tier-indicator-dot sm:hidden inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span>
+                  </div>
+                </div>
+              </label>
+
+              <!-- --- kartu durasi 90 hari --- -->
+              <label class="cursor-pointer block">
+                <input type="radio" name="adminDurationDays" value="90" class="pricing-tier-input sr-only" />
+                <div class="pricing-tier-card rounded-xl p-3.5 sm:p-4 flex sm:flex-col items-center sm:items-stretch justify-between gap-3 h-full">
+                  <div class="flex sm:items-center justify-between gap-2">
+                    <span class="text-[10px] font-mono-code uppercase tracking-wider text-amber-300 font-semibold">Hemat</span>
+                    <span class="tier-indicator-dot hidden sm:inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span>
+                  </div>
+                  <div class="sm:my-1">
+                    <p class="text-sm sm:text-base font-extrabold text-white">90 Hari</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Paket kuartal penuh</p>
+                  </div>
+                  <div class="flex items-center justify-between gap-2 sm:pt-2 sm:border-t sm:border-slate-800/80">
+                    <span class="tier-duration-pill px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 font-mono-code text-[11px] font-bold accent-text transition-all">+90d</span>
+                    <span class="tier-indicator-dot sm:hidden inline-block w-3 h-3 rounded-full border-2 border-slate-600 transition-all"></span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div id="adminExtendFeedbackBox" class="hidden rounded-xl border px-3.5 py-2.5 text-[11px] leading-relaxed break-words"></div>
+
+          <button
+            id="adminExtendSubmitBtn"
+            type="submit"
+            class="w-full py-3 px-4 rounded-xl accent-bg text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait accent-shadow"
+          >
+            <svg id="adminExtendSpinnerIcon" class="hidden w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span id="adminExtendBtnLabel">Proses Perpanjangan Masa Aktif</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- --- kartu utilitas cepat dan status server khusus admin --- -->
+      <section class="lg:col-span-5 space-y-5">
+        <div class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
+          <div class="border-b border-slate-800/80 pb-3.5">
+            <h2 class="text-sm sm:text-base font-bold text-white">Utilitas Platform Admin</h2>
+            <p class="text-[11px] text-slate-400 mt-0.5">Akses cepat pencadangan arsip dan pemantauan health server</p>
+          </div>
+
+          <div class="space-y-2.5 text-xs font-mono-code">
+            <div class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <span class="text-slate-400">Server Status</span>
+              <span id="serverHealthStatus" class="text-emerald-400 font-bold">Memeriksa...</span>
+            </div>
+            <div class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <span class="text-slate-400">Server Uptime</span>
+              <span id="serverUptimeLabel" class="text-white">-</span>
+            </div>
+            <div class="px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+              <span class="block text-slate-400">Volume Root</span>
+              <span id="serverVolumeRoot" class="block text-[11px] text-slate-200 truncate">-</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <button type="button" onclick="downloadAdminBackupZip()" class="py-2.5 px-3.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-300 font-semibold text-xs transition-all active:scale-95">
+              Unduh Backup ZIP
+            </button>
+            <button type="button" onclick="refreshServerHealth()" class="py-2.5 px-3.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 font-semibold text-xs transition-all active:scale-95">
+              Cek Health Server
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- --- toast notifikasi kompak di bawah header --- -->
+  <div id="cyberToastContainer" class="fixed top-14 sm:top-16 right-4 left-4 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    const EXCLUSIVE_ADMIN_EMAIL = 'suryadev2105@gmail.com';
+    const EXCLUSIVE_ADMIN_GOOGLE_ID = '113793372874509761088';
+
+    // --- escape karakter html ---
+    function escapeHtml(rawString) {
+      return String(rawString ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // --- tampilkan cyber toast pada halaman admin ---
+    function showAdminToast(title, message, variant = 'success') {
+      const container = document.getElementById('cyberToastContainer');
+      if (!container) return;
+
+      const styles = {
+        success: {
+          border: 'border-emerald-500/35',
+          badge: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+          bar: 'bg-emerald-400'
+        },
+        danger: {
+          border: 'border-rose-500/35',
+          badge: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+          bar: 'bg-rose-500'
+        },
+        info: {
+          border: 'border-sky-500/35',
+          badge: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+          bar: 'bg-sky-400'
+        }
+      };
+
+      const theme = styles[variant] || styles.info;
+      const card = document.createElement('div');
+      card.className = `pointer-events-auto relative overflow-hidden rounded-xl bg-slate-950/95 backdrop-blur-xl border ${theme.border} p-3 transition-all duration-300 -translate-y-3 opacity-0`;
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-xs font-bold text-white truncate">${escapeHtml(title)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 leading-snug break-words">${escapeHtml(message)}</p>
+          </div>
+          <button type="button" onclick="this.closest('.pointer-events-auto').remove()" class="text-slate-500 hover:text-white text-xs">✕</button>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-800/80">
+          <div class="h-full ${theme.bar} cyber-toast-progress"></div>
+        </div>
+      `;
+
+      container.appendChild(card);
+      requestAnimationFrame(() => {
+        card.classList.remove('-translate-y-3', 'opacity-0');
+        card.classList.add('translate-y-0', 'opacity-100');
+      });
+
+      setTimeout(() => {
+        card.classList.remove('translate-y-0', 'opacity-100');
+        card.classList.add('-translate-y-2', 'opacity-0');
+        setTimeout(() => card.remove(), 300);
+      }, 3600);
+    }
+
+    // --- sinkronisasi tema dengan preferensi dashboard ---
+    function applyAdminTheme(themeName, notify = true) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('jadibot_theme_pref', themeName);
+      if (notify) showAdminToast('Tema Diubah', `Tema aksen aktif: ${themeName.toUpperCase()}`, 'info');
+    }
+
+    (function initSavedTheme() {
+      const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+
+    // --- verifikasi ulang sesi admin eksklusif di sisi klien ---
+    async function verifyAdminSession() {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (!res.ok) {
+          window.location.replace('/login');
+          return;
+        }
+
+        const data = await res.json();
+        const user = data?.user;
+        const email = String(user?.email || '').trim().toLowerCase();
+        const googleId = String(user?.googleId || '').trim();
+        const isAllowed = Boolean(data?.isAdmin) && (email === EXCLUSIVE_ADMIN_EMAIL || googleId === EXCLUSIVE_ADMIN_GOOGLE_ID);
+
+        if (!isAllowed) {
+          window.location.replace('/dashboard');
+          return;
+        }
+
+        document.getElementById('adminDisplayName').textContent = user.fullName || user.givenName || 'Admin';
+        document.getElementById('adminEmailLabel').textContent = `${user.email || '-'} • Sub: ${user.googleId || '-'}`;
+        if (user.pictureUrl) {
+          document.getElementById('adminAvatarImg').src = user.pictureUrl;
+        }
+      } catch {
+        window.location.replace('/login');
+      }
+    }
+
+    // --- muat status health server ---
+    async function refreshServerHealth() {
+      const statusEl = document.getElementById('serverHealthStatus');
+      const uptimeEl = document.getElementById('serverUptimeLabel');
+      const volumeEl = document.getElementById('serverVolumeRoot');
+
+      try {
+        const res = await fetch('/health', { credentials: 'same-origin' });
+        const data = await res.json();
+        const totalSec = Math.floor(Number(data?.uptime || 0));
+        const hrs = Math.floor(totalSec / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+
+        if (statusEl) {
+          statusEl.textContent = String(data?.status || 'ok').toUpperCase();
+          statusEl.className = 'text-emerald-400 font-bold';
+        }
+        if (uptimeEl) uptimeEl.textContent = `${hrs}j ${mins}m ${secs}d`;
+        if (volumeEl) volumeEl.textContent = data?.volumeRoot || '-';
+      } catch {
+        if (statusEl) {
+          statusEl.textContent = 'OFFLINE';
+          statusEl.className = 'text-rose-400 font-bold';
+        }
+      }
+    }
+
+    function downloadAdminBackupZip() {
+      window.location.href = '/api/backup/download';
+      showAdminToast('Backup ZIP', 'Mengunduh arsip plugins & database.json...', 'info');
+    }
+
+    async function logoutAdminSession() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch {
+      }
+      window.location.replace('/login');
+    }
+
+    // --- logika terisolasi submit perpanjangan masa aktif user khusus halaman admin ---
+    (function initAdminSubscriptionExtension() {
+      const formEl = document.getElementById('adminExtendSubscriptionForm');
+      const userIdInput = document.getElementById('adminTargetGoogleIdInput');
+      const submitBtn = document.getElementById('adminExtendSubmitBtn');
+      const spinnerIcon = document.getElementById('adminExtendSpinnerIcon');
+      const btnLabel = document.getElementById('adminExtendBtnLabel');
+      const feedbackBox = document.getElementById('adminExtendFeedbackBox');
+
+      if (!formEl || !userIdInput || !submitBtn) return;
+
+      function renderAdminFeedback(messageText, isError = false) {
+        if (!feedbackBox) return;
+        feedbackBox.textContent = messageText;
+        feedbackBox.className = isError
+          ? 'rounded-xl border border-rose-500/35 bg-rose-500/10 text-rose-300 px-3.5 py-2.5 text-[11px] leading-relaxed break-words'
+          : 'rounded-xl border border-emerald-500/35 bg-emerald-500/10 text-emerald-300 px-3.5 py-2.5 text-[11px] leading-relaxed break-words';
+      }
+
+      function setSubmittingState(isLoading) {
+        submitBtn.disabled = isLoading;
+        if (spinnerIcon) spinnerIcon.classList.toggle('hidden', !isLoading);
+        if (btnLabel) {
+          btnLabel.textContent = isLoading
+            ? 'Memperbarui Database...'
+            : 'Proses Perpanjangan Masa Aktif';
+        }
+      }
+
+      formEl.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const targetGoogleId = String(userIdInput.value || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+        const selectedRadio = formEl.querySelector('input[name="adminDurationDays"]:checked');
+        const durationDays = Number(selectedRadio?.value || 0);
+
+        if (!targetGoogleId) {
+          renderAdminFeedback('Google ID / User ID target wajib diisi dengan format yang valid.', true);
+          userIdInput.focus();
+          return;
+        }
+
+        if (![7, 30, 90].includes(durationDays)) {
+          renderAdminFeedback('Pilih paket durasi perpanjangan yang tersedia (7, 30, atau 90 Hari).', true);
+          return;
+        }
+
+        setSubmittingState(true);
+        if (feedbackBox) feedbackBox.classList.add('hidden');
+
+        try {
+          const response = await fetch('/api/admin/subscription/extend', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              googleUserId: targetGoogleId,
+              durationDays
+            })
+          });
+
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok || !result.isSuccess) {
+            throw new Error(result.errorMessage || `Permintaan ditolak server (HTTP ${response.status}).`);
+          }
+
+          const updatedExpiresAt = Number(result.subscription?.expiresAt || result.expiresAt || 0);
+          const formattedExpiry = updatedExpiresAt > 0
+            ? new Intl.DateTimeFormat('id-ID', {
+                timeZone: 'Asia/Jakarta',
+                dateStyle: 'medium',
+                timeStyle: 'short'
+              }).format(new Date(updatedExpiresAt))
+            : '-';
+
+          const successMsg = `Akun ${targetGoogleId} diperpanjang +${durationDays} hari (hingga ${formattedExpiry} WIB).`;
+          renderAdminFeedback(successMsg, false);
+          showAdminToast('Perpanjangan Berhasil', successMsg, 'success');
+          userIdInput.value = '';
+        } catch (requestError) {
+          renderAdminFeedback(requestError.message || 'Terjadi kesalahan saat menghubungi server.', true);
+          showAdminToast('Gagal Memproses', requestError.message || 'Permintaan gagal.', 'danger');
+        } finally {
+          setSubmittingState(false);
+        }
+      });
+    })();
+
+    window.addEventListener('DOMContentLoaded', () => {
+      verifyAdminSession();
+      refreshServerHealth();
+    });
+  </script>
+</body>
+</html>

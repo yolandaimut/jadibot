@@ -1,1 +1,653 @@
-<!doctype html><html lang="id" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Masuk — JadiBot Core</title><script src="https://cdn.tailwindcss.com"></script><script src="https://accounts.google.com/gsi/client" async defer="defer"></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"><style>@import url(https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap);:root[data-theme=emerald]{--accent-main:#10b981;--accent-hover:#059669;--accent-soft:rgba(16, 185, 129, 0.14);--accent-border:rgba(16, 185, 129, 0.35);--accent-glow:rgba(16, 185, 129, 0.22);--grid-line:rgba(16, 185, 129, 0.038);--brand-ink:#f8fafc}:root[data-theme=cyan]{--accent-main:#06b6d4;--accent-hover:#0891b2;--accent-soft:rgba(6, 182, 212, 0.14);--accent-border:rgba(6, 182, 212, 0.35);--accent-glow:rgba(6, 182, 212, 0.22);--grid-line:rgba(6, 182, 212, 0.038);--brand-ink:#f8fafc}:root[data-theme=violet]{--accent-main:#8b5cf6;--accent-hover:#7c3aed;--accent-soft:rgba(139, 92, 246, 0.14);--accent-border:rgba(139, 92, 246, 0.35);--accent-glow:rgba(139, 92, 246, 0.22);--grid-line:rgba(139, 92, 246, 0.04);--brand-ink:#f8fafc}::view-transition-new(root),::view-transition-old(root){animation:none;mix-blend-mode:normal}body,html{height:100dvh;max-height:100dvh;overflow:hidden;font-family:'Plus Jakarta Sans',Inter,sans-serif;background-color:#060911;color:#f1f5f9}@keyframes cyberScroll{0%{background-position:0 0}100%{background-position:40px 40px}}@keyframes spinClockwise{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}@keyframes spinCounterClockwise{0%{transform:rotate(0)}100%{transform:rotate(-360deg)}}@keyframes corePulseGlow{0%,100%{opacity:.5;filter:drop-shadow(0 0 4px var(--accent-main))}50%{opacity:1;filter:drop-shadow(0 0 10px var(--accent-main))}}.bg-animated-cyber-grid{background-color:#060911;background-image:linear-gradient(to right,var(--grid-line) 1px,transparent 1px),linear-gradient(to bottom,var(--grid-line) 1px,transparent 1px);background-size:40px 40px;animation:cyberScroll 28s linear infinite}.font-heading-modern{font-family:Outfit,'Plus Jakarta Sans',sans-serif}.font-mono-code{font-family:'JetBrains Mono',monospace}.brand-canvas{display:block;flex:none;max-width:100%}.accent-bg{background-color:var(--accent-main)}.accent-bg:hover{background-color:var(--accent-hover)}.accent-text{color:var(--accent-main)}.accent-border{border-color:var(--accent-border)}.accent-soft-bg{background-color:var(--accent-soft)}.accent-shadow{box-shadow:0 0 18px -4px var(--accent-glow)}</style></head><body class="flex flex-col selection:bg-slate-700 selection:text-white antialiased"><header class="shrink-0 z-40 flex items-center justify-between gap-2 w-full px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80"><a href="/login" class="flex items-center gap-2.5 min-w-0 flex-shrink-0 select-none" aria-label="JadiBot Core"><div class="w-8 h-8 rounded-xl bg-slate-900 border accent-border flex items-center justify-center relative overflow-hidden flex-shrink-0 group/icon shadow-lg"><div class="absolute inset-0 bg-[var(--accent-soft)] opacity-25 transition-opacity duration-300 group-hover/icon:opacity-55"></div><span class="absolute inset-0.5 rounded-full border border-dashed border-[var(--accent-main)] animate-[spinClockwise_4s_linear_infinite] opacity-60 pointer-events-none"></span><span class="absolute inset-1.5 rounded-full border border-dotted border-slate-500/70 animate-[spinCounterClockwise_3s_linear_infinite] opacity-50 pointer-events-none"></span><svg class="w-[18px] h-[18px] text-[var(--accent-main)] relative z-10 animate-[corePulseGlow_2s_ease-in-out_infinite] transition-transform duration-300 group-hover/icon:scale-110" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16"/><path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff"/><path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><span class="sr-only">JADIBOT CORE</span><canvas id="headerBrandTextCanvas" class="brand-canvas" aria-hidden="true"></canvas></a><button id="themeCycleBtn" onclick="cycleAccentTheme(event)" title="Ubah Tema" class="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 gap-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 font-semibold text-slate-200 transition-all active:scale-95 shrink-0"><span class="w-3 h-3 rounded-full accent-bg shrink-0"></span> <span id="currentThemeLabel" class="hidden sm:inline text-xs">Emerald</span></button></header><div id="topToastBanner" class="fixed top-14 sm:top-16 left-0 right-0 z-50 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2"><div class="pointer-events-auto mt-1.5 px-3.5 py-2 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate"><span id="topToastDot" class="w-2 h-2 rounded-full accent-bg shrink-0"></span> <span id="topToastText" class="truncate">Notifikasi Sistem</span></div></div><section id="googleAuthGateSection" class="flex-1 min-h-0 flex flex-col justify-start gap-5 sm:gap-6 overflow-hidden px-5 pt-4 pb-5 sm:px-6 sm:pt-6 sm:pb-6 bg-[#060911] bg-animated-cyber-grid relative z-10"><div class="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-72 h-40 rounded-full accent-soft-bg blur-3xl opacity-30"></div><div class="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 w-80 h-40 rounded-full accent-soft-bg blur-3xl opacity-20"></div><div class="flex-shrink-0 text-center space-y-2 relative z-10 max-w-md mx-auto w-full"><h2 class="font-heading-modern text-[clamp(1.58rem,6.6vw,2.25rem)] font-extrabold tracking-tight text-white leading-[1.14]"><span class="block whitespace-nowrap">Bangun Bot WhatsApp Tanpa</span> <span class="block whitespace-nowrap">Harus Jago Ngoding.</span></h2><p class="text-[14px] sm:text-[15px] text-slate-400 max-w-[385px] mx-auto leading-snug font-normal">Mulai dari ide sederhana hingga bot dengan berbagai fitur, semuanya bisa kamu kelola dengan mudah. Hubungkan WhatsApp dan atur bot versimu langsung dari satu panel.</p></div><div class="flex-shrink-0 w-full max-w-[375px] mx-auto relative z-10"><div class="relative flex flex-col gap-4 sm:gap-4.5 before:absolute before:top-4 before:bottom-6 before:left-[20px] before:w-[2px] before:bg-slate-800/85"><div class="flex items-start gap-3.5 pl-0.5 relative group"><div class="h-[38px] w-[38px] rounded-full bg-[#060911] border border-slate-700 text-slate-200 font-mono-code text-[13px] font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/50 shrink-0">01</div><div class="flex flex-col min-w-0 pt-0.5"><span class="text-[15px] sm:text-[16px] font-bold text-slate-100 tracking-wide leading-tight">Masuk akun instan</span> <span class="text-[13px] sm:text-[13.5px] text-slate-400 leading-snug mt-0.5">Login cepat tanpa ribet daftar pakai akun Google.</span></div></div><div class="flex items-start gap-3.5 pl-0.5 relative group"><div class="h-[38px] w-[38px] rounded-full bg-[#060911] border border-slate-700 text-slate-200 font-mono-code text-[13px] font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/50 shrink-0">02</div><div class="flex flex-col min-w-0 pt-0.5"><span class="text-[15px] sm:text-[16px] font-bold text-slate-100 tracking-wide leading-tight">Setup bot kamu</span> <span class="text-[13px] sm:text-[13.5px] text-slate-400 leading-snug mt-0.5">Sesi dan database JSON terisolasi otomatis per akun.</span></div></div><div class="flex items-start gap-3.5 pl-0.5 relative group"><div class="h-[38px] w-[38px] rounded-full bg-[#060911] border border-slate-700 text-slate-200 font-mono-code text-[13px] font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/50 shrink-0">03</div><div class="flex flex-col min-w-0 pt-0.5"><span class="text-[15px] sm:text-[16px] font-bold text-slate-100 tracking-wide leading-tight">Tautkan WhatsApp</span> <span class="text-[13px] sm:text-[13.5px] text-slate-400 leading-snug mt-0.5">Hubungkan lewat Scan QR atau 8-digit kode pairing.</span></div></div><div class="flex items-start gap-3.5 pl-0.5 relative group"><div class="h-[38px] w-[38px] rounded-full bg-[#060911] border border-slate-700 text-slate-200 font-mono-code text-[13px] font-bold flex items-center justify-center relative z-10 transition-all duration-300 group-hover:border-[var(--accent-main)] group-hover:text-[var(--accent-main)] shadow-sm shadow-black/50 shrink-0">04</div><div class="flex flex-col min-w-0 pt-0.5"><span class="text-[15px] sm:text-[16px] font-bold text-slate-100 tracking-wide leading-tight">Bot aktif 24 jam</span> <span class="text-[13px] sm:text-[13.5px] text-slate-400 leading-snug mt-0.5">Pantau log, atur fitur, dan kelola grup dari dashboard.</span></div></div></div></div><div class="flex-shrink-0 w-full max-w-[375px] mx-auto pt-4 border-t border-slate-800/75 relative z-10 flex flex-col items-center justify-center space-y-2.5"><p id="loginDockCaption" class="text-[13px] font-semibold text-slate-200 tracking-wide text-center">Masuk untuk mulai mengelola bot kamu</p><div class="relative w-full flex items-center justify-center min-h-[48px]"><div id="orbitalScannerWrapper" class="flex items-center justify-center gap-3 transition-all duration-300"><div class="relative flex items-center justify-center h-11 w-11 rounded-full bg-slate-950/60 shrink-0"><div id="orbitalOuterRing" class="absolute inset-0 transition-all duration-300"><div class="animate-[spinClockwise_3s_linear_infinite] border-2 border-dashed border-[var(--accent-main)] h-11 w-11 rounded-full"></div></div><div id="orbitalInnerRing" class="absolute inset-0 flex items-center justify-center transition-all duration-300"><div class="animate-[spinCounterClockwise_2s_linear_infinite] border border-dotted border-slate-700 h-7 w-7 rounded-full"></div></div><div id="orbitalCoreRobot" class="relative z-10 flex items-center justify-center transition-all duration-300"><svg class="w-[18px] h-[18px] text-[var(--accent-main)] animate-[corePulseGlow_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16"/><path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff"/><path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div></div><span id="googleBtnLoadingHint" class="text-[11px] font-mono-code text-slate-400 transition-all duration-300">Memuat tombol Google...</span></div><div id="googleSignInButtonContainer" class="hidden w-full items-center justify-center min-h-[44px] opacity-0 scale-95 transition-all duration-300"></div></div><p class="text-[10.5px] text-slate-500 font-mono-code">Sesi aman terenkripsi • JadiBot Core</p></div></section><script>let configuredGoogleClientId="404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com";const availableThemes=["emerald","cyan","violet"];let currentThemeIndex=0,toastTimeoutTimer=null;function initHeaderBrandTextCanvas(e,t){if(!e||!e.getContext)return;const n=e.getContext("2d"),o=Math.min(window.devicePixelRatio||1,3),a=t.scale||1,i=t.width,l=t.height,s=null!=t.centerY?t.centerY:l/2;e.width=Math.round(i*a*o),e.height=Math.round(l*a*o),e.style.width=`${Math.round(i*a)}px`,e.style.height=`${Math.round(l*a)}px`,n.scale(o*a,o*a);let c="#f8fafc",r=-1e9;const d="JADIBOT CORE",m=t.fontSize||27,u=`700 ${m}px Outfit, "Segoe UI", system-ui, sans-serif`,g=220,h=55,p=680,f=1700;function y(e){return e<0?0:e>1?1:e}function w(e){return 1-Math.pow(1-e,4)}function T(e){n.clearRect(0,0,i,l);const t=performance.now();if(t-r>300){r=t;const e=getComputedStyle(document.documentElement);c=(e.getPropertyValue("--brand-ink")||"").trim()||"#f8fafc",document.fonts&&document.fonts.check&&!document.fonts.check(u)&&document.fonts.load&&document.fonts.load(u)}n.font=u;const o=function(e){let t=0;for(let o=0;o<e.length;o+=1)t+=n.measureText(e[o]).width+3;return t-3}(d),a=s+.35*m;n.save(),n.beginPath(),n.rect(-2,a-.98*m,o+12,1.4*m),n.clip(),n.fillStyle=c,n.textBaseline="alphabetic";let f=2;for(let t=0;t<12;t+=1){const o=w(y((e-g-t*h)/p)),i=n.measureText(d[t]).width+3;o>0&&(n.globalAlpha=Math.min(1,1.6*o),n.fillText(d[t],f,a+(1-o)*m*.75)),f+=i}n.restore(),n.globalAlpha=1}const I=performance.now(),b=f+2800+450;!function t(){const n=(performance.now()-I)%b,o=n-(f+2800);T(Math.min(n,f)),e.style.opacity=o>0?String(Math.max(0,1-o/450)):"1",requestAnimationFrame(t)}()}function showTopToast(e,t=!1){const n=document.getElementById("topToastBanner"),o=document.getElementById("topToastDot"),a=document.getElementById("topToastText");n&&o&&a&&(a.textContent=e,o.className=t?"w-2 h-2 rounded-full bg-rose-500 shrink-0":"w-2 h-2 rounded-full accent-bg shrink-0",n.classList.remove("opacity-0","-translate-y-2"),n.classList.add("opacity-100","translate-y-0"),toastTimeoutTimer&&clearTimeout(toastTimeoutTimer),toastTimeoutTimer=setTimeout(()=>{n.classList.remove("opacity-100","translate-y-0"),n.classList.add("opacity-0","-translate-y-2")},3200))}function cycleAccentTheme(e){currentThemeIndex=(currentThemeIndex+1)%availableThemes.length;const t=availableThemes[currentThemeIndex],n=t.charAt(0).toUpperCase()+t.slice(1),o=()=>{document.documentElement.setAttribute("data-theme",t);const e=document.getElementById("currentThemeLabel");e&&(e.textContent=n),localStorage.setItem("jadibot_theme_pref",t)};if(!document.startViewTransition)return o(),void showTopToast(`Tema aksen diubah ke ${n}`);const a=e&&"number"==typeof e.clientX?e.clientX:window.innerWidth-28,i=e&&"number"==typeof e.clientY?e.clientY:28,l=Math.hypot(Math.max(a,window.innerWidth-a),Math.max(i,window.innerHeight-i));document.startViewTransition(o).ready.then(()=>{document.documentElement.animate({clipPath:[`circle(0px at ${a}px ${i}px)`,`circle(${l}px at ${a}px ${i}px)`]},{duration:500,easing:"cubic-bezier(0.4, 0, 0.2, 1)",pseudoElement:"::view-transition-new(root)"})}),showTopToast(`Tema aksen diubah ke ${n}`)}function showOrbitalScanner(e){const t=document.getElementById("orbitalScannerWrapper"),n=document.getElementById("orbitalOuterRing"),o=document.getElementById("orbitalInnerRing"),a=document.getElementById("orbitalCoreRobot"),i=document.getElementById("googleBtnLoadingHint"),l=document.getElementById("googleSignInButtonContainer");l&&(l.classList.add("hidden","opacity-0","scale-95"),l.classList.remove("flex","opacity-100","scale-100")),n&&n.classList.remove("opacity-0","scale-90"),o&&o.classList.remove("opacity-0","scale-90"),a&&a.classList.remove("scale-125","opacity-0"),i&&(i.textContent=e||"Memuat tombol Google...",i.classList.remove("opacity-0")),t&&(t.classList.remove("hidden","opacity-0"),t.classList.add("flex"))}function revealGoogleButtonWithTransition(e){const t=document.getElementById("orbitalScannerWrapper"),n=document.getElementById("orbitalOuterRing"),o=document.getElementById("orbitalInnerRing"),a=document.getElementById("orbitalCoreRobot"),i=document.getElementById("googleBtnLoadingHint");if(!t||t.classList.contains("hidden"))return e.classList.remove("hidden"),e.classList.add("flex"),void requestAnimationFrame(()=>{e.classList.remove("opacity-0","scale-95"),e.classList.add("opacity-100","scale-100")});n&&n.classList.add("opacity-0","scale-90"),o&&o.classList.add("opacity-0","scale-90"),i&&i.classList.add("opacity-0"),a&&a.classList.add("scale-125","opacity-0"),setTimeout(()=>{t.classList.add("hidden"),t.classList.remove("flex"),e.classList.remove("hidden"),e.classList.add("flex"),requestAnimationFrame(()=>{e.classList.remove("opacity-0","scale-95"),e.classList.add("opacity-100","scale-100")})},300)}function renderGoogleSignInWidget(){const e=document.getElementById("googleSignInButtonContainer");return!!e&&(!!(window.google&&window.google.accounts&&window.google.accounts.id)&&(window.google.accounts.id.initialize({client_id:configuredGoogleClientId,callback:handleGoogleCredentialResponse,auto_select:!1}),e.innerHTML="",window.google.accounts.id.renderButton(e,{theme:"filled_blue",size:"large",text:"signin_with",shape:"pill",width:280}),revealGoogleButtonWithTransition(e),!0))}async function handleGoogleCredentialResponse(e){if(!e||!e.credential)return void showTopToast("Gagal menerima token dari Google",!0);const t=document.getElementById("loginDockCaption");t&&(t.textContent="Memverifikasi akun Google Anda..."),showOrbitalScanner("Mengalihkan ke Dashboard...");try{const t=await fetch("/api/auth/google",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({credential:e.credential})}),n=await t.json();if(!t.ok||!n.isAuthenticated)throw new Error(n.errorMessage||"Verifikasi akun Google gagal");window.location.replace("/dashboard")}catch(e){t&&(t.textContent="Masuk untuk mulai mengelola bot kamu"),renderGoogleSignInWidget(),showTopToast(e.message,!0)}}async function initializeLoginPortal(){initHeaderBrandTextCanvas(document.getElementById("headerBrandTextCanvas"),{width:245,height:46,centerY:23,fontSize:27,scale:window.innerWidth<440?.62:.7});try{const e=await fetch("/api/auth/config"),t=await e.json();t.googleClientId&&!t.googleClientId.startsWith("MASUKKAN_")&&(configuredGoogleClientId=t.googleClientId)}catch{}if(!renderGoogleSignInWidget()){let e=0;const t=setInterval(()=>{if(e+=1,renderGoogleSignInWidget())clearInterval(t);else if(e>=40){clearInterval(t);const e=document.getElementById("googleBtnLoadingHint");e&&(e.textContent="Gagal memuat SDK Google. Nonaktifkan AdBlock.")}},250)}}!function(){const e=localStorage.getItem("jadibot_theme_pref")||"emerald",t=availableThemes.indexOf(e);currentThemeIndex=t>=0?t:0;const n=availableThemes[currentThemeIndex];document.documentElement.setAttribute("data-theme",n);const o=document.getElementById("currentThemeLabel");o&&(o.textContent=n.charAt(0).toUpperCase()+n.slice(1))}(),window.addEventListener("DOMContentLoaded",initializeLoginPortal)</script></body></html>
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Masuk — Xu Core</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    /* --- variabel tema dinamis & garis cyber grid --- */
+    :root[data-theme="emerald"] {
+      --accent-main: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --accent-border: rgba(16, 185, 129, 0.35);
+      --accent-glow: rgba(16, 185, 129, 0.22);
+      --grid-line: rgba(16, 185, 129, 0.038);
+      --brand-ink: #f8fafc;
+    }
+
+    :root[data-theme="cyan"] {
+      --accent-main: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.14);
+      --accent-border: rgba(6, 182, 212, 0.35);
+      --accent-glow: rgba(6, 182, 212, 0.22);
+      --grid-line: rgba(6, 182, 212, 0.038);
+      --brand-ink: #f8fafc;
+    }
+
+    :root[data-theme="violet"] {
+      --accent-main: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --accent-border: rgba(139, 92, 246, 0.35);
+      --accent-glow: rgba(139, 92, 246, 0.22);
+      --grid-line: rgba(139, 92, 246, 0.04);
+      --brand-ink: #f8fafc;
+    }
+
+    /* --- reset animasi bawaan view transition untuk transisi tema melingkar --- */
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none;
+      mix-blend-mode: normal;
+    }
+
+    html,
+    body {
+      height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      background-color: #060911;
+      color: #f1f5f9;
+    }
+
+    /* --- animasi micro-scrolling cyber mesh grid --- */
+    @keyframes cyberScroll {
+      0% { background-position: 0px 0px; }
+      100% { background-position: 40px 40px; }
+    }
+
+    /* --- animasi skener orbital ganda & pendar inti robot siber --- */
+    @keyframes spinClockwise {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes spinCounterClockwise {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(-360deg); }
+    }
+
+    @keyframes corePulseGlow {
+      0%, 100% {
+        opacity: 0.5;
+        filter: drop-shadow(0 0 4px var(--accent-main));
+      }
+      50% {
+        opacity: 1;
+        filter: drop-shadow(0 0 10px var(--accent-main));
+      }
+    }
+
+    .bg-animated-cyber-grid {
+      background-color: #060911;
+      background-image:
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: cyberScroll 28s linear infinite;
+    }
+
+    .font-heading-modern {
+      font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .brand-canvas {
+      display: block;
+      flex: none;
+      max-width: 100%;
+    }
+
+    .accent-bg { background-color: var(--accent-main); }
+    .accent-bg:hover { background-color: var(--accent-hover); }
+    .accent-text { color: var(--accent-main); }
+    .accent-border { border-color: var(--accent-border); }
+    .accent-soft-bg { background-color: var(--accent-soft); }
+    .accent-shadow { box-shadow: 0 0 18px -4px var(--accent-glow); }
+  </style>
+</head>
+<body class="flex flex-col selection:bg-slate-700 selection:text-white antialiased">
+
+  <!-- --- navbar atas dengan ikon orbital robot siber + animasi teks Xu Core --- -->
+  <header class="shrink-0 z-40 flex items-center justify-between gap-2 w-full px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80">
+    <a href="/login" class="flex items-center gap-2.5 min-w-0 flex-shrink-0 select-none" aria-label="Xu Core">
+      <!-- --- wadah ikon skener orbital kompak --- -->
+      <div class="w-8 h-8 rounded-xl bg-slate-900 border accent-border flex items-center justify-center relative overflow-hidden flex-shrink-0 group/icon shadow-lg">
+        <!-- --- pendar latar lembut saat hover --- -->
+        <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-25 transition-opacity duration-300 group-hover/icon:opacity-55"></div>
+
+        <!-- --- lapisan luar: lingkaran sirkuit putus-putus searah jarum jam --- -->
+        <span class="absolute inset-0.5 rounded-full border border-dashed border-[var(--accent-main)] animate-[spinClockwise_4s_linear_infinite] opacity-60 pointer-events-none"></span>
+
+        <!-- --- lapisan dalam: lingkaran sirkuit mikro berlawanan arah --- -->
+        <span class="absolute inset-1.5 rounded-full border border-dotted border-slate-500/70 animate-[spinCounterClockwise_3s_linear_infinite] opacity-50 pointer-events-none"></span>
+
+        <!-- --- inti tengah: ikon kepala robot cybernetic svg ultra-clear --- -->
+        <svg class="w-[18px] h-[18px] text-[var(--accent-main)] relative z-10 animate-[corePulseGlow_2s_ease-in-out_infinite] transition-transform duration-300 group-hover/icon:scale-110" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16" />
+          <path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff" />
+          <path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </div>
+
+      <!-- --- teks animasi Xu Core pada canvas --- -->
+      <span class="sr-only">XU CORE</span>
+      <canvas id="headerBrandTextCanvas" class="brand-canvas" aria-hidden="true"></canvas>
+    </a>
+
+    <button id="themeCycleBtn" onclick="cycleAccentTheme(event)" title="Ubah Tema" class="flex items-center justify-center p-2 sm:px-3 sm:py-1.5 gap-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 font-semibold text-slate-200 transition-all active:scale-95 shrink-0">
+      <span class="w-3 h-3 rounded-full accent-bg shrink-0"></span>
+      <span id="currentThemeLabel" class="hidden sm:inline text-xs">Emerald</span>
+    </button>
+  </header>
+
+  <!-- --- toast notifikasi kompak tepat di bawah header --- -->
+  <div id="topToastBanner" class="fixed top-14 sm:top-16 left-0 right-0 z-50 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2">
+    <div class="pointer-events-auto mt-1.5 px-3.5 py-2 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate">
+      <span id="topToastDot" class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
+      <span id="topToastText" class="truncate">Notifikasi Sistem</span>
+    </div>
+  </div>
+
+  <!-- --- kontainer utama halaman login bergaya kartu minimalis --- -->
+  <section id="googleAuthGateSection" class="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 bg-[#060911] bg-animated-cyber-grid relative z-10">
+    <!-- --- efek cahaya ambient latar belakang --- -->
+    <div class="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-72 h-40 rounded-full accent-soft-bg blur-3xl opacity-30"></div>
+    <div class="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 w-80 h-40 rounded-full accent-soft-bg blur-3xl opacity-20"></div>
+
+    <!-- --- kartu formulir masuk utama --- -->
+    <div class="w-full max-w-[390px] rounded-3xl bg-slate-900/75 backdrop-blur-xl border border-slate-800/90 p-5 sm:p-6 shadow-[0_18px_48px_-14px_rgba(0,0,0,0.75)] relative z-10 space-y-4">
+
+      <!-- --- header identitas brand & deskripsi panduan bot --- -->
+      <div class="space-y-2 text-left">
+        <div class="inline-flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-slate-950 border accent-border flex items-center justify-center relative overflow-hidden shrink-0 accent-shadow">
+            <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-35"></div>
+            <span class="absolute inset-1 rounded-full border border-dashed border-[var(--accent-main)] animate-[spinClockwise_4s_linear_infinite] opacity-60 pointer-events-none"></span>
+            <svg class="w-5 h-5 text-[var(--accent-main)] relative z-10 animate-[corePulseGlow_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16" />
+              <path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff" />
+              <path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h2 class="font-heading-modern text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-none">
+              XU CORE
+            </h2>
+            <span class="text-[10px] font-mono-code uppercase tracking-wider accent-text font-semibold">
+              WhatsApp Bot Panel
+            </span>
+          </div>
+        </div>
+
+        <p class="text-xs sm:text-[13px] text-slate-400 leading-relaxed">
+          Bangun dan kelola bot WhatsApp tanpa harus jago ngoding. Tautkan nomor via QR atau Pairing Code lalu pantau bot aktif 24 jam dari satu panel.
+        </p>
+      </div>
+
+      <!-- --- indikator tab penegas mode login --- -->
+      <div class="w-full p-1 rounded-full bg-slate-950/90 border border-slate-800/90 flex items-center" role="tablist" aria-label="Mode Autentikasi">
+        <div role="tab" aria-selected="true" class="w-full py-2 px-4 rounded-full bg-slate-800/95 border accent-border text-xs font-bold text-white tracking-wide flex items-center justify-center gap-2 shadow-sm">
+          <span class="w-1.5 h-1.5 rounded-full accent-bg shadow-[0_0_8px_var(--accent-main)]"></span>
+          <span>Masuk</span>
+        </div>
+      </div>
+
+      <!-- --- formulir input email dan kata sandi --- -->
+      <form id="emailLoginForm" class="space-y-3.5" autocomplete="on">
+        <div class="space-y-1.5">
+          <label for="loginEmailInput" class="block text-xs font-semibold text-slate-300 pl-1">
+            Email
+          </label>
+          <input
+            id="loginEmailInput"
+            name="email"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder="contoh: kamu@email.com"
+            class="w-full px-4 py-2.5 rounded-full bg-slate-950/85 border border-slate-800 focus:border-[var(--accent-main)] text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="loginPasswordInput" class="block text-xs font-semibold text-slate-300 pl-1">
+            Kata sandi
+          </label>
+          <input
+            id="loginPasswordInput"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            placeholder="Masukkan kata sandi"
+            class="w-full px-4 py-2.5 rounded-full bg-slate-950/85 border border-slate-800 focus:border-[var(--accent-main)] text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
+          />
+        </div>
+
+        <button
+          id="emailLoginSubmitBtn"
+          type="submit"
+          class="w-full py-2.5 px-5 rounded-full accent-bg text-slate-950 font-bold text-xs sm:text-sm tracking-wide transition-all active:scale-[0.98] accent-shadow"
+        >
+          Masuk
+        </button>
+      </form>
+
+      <!-- --- garis pembatas menuju login google otomatis --- -->
+      <div class="flex items-center gap-3 pt-0.5">
+        <span class="h-px flex-1 bg-slate-800/90"></span>
+        <span id="loginDockCaption" class="text-[11px] font-medium text-slate-400 shrink-0">
+          atau lanjut dengan Google
+        </span>
+        <span class="h-px flex-1 bg-slate-800/90"></span>
+      </div>
+
+      <!-- --- wadah orbital scanner dan tombol google auth otomatis --- -->
+      <div class="relative w-full flex flex-col items-center justify-center min-h-[46px]">
+        <!-- --- skener orbital ganda saat sdk google dimuat --- -->
+        <div id="orbitalScannerWrapper" class="flex items-center justify-center gap-2.5 transition-all duration-300">
+          <div class="relative flex items-center justify-center h-9 w-9 rounded-full bg-slate-950/70 shrink-0">
+            <div id="orbitalOuterRing" class="absolute inset-0 transition-all duration-300">
+              <div class="animate-[spinClockwise_3s_linear_infinite] border-2 border-dashed border-[var(--accent-main)] h-9 w-9 rounded-full"></div>
+            </div>
+            <div id="orbitalInnerRing" class="absolute inset-0 flex items-center justify-center transition-all duration-300">
+              <div class="animate-[spinCounterClockwise_2s_linear_infinite] border border-dotted border-slate-700 h-5 w-5 rounded-full"></div>
+            </div>
+            <div id="orbitalCoreRobot" class="relative z-10 flex items-center justify-center transition-all duration-300">
+              <svg class="w-4 h-4 text-[var(--accent-main)] animate-[corePulseGlow_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16" />
+                <path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff" />
+                <path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </div>
+          </div>
+
+          <span id="googleBtnLoadingHint" class="text-[11px] font-mono-code text-slate-400 transition-all duration-300">
+            Memuat Google Auth...
+          </span>
+        </div>
+
+        <!-- --- target injeksi tombol resmi google sign-in --- -->
+        <div id="googleSignInButtonContainer" class="hidden w-full items-center justify-center min-h-[44px] opacity-0 scale-95 transition-all duration-300"></div>
+      </div>
+
+      <p class="text-[10px] text-slate-500 font-mono-code text-center pt-1">
+        Sesi aman terenkripsi • Xu Core
+      </p>
+    </div>
+  </section>
+
+  <script>
+    // --- konfigurasi tema dan client id google oauth ---
+    let configuredGoogleClientId = '404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com';
+    const availableThemes = ['emerald', 'cyan', 'violet'];
+    let currentThemeIndex = 0;
+    let toastTimeoutTimer = null;
+
+    // --- animasi teks brand Xu Core pada canvas ---
+    function initHeaderBrandTextCanvas(canvasEl, options) {
+      if (!canvasEl || !canvasEl.getContext) return;
+
+      const ctx = canvasEl.getContext('2d');
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const scaleFactor = options.scale || 1;
+      const canvasWidth = options.width;
+      const canvasHeight = options.height;
+      const centerY = options.centerY != null ? options.centerY : canvasHeight / 2;
+
+      canvasEl.width = Math.round(canvasWidth * scaleFactor * dpr);
+      canvasEl.height = Math.round(canvasHeight * scaleFactor * dpr);
+      canvasEl.style.width = `${Math.round(canvasWidth * scaleFactor)}px`;
+      canvasEl.style.height = `${Math.round(canvasHeight * scaleFactor)}px`;
+      ctx.scale(dpr * scaleFactor, dpr * scaleFactor);
+
+      let brandInkColor = '#f8fafc';
+      let lastStyleCheckMs = -1e9;
+
+      const letterSpacing = 3;
+      const brandText = 'XU CORE';
+      const fontSize = options.fontSize || 27;
+      const fontSpec = `700 ${fontSize}px Outfit, "Segoe UI", system-ui, sans-serif`;
+
+      const timing = {
+        textStart: 220,
+        textStagger: 55,
+        textDuration: 680,
+        animEnd: 1700
+      };
+
+      function clampUnit(value) {
+        return value < 0 ? 0 : value > 1 ? 1 : value;
+      }
+
+      function easeOutQuart(progress) {
+        return 1 - Math.pow(1 - progress, 4);
+      }
+
+      function measureBrandTextWidth(textValue) {
+        let totalWidth = 0;
+        for (let idx = 0; idx < textValue.length; idx += 1) {
+          totalWidth += ctx.measureText(textValue[idx]).width + letterSpacing;
+        }
+        return totalWidth - letterSpacing;
+      }
+
+      function renderFrame(elapsedMs) {
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        const nowMs = performance.now();
+        if (nowMs - lastStyleCheckMs > 300) {
+          lastStyleCheckMs = nowMs;
+          const computedStyles = getComputedStyle(document.documentElement);
+          brandInkColor = (computedStyles.getPropertyValue('--brand-ink') || '').trim() || '#f8fafc';
+
+          if (document.fonts && document.fonts.check && !document.fonts.check(fontSpec) && document.fonts.load) {
+            document.fonts.load(fontSpec);
+          }
+        }
+
+        ctx.font = fontSpec;
+        const textWidth = measureBrandTextWidth(brandText);
+        const textStartX = 2;
+        const textBaselineY = centerY + fontSize * 0.35;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(textStartX - 4, textBaselineY - fontSize * 0.98, textWidth + 12, fontSize * 1.4);
+        ctx.clip();
+
+        ctx.fillStyle = brandInkColor;
+        ctx.textBaseline = 'alphabetic';
+
+        let cursorX = textStartX;
+        for (let charIdx = 0; charIdx < brandText.length; charIdx += 1) {
+          const charProgress = easeOutQuart(clampUnit((elapsedMs - timing.textStart - charIdx * timing.textStagger) / timing.textDuration));
+          const charAdvance = ctx.measureText(brandText[charIdx]).width + letterSpacing;
+
+          if (charProgress > 0) {
+            ctx.globalAlpha = Math.min(1, charProgress * 1.6);
+            ctx.fillText(brandText[charIdx], cursorX, textBaselineY + (1 - charProgress) * fontSize * 0.75);
+          }
+          cursorX += charAdvance;
+        }
+
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+
+      const startTimeMs = performance.now();
+      const holdDurationMs = 2800;
+      const fadeDurationMs = 450;
+      const totalCycleMs = timing.animEnd + holdDurationMs + fadeDurationMs;
+
+      function animateLoop() {
+        const cycleElapsed = (performance.now() - startTimeMs) % totalCycleMs;
+        const fadeElapsed = cycleElapsed - (timing.animEnd + holdDurationMs);
+        renderFrame(Math.min(cycleElapsed, timing.animEnd));
+        canvasEl.style.opacity = fadeElapsed > 0 ? String(Math.max(0, 1 - fadeElapsed / fadeDurationMs)) : '1';
+        requestAnimationFrame(animateLoop);
+      }
+
+      animateLoop();
+    }
+
+    // --- fungsi tampilkan toast notifikasi di bawah header ---
+    function showTopToast(messageText, isError = false) {
+      const bannerElement = document.getElementById('topToastBanner');
+      const dotElement = document.getElementById('topToastDot');
+      const textElement = document.getElementById('topToastText');
+
+      if (!bannerElement || !dotElement || !textElement) return;
+
+      textElement.textContent = messageText;
+      dotElement.className = isError
+        ? 'w-2 h-2 rounded-full bg-rose-500 shrink-0'
+        : 'w-2 h-2 rounded-full accent-bg shrink-0';
+
+      bannerElement.classList.remove('opacity-0', '-translate-y-2');
+      bannerElement.classList.add('opacity-100', 'translate-y-0');
+
+      if (toastTimeoutTimer) clearTimeout(toastTimeoutTimer);
+      toastTimeoutTimer = setTimeout(() => {
+        bannerElement.classList.remove('opacity-100', 'translate-y-0');
+        bannerElement.classList.add('opacity-0', '-translate-y-2');
+      }, 3200);
+    }
+
+    // --- fungsi ganti tema aksen dengan transisi melingkar view transition ---
+    function cycleAccentTheme(clickEvent) {
+      currentThemeIndex = (currentThemeIndex + 1) % availableThemes.length;
+      const selectedTheme = availableThemes[currentThemeIndex];
+      const formattedLabel = selectedTheme.charAt(0).toUpperCase() + selectedTheme.slice(1);
+
+      const applyThemeChanges = () => {
+        document.documentElement.setAttribute('data-theme', selectedTheme);
+        const labelEl = document.getElementById('currentThemeLabel');
+        if (labelEl) labelEl.textContent = formattedLabel;
+        localStorage.setItem('jadibot_theme_pref', selectedTheme);
+      };
+
+      if (!document.startViewTransition) {
+        applyThemeChanges();
+        showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
+        return;
+      }
+
+      const originX = clickEvent && typeof clickEvent.clientX === 'number' ? clickEvent.clientX : window.innerWidth - 28;
+      const originY = clickEvent && typeof clickEvent.clientY === 'number' ? clickEvent.clientY : 28;
+      const maxRadius = Math.hypot(
+        Math.max(originX, window.innerWidth - originX),
+        Math.max(originY, window.innerHeight - originY)
+      );
+
+      const transition = document.startViewTransition(applyThemeChanges);
+      transition.ready.then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${originX}px ${originY}px)`, `circle(${maxRadius}px at ${originX}px ${originY}px)`] },
+          { duration: 500, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', pseudoElement: '::view-transition-new(root)' }
+        );
+      });
+
+      showTopToast(`Tema aksen diubah ke ${formattedLabel}`);
+    }
+
+    // --- terapkan tema tersimpan sejak awal ---
+    (function initializeSavedTheme() {
+      const savedTheme = localStorage.getItem('jadibot_theme_pref') || 'emerald';
+      const foundIndex = availableThemes.indexOf(savedTheme);
+      currentThemeIndex = foundIndex >= 0 ? foundIndex : 0;
+      const themeName = availableThemes[currentThemeIndex];
+      document.documentElement.setAttribute('data-theme', themeName);
+      const labelEl = document.getElementById('currentThemeLabel');
+      if (labelEl) {
+        labelEl.textContent = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+      }
+    })();
+
+    // --- tampilkan kembali orbital scanner saat proses verifikasi berjalan ---
+    function showOrbitalScanner(statusMessage) {
+      const scannerWrapper = document.getElementById('orbitalScannerWrapper');
+      const outerRing = document.getElementById('orbitalOuterRing');
+      const innerRing = document.getElementById('orbitalInnerRing');
+      const coreRobot = document.getElementById('orbitalCoreRobot');
+      const hintLabel = document.getElementById('googleBtnLoadingHint');
+      const buttonContainer = document.getElementById('googleSignInButtonContainer');
+
+      if (buttonContainer) {
+        buttonContainer.classList.add('hidden', 'opacity-0', 'scale-95');
+        buttonContainer.classList.remove('flex', 'opacity-100', 'scale-100');
+      }
+
+      if (outerRing) outerRing.classList.remove('opacity-0', 'scale-90');
+      if (innerRing) innerRing.classList.remove('opacity-0', 'scale-90');
+      if (coreRobot) coreRobot.classList.remove('scale-125', 'opacity-0');
+      if (hintLabel) {
+        hintLabel.textContent = statusMessage || 'Memuat tombol Google...';
+        hintLabel.classList.remove('opacity-0');
+      }
+
+      if (scannerWrapper) {
+        scannerWrapper.classList.remove('hidden', 'opacity-0');
+        scannerWrapper.classList.add('flex');
+      }
+    }
+
+    // --- jalankan transisi keluar orbital scanner lalu tampilkan tombol google ---
+    function revealGoogleButtonWithTransition(buttonContainer) {
+      const scannerWrapper = document.getElementById('orbitalScannerWrapper');
+      const outerRing = document.getElementById('orbitalOuterRing');
+      const innerRing = document.getElementById('orbitalInnerRing');
+      const coreRobot = document.getElementById('orbitalCoreRobot');
+      const hintLabel = document.getElementById('googleBtnLoadingHint');
+
+      if (!scannerWrapper || scannerWrapper.classList.contains('hidden')) {
+        buttonContainer.classList.remove('hidden');
+        buttonContainer.classList.add('flex');
+        requestAnimationFrame(() => {
+          buttonContainer.classList.remove('opacity-0', 'scale-95');
+          buttonContainer.classList.add('opacity-100', 'scale-100');
+        });
+        return;
+      }
+
+      if (outerRing) outerRing.classList.add('opacity-0', 'scale-90');
+      if (innerRing) innerRing.classList.add('opacity-0', 'scale-90');
+      if (hintLabel) hintLabel.classList.add('opacity-0');
+      if (coreRobot) coreRobot.classList.add('scale-125', 'opacity-0');
+
+      setTimeout(() => {
+        scannerWrapper.classList.add('hidden');
+        scannerWrapper.classList.remove('flex');
+
+        buttonContainer.classList.remove('hidden');
+        buttonContainer.classList.add('flex');
+        requestAnimationFrame(() => {
+          buttonContainer.classList.remove('opacity-0', 'scale-95');
+          buttonContainer.classList.add('opacity-100', 'scale-100');
+        });
+      }, 300);
+    }
+
+    // --- render tombol google sign-in ke dalam dock login ---
+    function renderGoogleSignInWidget() {
+      const container = document.getElementById('googleSignInButtonContainer');
+      if (!container) return false;
+
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.initialize({
+          client_id: configuredGoogleClientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false
+        });
+
+        container.innerHTML = '';
+        // --- ubah opsi teks tombol resmi google menjadi lanjut dengan google ---
+        window.google.accounts.id.renderButton(container, {
+          theme: 'filled_blue',
+          size: 'large',
+          text: 'continue_with',
+          shape: 'pill',
+          width: 300
+        });
+
+        revealGoogleButtonWithTransition(container);
+        return true;
+      }
+      return false;
+    }
+
+    // --- verifikasi token google di backend dan alihkan langsung ke dashboard ---
+    async function handleGoogleCredentialResponse(googleResponse) {
+      if (!googleResponse || !googleResponse.credential) {
+        showTopToast('Gagal menerima token dari Google', true);
+        return;
+      }
+
+      const captionEl = document.getElementById('loginDockCaption');
+      if (captionEl) captionEl.textContent = 'Memverifikasi akun Google Anda...';
+      showOrbitalScanner('Mengalihkan ke Dashboard...');
+
+      try {
+        const verifyResponse = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ credential: googleResponse.credential })
+        });
+
+        const verifyJson = await verifyResponse.json();
+        if (!verifyResponse.ok || !verifyJson.isAuthenticated) {
+          throw new Error(verifyJson.errorMessage || 'Verifikasi akun Google gagal');
+        }
+
+        window.location.replace('/dashboard');
+      } catch (authError) {
+        if (captionEl) captionEl.textContent = 'Masuk untuk mulai mengelola bot kamu';
+        renderGoogleSignInWidget();
+        showTopToast(authError.message, true);
+      }
+    }
+
+    // --- inisialisasi animasi teks brand dan konfigurasi client id dari backend ---
+    async function initializeLoginPortal() {
+      const brandTextCanvas = document.getElementById('headerBrandTextCanvas');
+      const responsiveScale = window.innerWidth < 440 ? 0.62 : 0.7;
+      initHeaderBrandTextCanvas(brandTextCanvas, {
+        width: 245,
+        height: 46,
+        centerY: 23,
+        fontSize: 27,
+        scale: responsiveScale
+      });
+
+      try {
+        const configResponse = await fetch('/api/auth/config');
+        const configData = await configResponse.json();
+        if (configData.googleClientId && !configData.googleClientId.startsWith('MASUKKAN_')) {
+          configuredGoogleClientId = configData.googleClientId;
+        }
+      } catch {
+        // --- gunakan client id default jika endpoint config gagal ---
+      }
+
+      if (!renderGoogleSignInWidget()) {
+        let retryAttempts = 0;
+        const checkGoogleLibraryInterval = setInterval(() => {
+          retryAttempts += 1;
+          if (renderGoogleSignInWidget()) {
+            clearInterval(checkGoogleLibraryInterval);
+          } else if (retryAttempts >= 40) {
+            clearInterval(checkGoogleLibraryInterval);
+            const hint = document.getElementById('googleBtnLoadingHint');
+            if (hint) {
+              hint.textContent = 'Gagal memuat SDK Google. Nonaktifkan AdBlock.';
+            }
+          }
+        }, 250);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', initializeLoginPortal);
+  </script>
+</body>
+</html>
