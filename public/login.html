@@ -50,14 +50,30 @@
       mix-blend-mode: normal;
     }
 
+    /* --- pengunci viewport mutlak anti-scroll vertikal & horizontal --- */
     html,
     body {
+      width: 100%;
+      max-width: 100vw;
+      height: 100vh;
       height: 100dvh;
+      max-height: 100vh;
       max-height: 100dvh;
       overflow: hidden;
+      overscroll-behavior: none;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      background-color: #060911;
-      color: #f1f5f9;
+      background-color: #020617;
+      color: #f8fafc;
+    }
+
+    /* --- sembunyikan scrollbar visual pada area gulir darurat layar sangat pendek --- */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
 
     /* --- animasi micro-scrolling cyber mesh grid --- */
@@ -89,7 +105,7 @@
     }
 
     .bg-animated-cyber-grid {
-      background-color: #060911;
+      background-color: #020617;
       background-image:
         linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
         linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
@@ -119,23 +135,16 @@
     .accent-shadow { box-shadow: 0 0 18px -4px var(--accent-glow); }
   </style>
 </head>
-<body class="flex flex-col selection:bg-slate-700 selection:text-white antialiased">
+<body class="h-screen max-h-screen w-full overflow-hidden flex flex-col bg-slate-950 text-white selection:bg-slate-700 selection:text-white antialiased">
 
-  <!-- --- navbar atas dengan ikon orbital robot siber + animasi teks Xu Core --- -->
-  <header class="shrink-0 z-40 flex items-center justify-between gap-2 w-full px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-950/85 backdrop-blur-xl border-b border-slate-800/80">
+  <!-- --- navbar atas tetap dengan ikon orbital robot siber + animasi teks xu core --- -->
+  <header class="shrink-0 z-40 flex items-center justify-between gap-2 w-full px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80">
     <a href="/login" class="flex items-center gap-2.5 min-w-0 flex-shrink-0 select-none" aria-label="Xu Core">
       <!-- --- wadah ikon skener orbital kompak --- -->
       <div class="w-8 h-8 rounded-xl bg-slate-900 border accent-border flex items-center justify-center relative overflow-hidden flex-shrink-0 group/icon shadow-lg">
-        <!-- --- pendar latar lembut saat hover --- -->
         <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-25 transition-opacity duration-300 group-hover/icon:opacity-55"></div>
-
-        <!-- --- lapisan luar: lingkaran sirkuit putus-putus searah jarum jam --- -->
         <span class="absolute inset-0.5 rounded-full border border-dashed border-[var(--accent-main)] animate-[spinClockwise_4s_linear_infinite] opacity-60 pointer-events-none"></span>
-
-        <!-- --- lapisan dalam: lingkaran sirkuit mikro berlawanan arah --- -->
         <span class="absolute inset-1.5 rounded-full border border-dotted border-slate-500/70 animate-[spinCounterClockwise_3s_linear_infinite] opacity-50 pointer-events-none"></span>
-
-        <!-- --- inti tengah: ikon kepala robot cybernetic svg ultra-clear --- -->
         <svg class="w-[18px] h-[18px] text-[var(--accent-main)] relative z-10 animate-[corePulseGlow_2s_ease-in-out_infinite] transition-transform duration-300 group-hover/icon:scale-110" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           <rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16" />
@@ -145,7 +154,7 @@
         </svg>
       </div>
 
-      <!-- --- teks animasi Xu Core pada canvas --- -->
+      <!-- --- teks animasi xu core pada canvas --- -->
       <span class="sr-only">XU CORE</span>
       <canvas id="headerBrandTextCanvas" class="brand-canvas" aria-hidden="true"></canvas>
     </a>
@@ -158,153 +167,168 @@
 
   <!-- --- toast notifikasi kompak tepat di bawah header --- -->
   <div id="topToastBanner" class="fixed top-14 sm:top-16 left-0 right-0 z-50 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-2">
-    <div class="pointer-events-auto mt-1.5 px-3.5 py-2 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl truncate">
+    <div class="pointer-events-auto mt-1.5 px-3.5 py-2 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-lg text-xs font-medium text-slate-200 flex items-center gap-2 max-w-xl">
       <span id="topToastDot" class="w-2 h-2 rounded-full accent-bg shrink-0"></span>
-      <span id="topToastText" class="truncate">Notifikasi Sistem</span>
+      <span id="topToastText" class="break-words">Notifikasi Sistem</span>
     </div>
   </div>
 
-  <!-- --- kontainer utama halaman login bergaya kartu minimalis --- -->
-  <section id="googleAuthGateSection" class="flex-1 min-h-0 flex flex-col items-center justify-center overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 bg-[#060911] bg-animated-cyber-grid relative z-10">
-    <!-- --- efek cahaya ambient latar belakang --- -->
-    <div class="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-72 h-40 rounded-full accent-soft-bg blur-3xl opacity-30"></div>
-    <div class="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 w-80 h-40 rounded-full accent-soft-bg blur-3xl opacity-20"></div>
+<!-- --- container utama rata atas dengan jarak atas lebih rapat ke header --- -->
+<main id="googleAuthGateSection" class="flex-1 min-h-0 w-full overflow-hidden flex flex-col items-center justify-start pt-2.5 sm:pt-4 px-4 sm:px-6 bg-slate-950 bg-animated-cyber-grid text-white relative z-10">
+  <!-- --- efek cahaya ambient tema gelap --- -->
+  <div class="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-72 h-36 rounded-full accent-soft-bg blur-3xl opacity-30"></div>
+  <div class="pointer-events-none absolute -bottom-20 left-1/2 -translate-x-1/2 w-80 h-36 rounded-full accent-soft-bg blur-3xl opacity-20"></div>
 
-    <!-- --- kartu formulir masuk utama --- -->
-    <div class="w-full max-w-[390px] rounded-3xl bg-slate-900/75 backdrop-blur-xl border border-slate-800/90 p-5 sm:p-6 shadow-[0_18px_48px_-14px_rgba(0,0,0,0.75)] relative z-10 space-y-4">
+  <!-- --- container statis judul dan deskripsi lebih naik mendekati header --- -->
+  <div class="w-full max-w-md flex flex-col items-center text-center shrink-0 mb-3.5 sm:mb-5 relative z-10">
+    <h1 class="font-heading-modern text-[25px] sm:text-3xl font-extrabold tracking-tight text-white leading-[1.16]">
+      Bangun Bot WhatsApp Tanpa Harus Jago Ngoding.
+    </h1>
+    <p class="mt-1.5 text-[13px] sm:text-sm text-slate-400 leading-relaxed max-w-[390px]">
+      Mulai dari ide sederhana hingga bot dengan berbagai fitur, semuanya bisa Anda kelola dengan mudah. Hubungkan WhatsApp dan atur bot versi Anda langsung dari satu panel profesional.
+    </p>
+  </div>
 
-      <!-- --- header identitas brand & deskripsi panduan bot --- -->
-      <div class="space-y-2 text-left">
-        <div class="inline-flex items-center gap-2.5">
-          <div class="w-10 h-10 rounded-2xl bg-slate-950 border accent-border flex items-center justify-center relative overflow-hidden shrink-0 accent-shadow">
-            <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-35"></div>
-            <span class="absolute inset-1 rounded-full border border-dashed border-[var(--accent-main)] animate-[spinClockwise_4s_linear_infinite] opacity-60 pointer-events-none"></span>
-            <svg class="w-5 h-5 text-[var(--accent-main)] relative z-10 animate-[corePulseGlow_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-              <rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16" />
-              <path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-              <rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff" />
-              <path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-          </div>
-          <div class="min-w-0">
-            <h2 class="font-heading-modern text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-none">
-              XU CORE
-            </h2>
-            <span class="text-[10px] font-mono-code uppercase tracking-wider accent-text font-semibold">
-              WhatsApp Bot Panel
-            </span>
-          </div>
+    <!-- --- pembungkus form posisi atas tetap + teks petunjuk dinamis + margin bawah tipis --- -->
+    <div id="loginFormScrollContainer" class="flex-1 min-h-0 w-full max-w-md overflow-y-auto no-scrollbar relative z-10 pb-4 sm:pb-6">
+      <!-- --- kartu formulir login dan daftar dengan titik jangkar atas tetap --- -->
+      <div id="loginFormCard" class="w-full rounded-3xl bg-slate-900/85 backdrop-blur-xl border border-slate-800/90 p-5 sm:p-6 shadow-[0_18px_45px_-14px_rgba(0,0,0,0.8)] space-y-3.5 sm:space-y-4">
+
+        <!-- --- bar tab navigasi masuk dan daftar melengkung penuh --- -->
+        <div class="w-full rounded-full bg-slate-950/95 border border-slate-800/80 p-1.5 flex items-center" role="tablist" aria-label="Mode Autentikasi">
+          <button
+            id="authModeLoginTab"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            onclick="switchEmailAuthMode('login')"
+            class="flex-1 py-2.5 px-3 rounded-full bg-slate-800 border border-slate-700/80 shadow-sm text-xs font-bold text-white transition-all duration-200"
+          >
+            Masuk
+          </button>
+          <button
+            id="authModeRegisterTab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            onclick="switchEmailAuthMode('register')"
+            class="flex-1 py-2.5 px-3 rounded-full border border-transparent text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all duration-200"
+          >
+            Daftar
+          </button>
         </div>
 
-        <p class="text-xs sm:text-[13px] text-slate-400 leading-relaxed">
-          Bangun dan kelola bot WhatsApp tanpa harus jago ngoding. Tautkan nomor via QR atau Pairing Code lalu pantau bot aktif 24 jam dari satu panel.
-        </p>
-      </div>
-
-      <!-- --- indikator tab penegas mode login --- -->
-      <div class="w-full p-1 rounded-full bg-slate-950/90 border border-slate-800/90 flex items-center" role="tablist" aria-label="Mode Autentikasi">
-        <div role="tab" aria-selected="true" class="w-full py-2 px-4 rounded-full bg-slate-800/95 border accent-border text-xs font-bold text-white tracking-wide flex items-center justify-center gap-2 shadow-sm">
-          <span class="w-1.5 h-1.5 rounded-full accent-bg shadow-[0_0_8px_var(--accent-main)]"></span>
-          <span>Masuk</span>
-        </div>
-      </div>
-
-      <!-- --- formulir input email dan kata sandi --- -->
-      <form id="emailLoginForm" class="space-y-3.5" autocomplete="on">
-        <div class="space-y-1.5">
-          <label for="loginEmailInput" class="block text-xs font-semibold text-slate-300 pl-1">
-            Email
-          </label>
-          <input
-            id="loginEmailInput"
-            name="email"
-            type="email"
-            required
-            autocomplete="email"
-            placeholder="contoh: kamu@email.com"
-            class="w-full px-4 py-2.5 rounded-full bg-slate-950/85 border border-slate-800 focus:border-[var(--accent-main)] text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
-          />
-        </div>
-
-        <div class="space-y-1.5">
-          <label for="loginPasswordInput" class="block text-xs font-semibold text-slate-300 pl-1">
-            Kata sandi
-          </label>
-          <input
-            id="loginPasswordInput"
-            name="password"
-            type="password"
-            required
-            autocomplete="current-password"
-            placeholder="Masukkan kata sandi"
-            class="w-full px-4 py-2.5 rounded-full bg-slate-950/85 border border-slate-800 focus:border-[var(--accent-main)] text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
-          />
-        </div>
-
-        <button
-          id="emailLoginSubmitBtn"
-          type="submit"
-          class="w-full py-2.5 px-5 rounded-full accent-bg text-slate-950 font-bold text-xs sm:text-sm tracking-wide transition-all active:scale-[0.98] accent-shadow"
-        >
-          Masuk
-        </button>
-      </form>
-
-      <!-- --- garis pembatas menuju login google otomatis --- -->
-      <div class="flex items-center gap-3 pt-0.5">
-        <span class="h-px flex-1 bg-slate-800/90"></span>
-        <span id="loginDockCaption" class="text-[11px] font-medium text-slate-400 shrink-0">
-          atau lanjut dengan Google
-        </span>
-        <span class="h-px flex-1 bg-slate-800/90"></span>
-      </div>
-
-      <!-- --- wadah orbital scanner dan tombol google auth otomatis --- -->
-      <div class="relative w-full flex flex-col items-center justify-center min-h-[46px]">
-        <!-- --- skener orbital ganda saat sdk google dimuat --- -->
-        <div id="orbitalScannerWrapper" class="flex items-center justify-center gap-2.5 transition-all duration-300">
-          <div class="relative flex items-center justify-center h-9 w-9 rounded-full bg-slate-950/70 shrink-0">
-            <div id="orbitalOuterRing" class="absolute inset-0 transition-all duration-300">
-              <div class="animate-[spinClockwise_3s_linear_infinite] border-2 border-dashed border-[var(--accent-main)] h-9 w-9 rounded-full"></div>
-            </div>
-            <div id="orbitalInnerRing" class="absolute inset-0 flex items-center justify-center transition-all duration-300">
-              <div class="animate-[spinCounterClockwise_2s_linear_infinite] border border-dotted border-slate-700 h-5 w-5 rounded-full"></div>
-            </div>
-            <div id="orbitalCoreRobot" class="relative z-10 flex items-center justify-center transition-all duration-300">
-              <svg class="w-4 h-4 text-[var(--accent-main)] animate-[corePulseGlow_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M12 2.5V5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                <rect x="4" y="6" width="16" height="13" rx="3" stroke="currentColor" stroke-width="2" fill="currentColor" fill-opacity="0.16" />
-                <path d="M2 11.5V14.5M22 11.5V14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                <rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#ffffff" />
-                <path d="M9.5 16H14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </div>
+        <!-- --- formulir input kredensial email dan kata sandi --- -->
+        <form id="emailLoginForm" class="space-y-3 sm:space-y-3.5" autocomplete="on">
+          <!-- --- input nama lengkap khusus mode daftar --- -->
+          <div id="registerNameFieldGroup" class="hidden space-y-1.5">
+            <label for="loginFullNameInput" class="block text-xs font-semibold text-slate-300 pl-1">
+              Nama Lengkap
+            </label>
+            <input
+              id="loginFullNameInput"
+              name="fullName"
+              type="text"
+              autocomplete="name"
+              placeholder="Masukkan nama lengkap Anda"
+              class="w-full px-4 py-2.5 sm:py-3 rounded-2xl bg-slate-950/85 border border-slate-800 focus:border-fuchsia-400 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
+            />
           </div>
 
-          <span id="googleBtnLoadingHint" class="text-[11px] font-mono-code text-slate-400 transition-all duration-300">
-            Memuat Google Auth...
+          <!-- --- input alamat email --- -->
+          <div class="space-y-1.5">
+            <label for="loginEmailInput" class="block text-xs font-semibold text-slate-300 pl-1">
+              Email
+            </label>
+            <input
+              id="loginEmailInput"
+              name="email"
+              type="email"
+              required
+              autocomplete="email"
+              placeholder="nama@domain.com"
+              class="w-full px-4 py-2.5 sm:py-3 rounded-2xl bg-slate-950/85 border border-slate-800 focus:border-fuchsia-400 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
+            />
+          </div>
+
+          <!-- --- input kata sandi --- -->
+          <div class="space-y-1.5">
+            <label for="loginPasswordInput" class="block text-xs font-semibold text-slate-300 pl-1">
+              Kata sandi
+            </label>
+            <input
+              id="loginPasswordInput"
+              name="password"
+              type="password"
+              required
+              minlength="6"
+              autocomplete="current-password"
+              placeholder="Masukkan kata sandi Anda"
+              class="w-full px-4 py-2.5 sm:py-3 rounded-2xl bg-slate-950/85 border border-slate-800 focus:border-fuchsia-400 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none transition-colors"
+            />
+          </div>
+
+          <!-- --- tombol aksi utama masuk bergradasi --- -->
+          <button
+            id="emailLoginSubmitBtn"
+            type="submit"
+            class="w-full py-3 sm:py-3.5 px-4 mt-1.5 rounded-full bg-gradient-to-r from-pink-500 via-fuchsia-500 to-purple-500 hover:from-pink-400 hover:via-fuchsia-400 hover:to-purple-400 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-fuchsia-950/60 transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait"
+          >
+            Masuk
+          </button>
+        </form>
+
+        <!-- --- pembatas menuju autentikasi google --- -->
+        <div class="flex items-center gap-3">
+          <span class="h-px flex-1 bg-slate-800"></span>
+          <span id="loginDockCaption" class="text-[11px] font-medium text-slate-400 shrink-0">
+            atau
           </span>
+          <span class="h-px flex-1 bg-slate-800"></span>
         </div>
 
-        <!-- --- target injeksi tombol resmi google sign-in --- -->
-        <div id="googleSignInButtonContainer" class="hidden w-full items-center justify-center min-h-[44px] opacity-0 scale-95 transition-all duration-300"></div>
+        <!-- --- tombol lanjutkan dengan google tema gelap --- -->
+        <div class="relative w-full">
+          <button
+            id="googleCustomSignInBtn"
+            type="button"
+            onclick="window.google?.accounts?.id?.prompt()"
+            class="w-full py-3 sm:py-3.5 px-4 rounded-full bg-slate-950/90 hover:bg-slate-800/90 border border-slate-800 text-slate-200 font-semibold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all duration-200 active:scale-[0.98]"
+          >
+            <span class="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+            </span>
+            <span>Lanjutkan dengan Google</span>
+          </button>
+
+          <!-- --- wadah injeksi resmi google sign-in untuk kompatibilitas sdk --- -->
+          <div class="absolute inset-0 overflow-hidden rounded-full opacity-[0.001] pointer-events-auto flex items-center justify-center">
+            <div id="googleSignInButtonContainer" class="hidden w-full items-center justify-center min-h-[44px]"></div>
+          </div>
+        </div>
       </div>
 
-      <p class="text-[10px] text-slate-500 font-mono-code text-center pt-1">
-        Sesi aman terenkripsi • Xu Core
+      <!-- --- teks petunjuk dinamis yang selalu mengikuti tinggi form masuk dan daftar --- -->
+      <p id="authModeFooterHint" class="mt-4 px-2 text-center text-xs text-slate-400 leading-snug">
+        Belum memiliki akun? Silakan beralih ke tab Daftar di atas untuk membuat akun baru.
       </p>
     </div>
-  </section>
+  </main>
 
   <script>
-    // --- konfigurasi tema dan client id google oauth ---
+    // --- konfigurasi tema, mode autentikasi, dan client id google oauth ---
     let configuredGoogleClientId = '404486479013-8tpsuq4920rao7clth8graba1vtoon72.apps.googleusercontent.com';
     const availableThemes = ['emerald', 'cyan', 'violet'];
     let currentThemeIndex = 0;
+    let currentEmailAuthMode = 'login';
     let toastTimeoutTimer = null;
 
-    // --- animasi teks brand Xu Core pada canvas ---
+    // --- animasi teks brand xu core pada canvas ---
     function initHeaderBrandTextCanvas(canvasEl, options) {
       if (!canvasEl || !canvasEl.getContext) return;
 
@@ -484,71 +508,95 @@
       }
     })();
 
-    // --- tampilkan kembali orbital scanner saat proses verifikasi berjalan ---
-    function showOrbitalScanner(statusMessage) {
-      const scannerWrapper = document.getElementById('orbitalScannerWrapper');
-      const outerRing = document.getElementById('orbitalOuterRing');
-      const innerRing = document.getElementById('orbitalInnerRing');
-      const coreRobot = document.getElementById('orbitalCoreRobot');
-      const hintLabel = document.getElementById('googleBtnLoadingHint');
-      const buttonContainer = document.getElementById('googleSignInButtonContainer');
+    // --- ubah mode formulir antara masuk dan daftar serta sinkronkan teks petunjuk ---
+    function switchEmailAuthMode(targetMode) {
+      currentEmailAuthMode = targetMode === 'register' ? 'register' : 'login';
+      const isRegister = currentEmailAuthMode === 'register';
 
-      if (buttonContainer) {
-        buttonContainer.classList.add('hidden', 'opacity-0', 'scale-95');
-        buttonContainer.classList.remove('flex', 'opacity-100', 'scale-100');
+      const loginTab = document.getElementById('authModeLoginTab');
+      const registerTab = document.getElementById('authModeRegisterTab');
+      const nameGroup = document.getElementById('registerNameFieldGroup');
+      const nameInput = document.getElementById('loginFullNameInput');
+      const passwordInput = document.getElementById('loginPasswordInput');
+      const submitBtn = document.getElementById('emailLoginSubmitBtn');
+      const footerHint = document.getElementById('authModeFooterHint');
+      const formScrollContainer = document.getElementById('loginFormScrollContainer');
+
+      const activeTabCls = 'flex-1 py-2.5 px-3 rounded-full bg-slate-800 border border-slate-700/80 shadow-sm text-xs font-bold text-white transition-all duration-200';
+      const inactiveTabCls = 'flex-1 py-2.5 px-3 rounded-full border border-transparent text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all duration-200';
+
+      if (loginTab) {
+        loginTab.className = isRegister ? inactiveTabCls : activeTabCls;
+        loginTab.setAttribute('aria-selected', String(!isRegister));
       }
-
-      if (outerRing) outerRing.classList.remove('opacity-0', 'scale-90');
-      if (innerRing) innerRing.classList.remove('opacity-0', 'scale-90');
-      if (coreRobot) coreRobot.classList.remove('scale-125', 'opacity-0');
-      if (hintLabel) {
-        hintLabel.textContent = statusMessage || 'Memuat tombol Google...';
-        hintLabel.classList.remove('opacity-0');
+      if (registerTab) {
+        registerTab.className = isRegister ? activeTabCls : inactiveTabCls;
+        registerTab.setAttribute('aria-selected', String(isRegister));
       }
-
-      if (scannerWrapper) {
-        scannerWrapper.classList.remove('hidden', 'opacity-0');
-        scannerWrapper.classList.add('flex');
+      if (nameGroup) nameGroup.classList.toggle('hidden', !isRegister);
+      if (nameInput) nameInput.required = isRegister;
+      if (passwordInput) passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
+      if (submitBtn) submitBtn.textContent = isRegister ? 'Daftar' : 'Masuk';
+      if (footerHint) {
+        footerHint.textContent = isRegister
+          ? 'Sudah memiliki akun? Silakan beralih ke tab Masuk di atas untuk mengakses panel Anda.'
+          : 'Belum memiliki akun? Silakan beralih ke tab Daftar di atas untuk membuat akun baru.';
+      }
+      if (formScrollContainer) {
+        formScrollContainer.scrollTop = 0;
       }
     }
 
-    // --- jalankan transisi keluar orbital scanner lalu tampilkan tombol google ---
-    function revealGoogleButtonWithTransition(buttonContainer) {
-      const scannerWrapper = document.getElementById('orbitalScannerWrapper');
-      const outerRing = document.getElementById('orbitalOuterRing');
-      const innerRing = document.getElementById('orbitalInnerRing');
-      const coreRobot = document.getElementById('orbitalCoreRobot');
-      const hintLabel = document.getElementById('googleBtnLoadingHint');
+    // --- tangani submit login atau pendaftaran dengan email dan kata sandi ---
+    async function handleEmailPasswordFormSubmit(submitEvent) {
+      submitEvent.preventDefault();
 
-      if (!scannerWrapper || scannerWrapper.classList.contains('hidden')) {
-        buttonContainer.classList.remove('hidden');
-        buttonContainer.classList.add('flex');
-        requestAnimationFrame(() => {
-          buttonContainer.classList.remove('opacity-0', 'scale-95');
-          buttonContainer.classList.add('opacity-100', 'scale-100');
-        });
-        return;
+      const fullNameInput = document.getElementById('loginFullNameInput');
+      const emailInput = document.getElementById('loginEmailInput');
+      const passwordInput = document.getElementById('loginPasswordInput');
+      const submitBtn = document.getElementById('emailLoginSubmitBtn');
+
+      const isRegister = currentEmailAuthMode === 'register';
+      const endpointUrl = isRegister ? '/api/auth/register' : '/api/auth/login';
+      const requestPayload = {
+        email: String(emailInput?.value || '').trim(),
+        password: String(passwordInput?.value || '')
+      };
+
+      if (isRegister) {
+        requestPayload.fullName = String(fullNameInput?.value || '').trim();
       }
 
-      if (outerRing) outerRing.classList.add('opacity-0', 'scale-90');
-      if (innerRing) innerRing.classList.add('opacity-0', 'scale-90');
-      if (hintLabel) hintLabel.classList.add('opacity-0');
-      if (coreRobot) coreRobot.classList.add('scale-125', 'opacity-0');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = isRegister ? 'Mendaftarkan akun...' : 'Memverifikasi...';
+      }
 
-      setTimeout(() => {
-        scannerWrapper.classList.add('hidden');
-        scannerWrapper.classList.remove('flex');
-
-        buttonContainer.classList.remove('hidden');
-        buttonContainer.classList.add('flex');
-        requestAnimationFrame(() => {
-          buttonContainer.classList.remove('opacity-0', 'scale-95');
-          buttonContainer.classList.add('opacity-100', 'scale-100');
+      try {
+        const authResponse = await fetch(endpointUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(requestPayload)
         });
-      }, 300);
+
+        const authJson = await authResponse.json().catch(() => ({}));
+        if (!authResponse.ok || !authJson.isAuthenticated) {
+          throw new Error(authJson.errorMessage || 'Autentikasi gagal. Periksa kembali data Anda.');
+        }
+
+        showTopToast(isRegister ? 'Akun berhasil dibuat, mengalihkan ke dashboard...' : 'Berhasil masuk, mengalihkan ke dashboard...');
+        window.location.replace('/dashboard');
+      } catch (requestError) {
+        showTopToast(requestError.message || 'Gagal terhubung ke server.', true);
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = isRegister ? 'Daftar' : 'Masuk';
+        }
+      }
     }
 
-    // --- render tombol google sign-in ke dalam dock login ---
+    // --- render tombol google sign-in ke dalam wadah kompatibilitas sdk ---
     function renderGoogleSignInWidget() {
       const container = document.getElementById('googleSignInButtonContainer');
       if (!container) return false;
@@ -561,16 +609,16 @@
         });
 
         container.innerHTML = '';
-        // --- ubah opsi teks tombol resmi google menjadi lanjut dengan google ---
         window.google.accounts.id.renderButton(container, {
-          theme: 'filled_blue',
+          theme: 'filled_black',
           size: 'large',
           text: 'continue_with',
           shape: 'pill',
-          width: 300
+          width: 360
         });
 
-        revealGoogleButtonWithTransition(container);
+        container.classList.remove('hidden');
+        container.classList.add('flex');
         return true;
       }
       return false;
@@ -583,9 +631,9 @@
         return;
       }
 
-      const captionEl = document.getElementById('loginDockCaption');
-      if (captionEl) captionEl.textContent = 'Memverifikasi akun Google Anda...';
-      showOrbitalScanner('Mengalihkan ke Dashboard...');
+      const googleBtn = document.getElementById('googleCustomSignInBtn');
+      if (googleBtn) googleBtn.disabled = true;
+      showTopToast('Memverifikasi akun Google Anda...');
 
       try {
         const verifyResponse = await fetch('/api/auth/google', {
@@ -602,13 +650,13 @@
 
         window.location.replace('/dashboard');
       } catch (authError) {
-        if (captionEl) captionEl.textContent = 'Masuk untuk mulai mengelola bot kamu';
+        if (googleBtn) googleBtn.disabled = false;
         renderGoogleSignInWidget();
         showTopToast(authError.message, true);
       }
     }
 
-    // --- inisialisasi animasi teks brand dan konfigurasi client id dari backend ---
+    // --- inisialisasi animasi teks brand, form email, dan konfigurasi client id dari backend ---
     async function initializeLoginPortal() {
       const brandTextCanvas = document.getElementById('headerBrandTextCanvas');
       const responsiveScale = window.innerWidth < 440 ? 0.62 : 0.7;
@@ -619,6 +667,11 @@
         fontSize: 27,
         scale: responsiveScale
       });
+
+      const emailForm = document.getElementById('emailLoginForm');
+      if (emailForm) {
+        emailForm.addEventListener('submit', handleEmailPasswordFormSubmit);
+      }
 
       try {
         const configResponse = await fetch('/api/auth/config');
@@ -638,10 +691,7 @@
             clearInterval(checkGoogleLibraryInterval);
           } else if (retryAttempts >= 40) {
             clearInterval(checkGoogleLibraryInterval);
-            const hint = document.getElementById('googleBtnLoadingHint');
-            if (hint) {
-              hint.textContent = 'Gagal memuat SDK Google. Nonaktifkan AdBlock.';
-            }
+            showTopToast('Gagal memuat SDK Google. Nonaktifkan AdBlock jika perlu.', true);
           }
         }, 250);
       }
