@@ -18,7 +18,6 @@ import { registerHttpRoutes, registerSocketHandlers } from './core/socket-routes
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json());
 // --- perbesar batas body json dan urlencoded untuk unggahan media base64 ---
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
