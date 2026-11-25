@@ -229,7 +229,7 @@
           <span class="hidden sm:inline">kelola</span>
         </button>
 
-        <button id="navTabGateway" type="button" onclick="switchWorkspaceTab('gateway')" title="WA API Gateway & Jadibot" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
+        <button id="navTabGateway" type="button" onclick="switchWorkspaceTab('gateway')" title="WA API Gateway" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
           <span class="hidden sm:inline">API</span>
         </button>
@@ -1166,7 +1166,7 @@
         </div>
 
       </section>
-      <!-- --- tampilan tab api gateway multi-media & jadibot core system v2 --- -->
+      <!-- --- tampilan tab api gateway multi-media --- -->
       <section id="workspaceGatewayView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
 
         <!-- --- kartu manajemen api key gateway per user --- -->
@@ -1222,99 +1222,6 @@
               <button type="button" onclick="revokeGatewayApiKey()" class="py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all active:scale-95">
                 Cabut Key
               </button>
-            </div>
-          </div>
-
-          <!-- --- kartu visualisasi jadibot core system v2 & kalkulator transaksi modul --- -->
-          <div class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
-            <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-3.5">
-              <div>
-                <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                  Jadibot Core System v2
-                </h2>
-                <p class="text-[11px] text-slate-400 mt-0.5">visualisasi modul clone multi-tenant, isolasi config, dan alur transaksi</p>
-              </div>
-              <span class="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 font-mono-code text-[10px] text-amber-300 font-bold shrink-0">v2.0</span>
-            </div>
-
-            <!-- --- matriks modul jadibot v2 sesuai struktur transaksi backend --- -->
-            <div id="jadibotModulesMatrix" class="space-y-2.5 text-xs">
-              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-3 space-y-1.5">
-                <div class="flex items-center justify-between font-mono-code">
-                  <span class="text-slate-200 font-bold">core socket &amp; lifecycle</span>
-                  <span class="accent-text font-bold">144k</span>
-                </div>
-                <div class="flex flex-wrap gap-1 text-[10px] font-mono-code text-slate-400">
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">module v2</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">addjadibot</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">deljadibot</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">renewbot+</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">renewbot-</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">startbot</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">stopbot</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">listbot</span>
-                </div>
-              </div>
-
-              <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-3 space-y-1.5">
-                <div class="flex items-center justify-between font-mono-code">
-                  <span class="text-slate-200 font-bold">isolasi config per clone</span>
-                  <span class="accent-text font-bold">45k</span>
-                </div>
-                <div class="flex flex-wrap gap-1 text-[10px] font-mono-code text-slate-400">
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">setbotname</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">setnamastore</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">setbottypename</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">delbotname</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">delnamastore</span>
-                  <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">delbottypename</span>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 gap-2 font-mono-code text-[10px]">
-                <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-slate-300 font-bold">payment &amp; QRIS</span>
-                    <span class="accent-text font-bold">48k</span>
-                  </div>
-                  <p class="text-slate-500 leading-snug">updateqris, updatepay, payment, delqris, delpay</p>
-                </div>
-                <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-slate-300 font-bold">owner &amp; builder</span>
-                    <span class="accent-text font-bold">50k</span>
-                  </div>
-                  <p class="text-slate-500 leading-snug">setownerfor, delownerfor, developer, createbot</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- --- eksekutor cepat perintah jadibot v2 ke target bot / grup --- -->
-            <div class="pt-2 border-t border-slate-800/80 space-y-2.5">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div class="space-y-1">
-                  <label for="jadibotQuickCommandSelect" class="block text-[10px] font-mono-code text-slate-400">aksi modul jadibot v2</label>
-                  <select id="jadibotQuickCommandSelect" onchange="updateJadibotCommandPreview()" class="w-full bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-2 text-xs text-slate-200 font-mono-code focus:outline-none">
-                    <option value="addjadibot">addjadibot (tambah sesi)</option>
-                    <option value="renewbot+">renewbot+ (perpanjang)</option>
-                    <option value="renewbot-">renewbot- (kurangi durasi)</option>
-                    <option value="startbot">startbot (nyalakan sesi)</option>
-                    <option value="stopbot">stopbot (hentikan sesi)</option>
-                    <option value="deljadibot">deljadibot (hapus sesi)</option>
-                    <option value="listbot">listbot (cek status)</option>
-                  </select>
-                </div>
-                <div class="space-y-1">
-                  <label for="jadibotTargetPhoneInput" class="block text-[10px] font-mono-code text-slate-400">nomor target &amp; durasi</label>
-                  <input id="jadibotTargetPhoneInput" oninput="updateJadibotCommandPreview()" type="text" placeholder="30d 6281234567890" class="w-full bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-black/70 border border-slate-800 font-mono-code text-[11px]">
-                <span id="jadibotGeneratedCmdPreview" class="text-emerald-400 truncate">#addjadibot 30d 6281234567890</span>
-                <button type="button" onclick="copyJadibotCommandPreview()" class="text-[10px] text-slate-300 hover:text-white shrink-0">salin</button>
-              </div>
             </div>
           </div>
         </div>
@@ -2726,7 +2633,6 @@
       }
       if (targetTab === 'gateway') {
         updateGatewayPayloadPreview();
-        updateJadibotCommandPreview();
       }
     }
 
@@ -3361,20 +3267,6 @@
       } finally {
         if (btn) btn.disabled = false;
       }
-    }
-
-    function updateJadibotCommandPreview() {
-      const cmd = getEl('jadibotQuickCommandSelect')?.value || 'addjadibot';
-      const args = String(getEl('jadibotTargetPhoneInput')?.value || '').trim();
-      const previewEl = getEl('jadibotGeneratedCmdPreview');
-      if (!previewEl) return;
-      previewEl.textContent = cmd === 'listbot'
-        ? '#listbot'
-        : `#${cmd}${args ? ` ${args}` : ' 30d 6281234567890'}`;
-    }
-
-    function copyJadibotCommandPreview() {
-      copyTextToClipboard(getEl('jadibotGeneratedCmdPreview')?.textContent, 'Perintah Jadibot Disalin', 'Perintah kosong.');
     }
 
     // --- statistik langganan, perintah populer, dan pengaturan bot ---
@@ -4464,7 +4356,6 @@ export default {
         setupBroadcastTemplatePreviewListener();
         syncBrowserNotifLabel();
         switchGatewayMediaFields();
-        updateJadibotCommandPreview();
       }, 'DOMContentLoaded');
     });
 
