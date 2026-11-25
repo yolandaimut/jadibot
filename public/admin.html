@@ -378,7 +378,137 @@
       </section>
 
     </div>
+    <!-- --- panel kontrol manajemen multi-pengumuman global khusus admin --- -->
+    <section id="adminAnnouncementsSection" class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-5">
+      <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-500/30 text-sky-300 font-mono-code text-[10px] font-bold uppercase">Broadcast Panel</span>
+            <h2 class="text-sm sm:text-base font-bold text-white truncate">Manajemen Multi-Pengumuman</h2>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+            terbitkan variasi pengumuman resmi ke <span class="font-mono-code text-slate-300">database.json</span> dan pancarkan real-time ke modal notifikasi seluruh dashboard user.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <span id="adminAnnCountBadge" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-slate-800 font-mono-code text-[10px] text-slate-300">0 item</span>
+          <button id="adminAnnRefreshBtn" type="button" onclick="loadAdminAnnouncements(true)" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-[11px] font-semibold text-slate-200 transition-all active:scale-95 disabled:opacity-60">
+            <svg id="adminAnnRefreshIcon" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>refresh</span>
+          </button>
+          <button id="adminAnnClearAllBtn" type="button" onclick="openAdminClearAnnouncementsModal()" class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-[11px] font-semibold text-rose-300 transition-all active:scale-95 disabled:opacity-50">
+            bersihkan semua
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <!-- --- form penerbitan pengumuman baru dengan pilihan tag kategori berwarna --- -->
+        <form id="adminAnnouncementCreateForm" class="lg:col-span-5 space-y-4 text-xs" novalidate>
+          <div class="space-y-1.5">
+            <label for="adminAnnTitleInput" class="block text-slate-200 font-semibold">Judul Pengumuman</label>
+            <input
+              id="adminAnnTitleInput"
+              type="text"
+              maxlength="100"
+              placeholder="Default: Pengumuman / Update Panel"
+              class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none transition-colors"
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="block text-slate-200 font-semibold">Kategori Tag</span>
+              <span id="adminAnnSelectedCategoryLabel" class="font-mono-code text-[10px] text-sky-300 font-bold">INFO</span>
+            </div>
+            <input id="adminAnnCategoryValue" type="hidden" value="INFO" />
+            <div class="grid grid-cols-4 gap-1.5 font-mono-code text-[10px]">
+              <button type="button" data-ann-cat="INFO" onclick="selectAdminAnnouncementCategory('INFO')" class="admin-ann-cat-btn py-2 rounded-lg bg-sky-500/20 border border-sky-400/60 text-sky-200 font-bold transition-all">INFO</button>
+              <button type="button" data-ann-cat="SUCCESS" onclick="selectAdminAnnouncementCategory('SUCCESS')" class="admin-ann-cat-btn py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-emerald-300 transition-all">SUCCESS</button>
+              <button type="button" data-ann-cat="WARN" onclick="selectAdminAnnouncementCategory('WARN')" class="admin-ann-cat-btn py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-amber-300 transition-all">WARN</button>
+              <button type="button" data-ann-cat="DANGER" onclick="selectAdminAnnouncementCategory('DANGER')" class="admin-ann-cat-btn py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-rose-300 transition-all">DANGER</button>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="adminAnnTextInput" class="block text-slate-200 font-semibold">Isi Pengumuman</label>
+              <span id="adminAnnCharCounter" class="font-mono-code text-[10px] text-slate-500">0 / 1200</span>
+            </div>
+            <textarea
+              id="adminAnnTextInput"
+              rows="4"
+              maxlength="1200"
+              required
+              oninput="updateAdminAnnouncementCharCount()"
+              placeholder="Tulis detail pembaruan fitur, jadwal maintenance, kode promo, atau informasi sistem..."
+              class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs text-slate-200 leading-relaxed focus:outline-none transition-colors resize-none"
+            ></textarea>
+          </div>
+
+          <button
+            id="adminAnnSubmitBtn"
+            type="submit"
+            class="w-full py-2.5 px-4 rounded-xl accent-bg text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait accent-shadow"
+          >
+            <svg id="adminAnnSubmitSpinner" class="hidden w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span id="adminAnnSubmitLabel">Terbitkan Pengumuman</span>
+          </button>
+        </form>
+
+        <!-- --- daftar kelola pengumuman aktif dengan tombol hapus instan --- -->
+        <div class="lg:col-span-7 space-y-2.5">
+          <div class="flex items-center justify-between text-[11px] font-mono-code text-slate-400 px-1">
+            <span>daftar pengumuman aktif</span>
+            <span class="text-slate-500">urut terbaru</span>
+          </div>
+
+          <div id="adminAnnouncementsActiveList" class="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+            <div class="rounded-xl bg-slate-950/70 border border-slate-800/80 p-3.5 animate-pulse space-y-2">
+              <div class="h-3.5 w-24 bg-slate-800 rounded"></div>
+              <div class="h-3 w-2/3 bg-slate-800/80 rounded"></div>
+              <div class="h-3 w-full bg-slate-800/60 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
+
+  <!-- --- modal konfirmasi hapus semua pengumuman admin tanpa native confirm --- -->
+  <div id="adminClearAnnouncementsModal" onclick="if (event.target === this) closeAdminClearAnnouncementsModal()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 border border-rose-500/30 p-5 space-y-4 shadow-2xl">
+      <div class="flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="text-sm font-bold text-white">Bersihkan Semua Pengumuman?</h3>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+            Seluruh pengumuman aktif di <span class="font-mono-code text-rose-300">database.json</span> akan dihapus permanen dan modal notifikasi user akan dikosongkan.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button type="button" onclick="closeAdminClearAnnouncementsModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors">
+          Batal
+        </button>
+        <button id="adminConfirmClearAnnBtn" type="button" onclick="confirmAdminClearAllAnnouncements()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all active:scale-95 disabled:opacity-60">
+          Ya, Bersihkan
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- --- toast notifikasi kompak di bawah header --- -->
   <div id="cyberToastContainer" class="fixed top-14 sm:top-16 right-4 left-4 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
@@ -621,10 +751,302 @@
       });
     })();
 
+    // --- state dan helper kategori untuk panel manajemen multi-pengumuman admin ---
+    let adminAnnouncementsCache = [];
+
+    function getAdminAnnouncementBadgeSpec(rawCategory) {
+      const normalized = String(rawCategory || 'INFO').trim().toUpperCase();
+      const stylesMap = {
+        INFO: {
+          label: 'INFO',
+          badgeCls: 'bg-sky-500/15 text-sky-300 border border-sky-500/35',
+          activeBtnCls: 'admin-ann-cat-btn py-2 rounded-lg bg-sky-500/20 border border-sky-400/60 text-sky-200 font-bold transition-all',
+          labelColor: 'text-sky-300'
+        },
+        SUCCESS: {
+          label: 'SUCCESS',
+          badgeCls: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/35',
+          activeBtnCls: 'admin-ann-cat-btn py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/60 text-emerald-200 font-bold transition-all',
+          labelColor: 'text-emerald-300'
+        },
+        WARN: {
+          label: 'WARN',
+          badgeCls: 'bg-amber-500/15 text-amber-300 border border-amber-500/35',
+          activeBtnCls: 'admin-ann-cat-btn py-2 rounded-lg bg-amber-500/20 border border-amber-400/60 text-amber-200 font-bold transition-all',
+          labelColor: 'text-amber-300'
+        },
+        DANGER: {
+          label: 'DANGER',
+          badgeCls: 'bg-rose-500/15 text-rose-300 border border-rose-500/35',
+          activeBtnCls: 'admin-ann-cat-btn py-2 rounded-lg bg-rose-500/20 border border-rose-400/60 text-rose-200 font-bold transition-all',
+          labelColor: 'text-rose-300'
+        }
+      };
+      return stylesMap[normalized] || stylesMap.INFO;
+    }
+
+    function formatAdminAnnouncementWib(timestampMs) {
+      if (typeof formatWibDateTime === 'function') return formatWibDateTime(timestampMs);
+      const parsedMs = Number(timestampMs || 0);
+      if (!parsedMs) return '-';
+      const datePart = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }).format(new Date(parsedMs));
+      const timePart = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(new Date(parsedMs)).replace('.', ':');
+      return `${datePart}, ${timePart} WIB`;
+    }
+
+    function selectAdminAnnouncementCategory(categoryCode) {
+      const spec = getAdminAnnouncementBadgeSpec(categoryCode);
+      const hiddenInput = document.getElementById('adminAnnCategoryValue');
+      const indicatorLabel = document.getElementById('adminAnnSelectedCategoryLabel');
+
+      if (hiddenInput) hiddenInput.value = spec.label;
+      if (indicatorLabel) {
+        indicatorLabel.textContent = spec.label;
+        indicatorLabel.className = `font-mono-code text-[10px] font-bold ${spec.labelColor}`;
+      }
+
+      document.querySelectorAll('.admin-ann-cat-btn').forEach((btn) => {
+        const isCurrent = btn.getAttribute('data-ann-cat') === spec.label;
+        btn.className = isCurrent
+          ? spec.activeBtnCls
+          : 'admin-ann-cat-btn py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-400 hover:text-slate-200 transition-all';
+      });
+    }
+
+    function updateAdminAnnouncementCharCount() {
+      const textarea = document.getElementById('adminAnnTextInput');
+      const counter = document.getElementById('adminAnnCharCounter');
+      if (!textarea || !counter) return;
+      counter.textContent = `${textarea.value.length} / 1200`;
+    }
+
+    function openAdminClearAnnouncementsModal() {
+      if (adminAnnouncementsCache.length === 0) {
+        showAdminToast('Daftar Kosong', 'Tidak ada pengumuman aktif yang perlu dibersihkan.', 'info');
+        return;
+      }
+      if (typeof toggleModalVisibility === 'function') {
+        toggleModalVisibility('adminClearAnnouncementsModal', true);
+        return;
+      }
+      const modal = document.getElementById('adminClearAnnouncementsModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    function closeAdminClearAnnouncementsModal() {
+      if (typeof toggleModalVisibility === 'function') {
+        toggleModalVisibility('adminClearAnnouncementsModal', false);
+        return;
+      }
+      const modal = document.getElementById('adminClearAnnouncementsModal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    // --- render daftar kartu pengumuman aktif beserta tombol hapus satuan ---
+    function renderAdminAnnouncementsList(listData) {
+      adminAnnouncementsCache = Array.isArray(listData) ? listData : [];
+
+      const countBadge = document.getElementById('adminAnnCountBadge');
+      const clearAllBtn = document.getElementById('adminAnnClearAllBtn');
+      const container = document.getElementById('adminAnnouncementsActiveList');
+
+      if (countBadge) countBadge.textContent = `${adminAnnouncementsCache.length} item`;
+      if (clearAllBtn) clearAllBtn.disabled = adminAnnouncementsCache.length === 0;
+      if (!container) return;
+
+      if (adminAnnouncementsCache.length === 0) {
+        container.innerHTML = '<div class="rounded-xl bg-slate-950/60 border border-dashed border-slate-800 p-6 text-center text-xs text-slate-500 font-mono-code">belum ada pengumuman aktif di database.json</div>';
+        return;
+      }
+
+      container.innerHTML = adminAnnouncementsCache.map((item) => {
+        const spec = getAdminAnnouncementBadgeSpec(item.category);
+        const safeId = escapeHtml(item.id);
+        const safeTitle = escapeHtml(item.title || 'Pengumuman / Update Panel');
+        const safeText = escapeHtml(item.text || '');
+        const safeTime = escapeHtml(formatAdminAnnouncementWib(item.createdAt));
+
+        return `
+          <article class="rounded-xl bg-[#0c111d]/95 border border-slate-800/90 hover:border-slate-700/90 p-3.5 space-y-2 transition-all">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="px-2 py-0.5 rounded font-mono-code text-[9px] font-bold uppercase tracking-wider shrink-0 ${spec.badgeCls}">${spec.label}</span>
+                <span class="text-[10px] font-mono-code text-slate-400 truncate">${safeTime}</span>
+              </div>
+              <button
+                type="button"
+                data-ann-id="${safeId}"
+                onclick="deleteAdminAnnouncementById(this.dataset.annId, this)"
+                class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-mono-code text-[10px] font-semibold shrink-0 transition-all active:scale-95 disabled:opacity-50"
+              >
+                Hapus
+              </button>
+            </div>
+            <h3 class="text-xs font-bold text-white leading-snug break-words">${safeTitle}</h3>
+            <p class="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${safeText}</p>
+          </article>
+        `;
+      }).join('');
+    }
+
+    // --- ambil daftar pengumuman aktif dari endpoint express admin ---
+    async function loadAdminAnnouncements(showFeedback = false) {
+      const refreshBtn = document.getElementById('adminAnnRefreshBtn');
+      const refreshIcon = document.getElementById('adminAnnRefreshIcon');
+      if (refreshBtn) refreshBtn.disabled = true;
+      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+      try {
+        const res = await fetch('/api/admin/announcements', { credentials: 'same-origin' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.isSuccess) {
+          throw new Error(data.errorMessage || `Gagal memuat pengumuman (HTTP ${res.status}).`);
+        }
+        renderAdminAnnouncementsList(data.announcements || []);
+        if (showFeedback) {
+          showAdminToast('Sinkronisasi', `Memuat ${adminAnnouncementsCache.length} pengumuman aktif.`, 'info');
+        }
+      } catch (err) {
+        const container = document.getElementById('adminAnnouncementsActiveList');
+        if (container) {
+          container.innerHTML = `<div class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3.5 text-xs text-rose-300">${escapeHtml(err.message || 'Gagal memuat daftar pengumuman.')}</div>`;
+        }
+        if (showFeedback) showAdminToast('Gagal Memuat', err.message || 'Gangguan koneksi server.', 'danger');
+      } finally {
+        if (refreshBtn) refreshBtn.disabled = false;
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+      }
+    }
+
+    // --- hapus satu pengumuman secara instan dari database.json ---
+    async function deleteAdminAnnouncementById(announcementId, triggerBtn = null) {
+      if (!announcementId) return;
+      if (triggerBtn) {
+        triggerBtn.disabled = true;
+        triggerBtn.textContent = '...';
+      }
+
+      try {
+        const res = await fetch(`/api/admin/announcements/${encodeURIComponent(announcementId)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.isSuccess) {
+          throw new Error(data.errorMessage || 'Gagal menghapus pengumuman.');
+        }
+        renderAdminAnnouncementsList(data.announcements || []);
+        showAdminToast('Pengumuman Dihapus', 'Item pengumuman dihapus permanen dari database.json.', 'info');
+      } catch (err) {
+        if (triggerBtn) {
+          triggerBtn.disabled = false;
+          triggerBtn.textContent = 'Hapus';
+        }
+        showAdminToast('Gagal Menghapus', err.message || 'Permintaan gagal.', 'danger');
+      }
+    }
+
+    // --- bersihkan seluruh daftar pengumuman aktif dari database.json ---
+    async function confirmAdminClearAllAnnouncements() {
+      const confirmBtn = document.getElementById('adminConfirmClearAnnBtn');
+      if (confirmBtn) confirmBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/admin/announcements', {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.isSuccess) {
+          throw new Error(data.errorMessage || 'Gagal membersihkan pengumuman.');
+        }
+        closeAdminClearAnnouncementsModal();
+        renderAdminAnnouncementsList(data.announcements || []);
+        showAdminToast('Database Dibersihkan', 'Seluruh pengumuman lama telah dihapus.', 'success');
+      } catch (err) {
+        showAdminToast('Gagal Membersihkan', err.message || 'Permintaan gagal.', 'danger');
+      } finally {
+        if (confirmBtn) confirmBtn.disabled = false;
+      }
+    }
+
+    // --- inisialisasi listener submit penerbitan pengumuman baru ---
+    (function initAdminAnnouncementCreateForm() {
+      const formEl = document.getElementById('adminAnnouncementCreateForm');
+      const titleInput = document.getElementById('adminAnnTitleInput');
+      const categoryInput = document.getElementById('adminAnnCategoryValue');
+      const textInput = document.getElementById('adminAnnTextInput');
+      const submitBtn = document.getElementById('adminAnnSubmitBtn');
+      const spinnerIcon = document.getElementById('adminAnnSubmitSpinner');
+      const submitLabel = document.getElementById('adminAnnSubmitLabel');
+
+      if (!formEl || !textInput || !submitBtn) return;
+
+      formEl.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const title = String(titleInput?.value || '').trim() || 'Pengumuman / Update Panel';
+        const category = String(categoryInput?.value || 'INFO').trim().toUpperCase();
+        const text = String(textInput.value || '').trim();
+
+        if (!text) {
+          showAdminToast('Isi Kosong', 'Isi pengumuman wajib diisi sebelum diterbitkan.', 'danger');
+          textInput.focus();
+          return;
+        }
+
+        submitBtn.disabled = true;
+        if (spinnerIcon) spinnerIcon.classList.remove('hidden');
+        if (submitLabel) submitLabel.textContent = 'Menerbitkan...';
+
+        try {
+          const res = await fetch('/api/admin/announcements', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, category, text })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.isSuccess) {
+            throw new Error(data.errorMessage || `Gagal menerbitkan pengumuman (HTTP ${res.status}).`);
+          }
+
+          renderAdminAnnouncementsList(data.announcements || []);
+          if (titleInput) titleInput.value = '';
+          textInput.value = '';
+          updateAdminAnnouncementCharCount();
+          showAdminToast('Pengumuman Terbit', `Kategori [${category}] dipancarkan ke seluruh dashboard user.`, 'success');
+        } catch (err) {
+          showAdminToast('Gagal Menerbitkan', err.message || 'Terjadi gangguan koneksi.', 'danger');
+        } finally {
+          submitBtn.disabled = false;
+          if (spinnerIcon) spinnerIcon.classList.add('hidden');
+          if (submitLabel) submitLabel.textContent = 'Terbitkan Pengumuman';
+        }
+      });
+    })();
+
     window.addEventListener('DOMContentLoaded', () => {
       verifyAdminSession();
       refreshServerHealth();
     });
+
   </script>
 </body>
 </html>
