@@ -1,1 +1,107 @@
-import e from"express";import{createServer as t}from"http";import{Server as o}from"socket.io";import i from"fs";import s from"path";import{pathToFileURL as r}from"url";import{PLUGINS_ROOT_DIR as a,SERVER_PORT as l,SESSIONS_VOLUME_ROOT as n,SYSTEM_ROOT_DIR as f,initPersistentDirectories as m}from"./core/config.js";import{initializeDefaultPlugin as u,watchPluginsDirectory as c}from"./core/plugin-manager.js";import{restoreExistingSessionsOnBoot as p}from"./core/session-manager.js";import{registerHttpRoutes as y,registerSocketHandlers as k}from"./core/socket-routes.js";const d=e();d.set("trust proxy",1),d.use(e.json());const j=t(d),g=new o(j,{cors:{origin:"*",methods:["GET","POST"]},transports:["websocket","polling"],allowEIO3:!0});!async function(){m();const e=await async function(){const e={serialize:null,functions:{},extra:null,utils:{},store:null,socket:null,multidb:null,metadata:null,lid:null,database:null,mapping:null},t=[{key:"mapping",file:"mapping.js"},{key:"serialize",file:"serialize.js"},{key:"functions",file:"functions.js"},{key:"extra",file:"extra.js"},{key:"utils",file:"utils.js"},{key:"store",file:"store.js"},{key:"socket",file:"socket.js"},{key:"multidb",file:"multidb.js"},{key:"metadata",file:"metadata.js"},{key:"lid",file:"lid.js"},{key:"database",file:"database.js"}];for(const o of t){const t=s.join(f,o.file);if(i.existsSync(t))try{const i=await(import(`${r(t).href}?v=${Date.now()}`)),s=i.default||i;e[o.key]="extra"===o.key&&"function"==typeof s?new s:s}catch(e){console.error(`[SYSTEM WARN] Gagal memuat system/${o.file}: ${e.message}`)}}return e.extra&&"function"==typeof e.extra.registerPrototype&&e.extra.registerPrototype(),e}();e.multidb&&"function"==typeof e.multidb.initDatabase&&(await e.multidb.initDatabase(),setInterval(()=>e.multidb.save(),6e4).unref()),u(),c(g),y(d),k(g,e),j.listen(l,"0.0.0.0",()=>{console.log(`[SURYA CORE] Aktif di port ${l} | Volume: ${n} | Plugins: ${a}`),p(g,e)})}();
+// --- entry point utama surya core platform ---
+import express from 'express';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import fs from 'fs';
+import path from 'path';
+import { pathToFileURL } from 'url';
+import {
+  PLUGINS_ROOT_DIR,
+  SERVER_PORT,
+  SESSIONS_VOLUME_ROOT,
+  SYSTEM_ROOT_DIR,
+  initPersistentDirectories
+} from './core/config.js';
+import { initializeDefaultPlugin, watchPluginsDirectory } from './core/plugin-manager.js';
+import { restoreExistingSessionsOnBoot } from './core/session-manager.js';
+import { registerHttpRoutes, registerSocketHandlers } from './core/socket-routes.js';
+
+const app = express();
+app.set('trust proxy', 1);
+app.use(express.json());
+// --- perbesar batas body json dan urlencoded untuk unggahan media base64 ---
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+const httpServer = createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
+});
+
+// --- muat seluruh modul sistem surya core dari folder system/ ---
+async function loadSystemCoreModules() {
+  const loadedModules = {
+    serialize: null,
+    functions: {},
+    extra: null,
+    utils: {},
+    store: null,
+    socket: null,
+    multidb: null,
+    metadata: null,
+    lid: null,
+    database: null,
+    mapping: null
+  };
+
+  const moduleSpecs = [
+    { key: 'mapping', file: 'mapping.js' },
+    { key: 'serialize', file: 'serialize.js' },
+    { key: 'functions', file: 'functions.js' },
+    { key: 'extra', file: 'extra.js' },
+    { key: 'utils', file: 'utils.js' },
+    { key: 'store', file: 'store.js' },
+    { key: 'socket', file: 'socket.js' },
+    { key: 'multidb', file: 'multidb.js' },
+    { key: 'metadata', file: 'metadata.js' },
+    { key: 'lid', file: 'lid.js' },
+    { key: 'database', file: 'database.js' },
+  ];
+
+  for (const spec of moduleSpecs) {
+    const targetPath = path.join(SYSTEM_ROOT_DIR, spec.file);
+    if (!fs.existsSync(targetPath)) continue;
+
+    try {
+      const imported = await import(`${pathToFileURL(targetPath).href}?v=${Date.now()}`);
+      const exported = imported.default || imported;
+      loadedModules[spec.key] = spec.key === 'extra' && typeof exported === 'function' ? new exported() : exported;
+    } catch (loadError) {
+      console.error(`[SYSTEM WARN] Gagal memuat system/${spec.file}: ${loadError.message}`);
+    }
+  }
+
+  if (loadedModules.extra && typeof loadedModules.extra.registerPrototype === 'function') {
+    loadedModules.extra.registerPrototype();
+  }
+
+  return loadedModules;
+}
+
+// --- jalankan bootstrap surya core beserta inisialisasi multidb ---
+async function bootstrap() {
+  initPersistentDirectories();
+  const coreModules = await loadSystemCoreModules();
+
+  if (coreModules.multidb && typeof coreModules.multidb.initDatabase === 'function') {
+    await coreModules.multidb.initDatabase();
+    setInterval(() => coreModules.multidb.save(), 60000).unref();
+  }
+
+  initializeDefaultPlugin();
+  watchPluginsDirectory(io);
+  registerHttpRoutes(app);
+  registerSocketHandlers(io, coreModules);
+
+  httpServer.listen(SERVER_PORT, '0.0.0.0', () => {
+    console.log(`[SURYA CORE] Aktif di port ${SERVER_PORT} | Volume: ${SESSIONS_VOLUME_ROOT} | Plugins: ${PLUGINS_ROOT_DIR}`);
+    restoreExistingSessionsOnBoot(io, coreModules);
+  });
+}
+
+bootstrap();
