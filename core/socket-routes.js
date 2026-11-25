@@ -629,13 +629,20 @@ export function registerHttpRoutes(app) {
       const messageText = request.body?.message || request.body?.text;
       const mentionAll = Boolean(request.body?.mentionAll);
 
+      // --- deteksi otomatis tipe gambar jika payload mengirim imageUrl atau imageBase64 ---
+      const resolvedMediaUrl = request.body?.mediaUrl || request.body?.imageUrl || '';
+      const resolvedMediaBase64 = request.body?.mediaBase64 || request.body?.imageBase64 || '';
+      const resolvedMediaType = String(
+        request.body?.mediaType || ((resolvedMediaUrl || resolvedMediaBase64) ? 'image' : 'text')
+      ).trim().toLowerCase();
+
       const sendResult = await sendDirectWhatsAppMessage(activeSocketIoServer, ownerMatch.googleUserId, {
         targetJid: request.body?.targetJid || request.body?.to || request.body?.number,
-        mediaType: request.body?.mediaType || 'text',
+        mediaType: resolvedMediaType,
         message: request.body?.message || request.body?.text,
         caption: request.body?.caption,
-        mediaUrl: request.body?.mediaUrl,
-        mediaBase64: request.body?.mediaBase64,
+        mediaUrl: resolvedMediaUrl,
+        mediaBase64: resolvedMediaBase64,
         ptt: Boolean(request.body?.ptt),
         fileName: request.body?.fileName,
         mimetype: request.body?.mimetype,

@@ -351,7 +351,7 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
       messageContent = {
         image: mediaSource,
         caption: formattedCaption || undefined,
-        mimetype: parsedBase64?.mimetype || undefined
+        mimetype: parsedBase64?.mimetype || payload.mimetype || 'image/jpeg'
       };
     } else if (mediaType === 'video') {
       messageContent = {
