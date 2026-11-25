@@ -1,1 +1,1747 @@
-import e from"express";import s from"fs";import t from"os";import a from"path";import{GOOGLE_CLIENT_ID as i,MAIN_DATABASE_FILE_PATH as n,PLUGINS_ROOT_DIR as r,PUBLIC_ROOT_DIR as o,SESSIONS_VOLUME_ROOT as u}from"./config.js";import{clearSessionCookie as c,createSignedSessionToken as d,getSessionUserFromCookieHeader as l,loginLocalEmailAccount as m,registerLocalEmailAccount as g,setSessionCookie as p,verifyGoogleCredentialToken as h}from"./auth.js";import{addGlobalAnnouncement as y,calculateDirectorySizeBytes as b,changeLocalAccountPassword as f,clearAllGlobalAnnouncements as S,createPasswordResetOtp as k,createVoucher as A,deleteGlobalAnnouncementById as v,deleteVoucher as w,extendUserSubscriptionAtomic as j,findAuthAccountByEmail as M,findUserByApiKey as C,formatBytesReadable as I,generateUserApiKey as N,getAllUsersGlobalMonitorSnapshot as x,getGlobalAnnouncement as P,getGlobalAnnouncements as U,isPlatformAdminUser as $,listVouchers as D,readBotDatabase as R,recordApiKeyUsage as _,redeemVoucherForUser as E,revokeUserApiKey as H,updateVoucher as T,verifyAndResetPasswordWithOtp as L,writeBotDatabaseAtomic as F}from"./database.js";import{deletePluginFile as G,getAvailablePluginsList as K,getFeatureCatalogList as O,scanPluginFilesRecursive as B,togglePluginEnabledState as W,validateAndSavePlugin as z}from"./plugin-manager.js";import{activeBotSessions as J,advanceTrafficVelocityBucket as q,broadcastToBotGroups as V,clearUserSessionPreKeys as Z,computeNextJakartaDailyTimestamp as Y,destroyBotSession as Q,emitAdminGlobalSessionsSnapshot as X,emitTerminalLog as ee,emitUserStatsSnapshot as se,getRealtimeTrafficSnapshot as te,isBotSubscriptionExpired as ae,recordRealtimeActivityHit as ie,resolveTargetWhatsappJid as ne,restartWhatsAppSession as re,sendDirectWhatsAppMessage as oe,sendSystemOtpWhatsAppMessage as ue,startMessageSchedulerWorker as ce,startWhatsAppSession as de,syncBotSettingsToGlobalDb as le,syncSessionStateToSocket as me}from"./session-manager.js";let ge=null,pe=null,he=null,ye=null,be=0,fe=0,Se=0;function ke(e,s){e&&(e.emit("announcements:update",s),e.emit("announcement:update",P()))}function Ae(e){if(!e||0===e.engine.clientsCount)return;const s=Date.now();s-Se<400||(Se=s,e.emit("traffic:velocity",te()))}function ve(){const e=t.cpus();let s=0,a=0;for(const t of e)s+=t.times.idle,a+=t.times.user+t.times.nice+t.times.sys+t.times.idle+t.times.irq;return{idle:s,total:a}}function we(e){const s=R(e),t=global.db?.users||{},a=global.db?.groups||{},i=global.db?.metadata||{},n=new Map;for(const e of s.uniqueUsers||[]){const s=String(e||"").replace(/\D/g,"");if(!s)continue;const a=`${s}@s.whatsapp.net`,i=t[a]||{};n.set(a,{jid:a,number:s,name:i.name||s,limit:Number(i.limit??25),premium:Boolean(i.premium),banned:Boolean(i.banned)})}for(const[e,s]of Object.entries(t)){if(!/(@s\.whatsapp\.net|@lid)$/i.test(e))continue;const t=e.split("@")[0];n.set(e,{jid:e,number:t,name:s?.name||t,limit:Number(s?.limit??25),premium:Boolean(s?.premium),banned:Boolean(s?.banned)})}const r=new Map,o=new Set([...Object.keys(a),...Object.keys(i)]);for(const e of o){if(!e.endsWith("@g.us"))continue;const s=a[e]||{},t=i[e]||{};r.set(e,{jid:e,subject:t.subject||s.name||e.split("@")[0],participantsCount:Array.isArray(t.participants)?t.participants.length:0,banned:Boolean(s.banned)})}return{users:Array.from(n.values()).sort((e,s)=>Number(s.premium)-Number(e.premium)),groups:Array.from(r.values())}}async function je({action:e="",targetUserIds:s=[],durationDays:t=30}={}){const a=String(e||"").trim().toLowerCase();if(!["force_restart","force_logout","clear_prekeys","extend"].includes(a))throw new Error("Aksi admin tidak valid. Gunakan: force_restart, force_logout, clear_prekeys, atau extend.");const i=Array.from(new Set((Array.isArray(s)?s:[s]).map(e=>String(e||"").trim().replace(/[^a-zA-Z0-9_-]/g,"")).filter(Boolean)));if(0===i.length)throw new Error("Minimal satu User ID target wajib dipilih.");const n=[];for(const e of i)try{if("force_restart"===a){const s=await re(he,ye||{},e);n.push({userId:e,isSuccess:s,message:s?"Restart dipicu":"Sesi tersimpan tidak ditemukan"})}else if("force_logout"===a)await Q(he,ye||{},e,!0,"ADMIN_FORCE_LOGOUT"),n.push({userId:e,isSuccess:!0,message:"Sesi diputus & dihapus"});else if("clear_prekeys"===a){const s=Z(he,e);n.push({userId:e,isSuccess:s.isSuccess,deletedCount:s.deletedCount,freedLabel:s.freedLabel})}else if("extend"===a){const s=j(e,t);se(he,e,s),n.push({userId:e,isSuccess:!0,expiresAt:s.subscription?.expiresAt||0})}}catch(s){n.push({userId:e,isSuccess:!1,errorMessage:s.message})}return X(he),{action:a,processedCount:n.length,successCount:n.filter(e=>e.isSuccess).length,results:n,monitor:x(J)}}export function registerHttpRoutes(t){function b(e){if(!e)return!1;const s=String(e.email||"").trim().toLowerCase(),t=String(e.googleId||"").trim();return"suryadev2105@gmail.com"===s||"113793372874509761088"===t}function I(e,s,t){const a=l(e.headers.cookie);return a?(e.sessionUser=a,t()):s.status(401).json({isSuccess:!1,errorMessage:"Autentikasi diperlukan."})}function P(e,s,t){const a=l(e.headers.cookie);return a?b(a)?(e.adminSessionUser=a,t()):s.status(403).json({isSuccess:!1,errorMessage:"Akses ditolak: khusus admin utama."}):s.status(401).json({isSuccess:!1,errorMessage:"Autentikasi diperlukan."})}t.use((e,s,t)=>{const a=String(e.path||"/").split("?")[0];/\.(css|js|png|jpg|jpeg|svg|ico|webp|woff2?)$/i.test(a)||a.startsWith("/socket.io")||(ie(e.method,a),Ae(he)),t()}),t.get("/",(e,s)=>{s.setHeader("Cache-Control","no-store");const t=l(e.headers.cookie);return s.redirect(302,t?"/dashboard":"/login")}),t.get(["/login","/login.html"],(e,s)=>(s.setHeader("Cache-Control","no-store"),l(e.headers.cookie)?s.redirect(302,"/dashboard"):s.sendFile(a.join(o,"login.html")))),t.get(["/dashboard","/dashboard.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=l(e.headers.cookie);if(!i)return t.redirect(302,"/login");const n=function(e){const t=a.join(o,"dashboard.html"),i=s.readFileSync(t,"utf-8");if(!b(e))return i;const n=['            <a id="navAdminPanelLink" href="/admin" onclick="toggleUserDropdownMenu()" class="w-full text-left px-3 py-2 flex items-center justify-between text-amber-300 hover:bg-amber-500/10 transition-colors font-semibold">','              <span class="flex items-center gap-2">','                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>',"                <span>Panel Admin</span>","              </span>",'              <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 font-mono-code">ADMIN</span>',"            </a>"].join("\n");return i.replace(/(<div[^>]*id="userDropdownMenuPopup"[\s\S]*?<div\s+class="py-1">)/,`$1\n${n}`)}(i);return t.status(200).type("html").send(n)}),t.get(["/admin","/admin/","/admin.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=l(e.headers.cookie);if(!i)return t.redirect(302,"/login");if(!b(i))return t.redirect(302,"/dashboard");const n=a.join(o,"admin.html");return s.existsSync(n)?t.sendFile(n):t.status(404).send("Halaman admin tidak ditemukan.")}),t.get(["/terms-of-service","/terms-of-service.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=a.join(o,"terms-of-service.html");return s.existsSync(i)?t.sendFile(i):t.status(404).send("Halaman Terms of Service tidak ditemukan.")}),t.get(["/privacy-policy","/privacy-policy.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=a.join(o,"privacy-policy.html");return s.existsSync(i)?t.sendFile(i):t.status(404).send("Halaman Privacy Policy tidak ditemukan.")}),t.get(["/sewa-beli-paket","/sewa-beli-paket.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=a.join(o,"sewa-beli-paket.html");return s.existsSync(i)?t.sendFile(i):t.status(404).send("Halaman Sewa/Beli Paket tidak ditemukan.")}),t.get(["/dokumentasi","/dokumentasi.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=a.join(o,"dokumentasi.html");return s.existsSync(i)?t.sendFile(i):t.status(404).send("Halaman Dokumentasi tidak ditemukan.")}),t.get(["/tutorial","/tutorial.html"],(e,t)=>{t.setHeader("Cache-Control","no-store");const i=a.join(o,"tutorial.html");return s.existsSync(i)?t.sendFile(i):t.status(404).send("Halaman Tutorial tidak ditemukan.")}),t.use(e.static(o,{index:!1})),t.get("/api/auth/config",(e,s)=>{s.status(200).json({googleClientId:i,volumePath:u,pluginsPath:r})}),t.post("/api/auth/google",async(e,s)=>{try{const t=await h(e.body?.credential);p(e,s,d(t)),s.status(200).json({isAuthenticated:!0,user:t})}catch(e){s.status(401).json({isAuthenticated:!1,errorMessage:e.message})}}),t.post("/api/auth/login",(e,s)=>{try{const t=m({email:e.body?.email,password:e.body?.password});return p(e,s,d(t)),s.status(200).json({isAuthenticated:!0,user:t})}catch(e){return s.status(401).json({isAuthenticated:!1,errorMessage:e.message})}}),t.post("/api/auth/register",(e,s)=>{try{const t=g({email:e.body?.email,password:e.body?.password});return p(e,s,d(t)),s.status(201).json({isAuthenticated:!0,user:t})}catch(e){return s.status(400).json({isAuthenticated:!1,errorMessage:e.message})}}),t.get("/api/auth/me",(e,s)=>{const t=l(e.headers.cookie);return t?s.status(200).json({isAuthenticated:!0,isAdmin:b(t),user:t}):s.status(401).json({isAuthenticated:!1})}),t.post("/api/auth/logout",(e,s)=>{c(e,s),s.status(200).json({isLoggedOut:!0})}),t.post("/api/auth/password/change",I,(e,s)=>{try{const t=f({userId:e.sessionUser.googleId,email:e.sessionUser.email,currentPassword:e.body?.currentPassword,newPassword:e.body?.newPassword});return s.status(200).json({isSuccess:!0,email:t.email,message:"Kata sandi akun berhasil diperbarui."})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.post("/api/auth/password/request-otp",async(e,s)=>{try{const t=String(e.body?.email||"").trim().toLowerCase();if(!t)return s.status(400).json({isSuccess:!1,errorMessage:"Alamat email wajib diisi."});const a=M(t);if(!a)return s.status(404).json({isSuccess:!1,errorMessage:"Email lokal tidak terdaftar di sistem."});const i=R(a.userId),n=[...Array.isArray(i.settings?.owners)?i.settings.owners:[],i.phoneNumber].map(e=>String(e||"").replace(/\D/g,"")).filter(e=>e.length>=8)[0];if(!n)return s.status(400).json({isSuccess:!1,errorMessage:"Akun ini belum memiliki nomor WhatsApp owner atau bot terhubung untuk menerima OTP."});const r=k({email:t,userId:a.userId,targetPhone:n}),o=await ue(he,{preferredUserId:a.userId,targetPhone:r.targetPhone,email:t,otpCode:r.otpCode});if(!o.isSuccess)return s.status(503).json({isSuccess:!1,errorMessage:o.errorMessage});const u=`${n.slice(0,4)}****${n.slice(-3)}`;return s.status(200).json({isSuccess:!0,maskedPhone:u,expiresAt:r.expiresAt,message:`Kode OTP 6 digit telah dikirim ke WhatsApp ${u}.`})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.post("/api/auth/password/verify-otp",(e,s)=>{try{const t=L({email:e.body?.email,otpCode:e.body?.otpCode,newPassword:e.body?.newPassword});return s.status(200).json({isSuccess:!0,email:t.email,message:"Kata sandi berhasil direset. Silakan masuk dengan kata sandi baru Anda."})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.post("/api/v1/gateway/send",async(e,s)=>{try{const t=String(e.headers.authorization||"").trim(),a=t.toLowerCase().startsWith("bearer ")?t.slice(7).trim():"",i=String(e.headers["x-api-key"]||e.headers.apikey||a||"").trim();if(!i)return s.status(401).json({isSuccess:!1,errorMessage:"API Key wajib disertakan pada header x-api-key atau Authorization: Bearer <apiKey>."});const n=C(i);if(!n)return s.status(403).json({isSuccess:!1,errorMessage:"API Key tidak valid atau telah dicabut."});if(ae(n.googleUserId,n.userDatabase))return s.status(402).json({isSuccess:!1,errorMessage:"Masa aktif langganan bot telah berakhir."});const r=e.body?.targetJid||e.body?.to||e.body?.number,o=e.body?.message||e.body?.text,u=Boolean(e.body?.mentionAll),c=await oe(he,n.googleUserId,{targetJid:r,message:o,mentionAll:u,sourceRoute:"/api/v1/gateway/send"});if(!c.isSuccess)return s.status(400).json(c);const d=_(n.googleUserId);return s.status(200).json({isSuccess:!0,targetJid:c.targetJid,messageId:c.messageId,apiKeyStats:d})}catch(e){return s.status(500).json({isSuccess:!1,errorMessage:e.message})}}),t.get("/api/gateway/key",I,(e,s)=>{const t=R(e.sessionUser.googleId);return s.status(200).json({isSuccess:!0,apiKey:t.apiKey||null,apiKeyStats:t.apiKeyStats||{createdAt:0,lastUsedAt:0,totalCalls:0}})}),t.post("/api/gateway/key/generate",I,(e,s)=>{const t=N(e.sessionUser.googleId);return s.status(200).json({isSuccess:!0,...t})}),t.delete("/api/gateway/key",I,(e,s)=>(H(e.sessionUser.googleId),s.status(200).json({isSuccess:!0,apiKey:null}))),t.post("/api/vouchers/redeem",I,(e,s)=>{try{const t=E(e.sessionUser.googleId,e.body?.code);return se(he,e.sessionUser.googleId,t.userDatabase),X(he),he&&he.to("platform_admins").emit("admin:vouchers:data",D()),s.status(200).json({isSuccess:!0,addedDays:t.addedDays,subscription:t.userDatabase.subscription})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.post("/api/session/clear-prekeys",I,(e,s)=>{const t=Z(he,e.sessionUser.googleId);return t.isSuccess?s.status(200).json(t):s.status(400).json(t)}),t.post("/api/admin/subscription/extend",P,(e,s)=>{try{const t=String(e.body?.googleUserId||"").trim().replace(/[^a-zA-Z0-9_-]/g,""),a=Number(e.body?.durationDays||0);if(!t)return s.status(400).json({isSuccess:!1,errorMessage:"Google ID target tidak valid."});if(![7,30,90].includes(a))return s.status(400).json({isSuccess:!1,errorMessage:"Durasi paket harus 7, 30, atau 90 hari."});const i=j(t,a);return se(he,t,i),X(he),s.status(200).json({isSuccess:!0,googleUserId:t,subscription:i.subscription})}catch(e){return s.status(500).json({isSuccess:!1,errorMessage:e.message})}}),t.get("/api/admin/vouchers",P,(e,s)=>s.status(200).json({isSuccess:!0,vouchers:D()})),t.post("/api/admin/vouchers",P,(e,s)=>{try{const t=A({code:e.body?.code,durationDays:e.body?.durationDays,planName:e.body?.planName,maxUses:e.body?.maxUses,expiresAt:e.body?.expiresAt}),a=D();return he&&he.to("platform_admins").emit("admin:vouchers:data",a),s.status(201).json({isSuccess:!0,voucher:t,vouchers:a})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.patch("/api/admin/vouchers/:code",P,(e,s)=>{try{const t=T(e.params.code,e.body||{}),a=D();return he&&he.to("platform_admins").emit("admin:vouchers:data",a),s.status(200).json({isSuccess:!0,voucher:t,vouchers:a})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.delete("/api/admin/vouchers/:code",P,(e,s)=>{if(!w(e.params.code))return s.status(404).json({isSuccess:!1,errorMessage:"Kode voucher tidak ditemukan."});const t=D();return he&&he.to("platform_admins").emit("admin:vouchers:data",t),s.status(200).json({isSuccess:!0,vouchers:t})}),t.get("/api/admin/sessions",P,(e,s)=>{const t=x(J);return s.status(200).json({isSuccess:!0,...t})}),t.post("/api/admin/sessions/action",P,async(e,s)=>{try{const t=await je({action:e.body?.action,targetUserIds:e.body?.userIds||e.body?.userId,durationDays:e.body?.durationDays});return s.status(200).json({isSuccess:!0,...t})}catch(e){return s.status(400).json({isSuccess:!1,errorMessage:e.message})}}),t.get("/api/admin/announcements",P,(e,s)=>s.status(200).json({isSuccess:!0,announcements:U()})),t.post("/api/admin/announcements",P,(e,s)=>{try{const t=String(e.body?.title||"").trim(),a=String(e.body?.category||"INFO").toUpperCase(),i=String(e.body?.text||"").trim();if(!i)return s.status(400).json({isSuccess:!1,errorMessage:"Isi pengumuman wajib diisi."});const n=y({title:t,category:a,text:i});return ke(he,n.list),s.status(200).json({isSuccess:!0,announcement:n.item,announcements:n.list})}catch(e){return s.status(500).json({isSuccess:!1,errorMessage:e.message})}}),t.delete("/api/admin/announcements/:id",P,(e,s)=>{try{const t=v(e.params.id);return t?(ke(he,t),s.status(200).json({isSuccess:!0,announcements:t})):s.status(404).json({isSuccess:!1,errorMessage:"Pengumuman tidak ditemukan."})}catch(e){return s.status(500).json({isSuccess:!1,errorMessage:e.message})}}),t.delete("/api/admin/announcements",P,(e,s)=>{try{const e=S();return ke(he,e),s.status(200).json({isSuccess:!0,announcements:e})}catch(e){return s.status(500).json({isSuccess:!1,errorMessage:e.message})}}),t.get("/api/backup/download",async(e,t)=>{t.setHeader("Cache-Control","no-store");const i=l(e.headers.cookie);if(!i)return t.status(401).json({isSuccess:!1,errorMessage:"Access Denied: The authentication session is invalid or has expired."});if("admin"!=(b(i)?"admin":"user"))return t.status(403).json({isSuccess:!1,errorMessage:"Access Denied: Only admin roles are allowed to download Backup ZIP."});try{const{zipSync:e}=await(import("fflate")),i={};s.existsSync(n)&&(i["database.json"]=new Uint8Array(s.readFileSync(n)));const o=B(r);for(const e of o){const t=a.join(r,e);s.existsSync(t)&&(i[`plugins/${e}`]=new Uint8Array(s.readFileSync(t)))}const u=Buffer.from(e(i,{level:6})),c=(new Date).toISOString().replace(/[:.]/g,"-").slice(0,19);return t.setHeader("Content-Type","application/zip"),t.setHeader("Content-Disposition",`attachment; filename="jadibot-backup-${c}.zip"`),t.status(200).send(u)}catch(e){return t.status(500).json({isSuccess:!1,errorMessage:`Gagal membuat arsip backup: ${e.message}`})}}),t.get("/health",(e,s)=>{s.status(200).json({status:"ok",volumeRoot:u,pluginsRoot:r,uptime:process.uptime()})})}export function registerSocketHandlers(e,s){he=e,ye=s;const a=(s,t,a)=>ee(e,s,t,a);!function(e){if(!ge){let s=ve();ge=setInterval(()=>{try{const a=ve(),i=a.idle-s.idle,n=a.total-s.total;if(s=a,0===e.engine.clientsCount)return;const r=n>0?100*(1-i/n):0,o=Math.max(0,Math.min(100,Math.round(10*r)/10)),c=process.memoryUsage(),d=Math.round(c.rss/1048576*10)/10,l=Math.round(c.heapUsed/1048576*10)/10,m=Math.round(t.totalmem()/1048576),g=Date.now();g-fe>15e3&&(be=b(u),fe=g),e.emit("cpu-update",{usage:o,cores:t.cpus().length,ramRssMb:d,ramHeapMb:l,ramTotalMb:m,volumeSizeBytes:be,volumeSizeLabel:I(be),timestamp:g})}catch{}},1e3),ge.unref()}pe||(pe=setInterval(()=>{try{const s=q();e.engine.clientsCount>0&&e.emit("traffic:velocity",s)}catch{}},3e3),pe.unref())}(e),ce(e),e.on("connection",t=>{const i=l(t.handshake.headers.cookie);if(!i)return t.emit("auth:expired",{errorMessage:"Sesi login telah berakhir, silakan masuk kembali."}),void t.disconnect(!0);const n=i.googleId,r=$(i);t.join(`user_${n}`),r&&t.join("platform_admins"),me(e,s,t,i),t.on("session:sync",()=>{ie("WS","/socket/session-sync"),Ae(e),me(e,s,t,i)}),t.on("session:connect",async t=>{const a="pairing"===t?.method?"pairing":"qr",i=t?.phoneNumber||"";await de(e,s,n,a,i,1,!0)}),t.on("session:restart",async()=>{await re(e,s,n)}),t.on("session:logout",async()=>{await Q(e,s,n,!0)}),t.on("session:clear-prekeys",()=>{const s=Z(e,n);t.emit("session:clear-prekeys:result",s)}),t.on("settings:toggle",s=>{const t=s?.key;if(!["autoRead","publicMode","isNoPrefix","allowedPc","isAiEnabled","aiGroupAutoReply"].includes(t))return;const i=R(n);i.settings[t]=!i.settings[t],F(n,i);const r=J.get(n),o=r?.socketInstance?.user?.jid;o&&le(o,i.settings),se(e,n,i),a(n,"INFO",`Pengaturan [${t}] diubah ke: ${i.settings[t]?"AKTIF":"NONAKTIF"}`)}),t.on("ai:toggle",s=>{const i=R(n),r="boolean"==typeof s?.enabled?s.enabled:!Boolean(i.settings.isAiEnabled);i.settings.isAiEnabled=r,"boolean"==typeof s?.aiGroupAutoReply&&(i.settings.aiGroupAutoReply=s.aiGroupAutoReply),F(n,i);const o=J.get(n),u=o?.socketInstance?.user?.jid;u&&le(u,i.settings),se(e,n,i),t.emit("ai:updated",{isSuccess:!0,isAiEnabled:i.settings.isAiEnabled,aiGroupAutoReply:i.settings.aiGroupAutoReply,aiSystemPrompt:i.settings.aiSystemPrompt}),a(n,"INFO",`AI Persona Auto-Reply: ${r?"AKTIF":"NONAKTIF"}.`)}),t.on("ai:update",s=>{const i=R(n);"boolean"==typeof s?.isAiEnabled&&(i.settings.isAiEnabled=s.isAiEnabled),"boolean"==typeof s?.aiGroupAutoReply&&(i.settings.aiGroupAutoReply=s.aiGroupAutoReply),"string"==typeof s?.aiSystemPrompt&&(i.settings.aiSystemPrompt=s.aiSystemPrompt.trim().slice(0,2e3)),F(n,i);const r=J.get(n),o=r?.socketInstance?.user?.jid;o&&le(o,i.settings),se(e,n,i),t.emit("ai:updated",{isSuccess:!0,isAiEnabled:i.settings.isAiEnabled,aiGroupAutoReply:i.settings.aiGroupAutoReply,aiSystemPrompt:i.settings.aiSystemPrompt}),a(n,"SUCCESS","Konfigurasi AI Persona berhasil disimpan.")}),t.on("gateway:key:generate",()=>{const s=N(n),i=R(n);se(e,n,i),t.emit("gateway:key:updated",{isSuccess:!0,...s}),a(n,"SUCCESS","API Key WhatsApp Gateway baru telah diterbitkan.")}),t.on("gateway:key:revoke",()=>{H(n);const s=R(n);se(e,n,s),t.emit("gateway:key:updated",{isSuccess:!0,apiKey:null,apiKeyStats:{createdAt:0,lastUsedAt:0,totalCalls:0}}),a(n,"WARN","API Key WhatsApp Gateway telah dicabut.")}),t.on("voucher:redeem",s=>{try{const i=E(n,s?.code);se(e,n,i.userDatabase),X(e),e.to("platform_admins").emit("admin:vouchers:data",D()),t.emit("voucher:redeem:result",{isSuccess:!0,addedDays:i.addedDays,subscription:i.userDatabase.subscription}),a(n,"SUCCESS",`Voucher [${i.voucher.code}] berhasil diklaim (+${i.addedDays} hari masa aktif).`)}catch(e){t.emit("voucher:redeem:result",{isSuccess:!1,errorMessage:e.message})}}),t.on("settings:update",s=>{const i=R(n),r={...i.settings};"string"==typeof s?.botName&&s.botName.trim()&&(r.botName=s.botName.trim().slice(0,60)),"string"==typeof s?.packname&&(r.packname=s.packname.trim().slice(0,60)),"string"==typeof s?.author&&(r.author=s.author.trim().slice(0,60)),"boolean"==typeof s?.isNoPrefix&&(r.isNoPrefix=s.isNoPrefix),"boolean"==typeof s?.allowedPc&&(r.allowedPc=s.allowedPc),"boolean"==typeof s?.isAiEnabled&&(r.isAiEnabled=s.isAiEnabled),"boolean"==typeof s?.aiGroupAutoReply&&(r.aiGroupAutoReply=s.aiGroupAutoReply),"string"==typeof s?.aiSystemPrompt&&(r.aiSystemPrompt=s.aiSystemPrompt.trim().slice(0,2e3)),Array.isArray(s?.toxic)&&(r.toxic=s.toxic.map(e=>String(e).trim().toLowerCase()).filter(Boolean).slice(0,100)),Array.isArray(s?.owners)&&(r.owners=Array.from(new Set(s.owners.map(e=>String(e).replace(/\D/g,"")).filter(e=>e.length>=6&&e.length<=18))).slice(0,20)),Array.isArray(s?.disabledCategories)&&(r.disabledCategories=Array.from(new Set(s.disabledCategories.map(e=>String(e).trim().toLowerCase()).filter(Boolean)))),Array.isArray(s?.autoReplies)&&(r.autoReplies=s.autoReplies.filter(e=>e&&String(e.trigger||"").trim()&&String(e.response||"").trim()).map(e=>{const s=String(e.matchType||"exact").trim().toLowerCase(),t=["exact","contains","starts"].includes(s)?s:"exact";return{trigger:String(e.trigger).trim().slice(0,80),response:String(e.response).trim().slice(0,500),matchType:t}}).slice(0,30)),i.settings=r,F(n,i);const o=J.get(n),u=o?.socketInstance?.user?.jid;u&&le(u,r),se(e,n,i),t.emit("settings:saved",{isSuccess:!0,settings:r}),a(n,"SUCCESS","Konfigurasi bot berhasil diperbarui dari dashboard.")}),t.on("catalog:toggleCategory",s=>{const t=String(s?.category||"").trim().toLowerCase();if(!t)return;const i=R(n),r=new Set((i.settings.disabledCategories||[]).map(e=>String(e).toLowerCase()));let o=!0;r.has(t)?(r.delete(t),o=!0):(r.add(t),o=!1),i.settings.disabledCategories=Array.from(r),F(n,i),se(e,n,i),a(n,o?"SUCCESS":"WARN",`Kategori fitur [${t}] ${o?"diaktifkan":"dinonaktifkan"} untuk bot Anda.`)}),t.on("admin:sessions:list",()=>{r&&t.emit("admin:sessions:data",x(J))}),t.on("admin:sessions:action",async e=>{if(r)try{const s=await je({action:e?.action,targetUserIds:e?.userIds||e?.userId,durationDays:e?.durationDays});t.emit("admin:sessions:action:result",{isSuccess:!0,...s})}catch(e){t.emit("admin:sessions:action:result",{isSuccess:!1,errorMessage:e.message})}else t.emit("admin:sessions:action:result",{isSuccess:!1,errorMessage:"Akses ditolak: khusus admin platform."})}),t.on("admin:vouchers:list",()=>{r&&t.emit("admin:vouchers:data",D())}),t.on("admin:voucher:create",s=>{if(r)try{const a=A(s||{}),i=D();e.to("platform_admins").emit("admin:vouchers:data",i),t.emit("admin:voucher:result",{isSuccess:!0,action:"created",voucher:a,vouchers:i})}catch(e){t.emit("admin:voucher:result",{isSuccess:!1,errorMessage:e.message})}}),t.on("admin:voucher:toggle",s=>{if(r)try{const a=D().find(e=>e.code===String(s?.code||"").trim().toUpperCase());if(!a)throw new Error("Voucher tidak ditemukan.");const i=T(a.code,{isActive:!a.isActive}),n=D();e.to("platform_admins").emit("admin:vouchers:data",n),t.emit("admin:voucher:result",{isSuccess:!0,action:"toggled",voucher:i,vouchers:n})}catch(e){t.emit("admin:voucher:result",{isSuccess:!1,errorMessage:e.message})}}),t.on("admin:voucher:delete",s=>{if(!r)return;if(!w(s?.code))return void t.emit("admin:voucher:result",{isSuccess:!1,errorMessage:"Voucher tidak ditemukan."});const a=D();e.to("platform_admins").emit("admin:vouchers:data",a),t.emit("admin:voucher:result",{isSuccess:!0,action:"deleted",vouchers:a})}),t.on("announcement:create",s=>{if(r)try{const i=String(s?.text||"").trim();if(!i)return void t.emit("announcement:result",{isSuccess:!1,errorMessage:"Isi pengumuman tidak boleh kosong."});const r=y({title:s?.title||"Pengumuman / Update API",category:s?.category||s?.level||"INFO",text:i});ke(e,r.list),t.emit("announcement:result",{isSuccess:!0,action:"created",announcement:r.item,announcements:r.list}),a(n,"INFO",`Pengumuman [${r.item.category}] diterbitkan: ${r.item.title}`)}catch(e){t.emit("announcement:result",{isSuccess:!1,errorMessage:e.message})}else t.emit("announcement:result",{isSuccess:!1,errorMessage:"Hanya admin yang dapat menerbitkan pengumuman."})}),t.on("announcement:delete",s=>{if(r)try{const i=v(s?.id);if(!i)return void t.emit("announcement:result",{isSuccess:!1,errorMessage:"Pengumuman tidak ditemukan."});ke(e,i),t.emit("announcement:result",{isSuccess:!0,action:"deleted",announcements:i}),a(n,"WARN",`Pengumuman [${s?.id}] dihapus dari database.json.`)}catch(e){t.emit("announcement:result",{isSuccess:!1,errorMessage:e.message})}else t.emit("announcement:result",{isSuccess:!1,errorMessage:"Hanya admin yang dapat menghapus pengumuman."})}),t.on("announcement:clear",()=>{if(r)try{const s=S();ke(e,s),t.emit("announcement:result",{isSuccess:!0,action:"cleared",announcements:s}),a(n,"WARN","Seluruh daftar pengumuman global telah dibersihkan.")}catch(e){t.emit("announcement:result",{isSuccess:!1,errorMessage:e.message})}else t.emit("announcement:result",{isSuccess:!1,errorMessage:"Hanya admin yang dapat menghapus semua pengumuman."})}),t.on("announcement:set",s=>{if(!r)return void t.emit("announcement:result",{isSuccess:!1,errorMessage:"Hanya admin yang dapat mengirim pengumuman global."});const a=String(s?.text||"").trim();if(!a){const s=S();return ke(e,s),void t.emit("announcement:result",{isSuccess:!0,action:"cleared",announcements:s})}const i=y({title:s?.title||"Pengumuman / Update API",category:s?.level||s?.category||"INFO",text:a});ke(e,i.list),t.emit("announcement:result",{isSuccess:!0,action:"created",announcement:i.item,announcements:i.list})}),t.on("direct:send",async s=>{const a=await oe(e,n,{targetJid:s?.targetJid,message:s?.message,mentionAll:Boolean(s?.mentionAll)});t.emit("direct:result",a)}),t.on("schedule:list",()=>{const e=R(n);t.emit("schedule:list",e.scheduledMessages||[])}),t.on("schedule:create",s=>{const i=ne(s?.targetJid);if(!i)return void t.emit("schedule:result",{isSuccess:!1,errorMessage:"Nomor tujuan atau ID Grup (@g.us) tidak valid."});const r=String(s?.message||"").trim().slice(0,1500);if(!r)return void t.emit("schedule:result",{isSuccess:!1,errorMessage:"Isi pesan terjadwal tidak boleh kosong."});const o=["once","daily","interval"].includes(s?.repeatType)?s.repeatType:"once",u=Date.now();let c=0,d="",l=0;if("once"===o){if(c=Number(s?.runAtMs||0),!c||c<u-6e4)return void t.emit("schedule:result",{isSuccess:!1,errorMessage:"Waktu kirim sekali harus diatur ke waktu mendatang."})}else if("daily"===o){if(d=String(s?.dailyTime||"08:00").trim(),!/^\d{2}:\d{2}$/.test(d))return void t.emit("schedule:result",{isSuccess:!1,errorMessage:"Format jam harian tidak valid (HH:MM)."});c=Y(d,u)}else l=Math.max(1,Math.min(10080,parseInt(s?.intervalMinutes||"60",10)||60)),c=u+60*l*1e3;const m=R(n),g=Array.isArray(m.scheduledMessages)?m.scheduledMessages:[];if(g.length>=25)return void t.emit("schedule:result",{isSuccess:!1,errorMessage:"Batas maksimal 25 jadwal pesan per akun tercapai."});const p={id:`sch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,title:String(s?.title||"").trim().slice(0,60)||i.split("@")[0],targetJid:i,targetLabel:String(s?.targetLabel||"").trim().slice(0,80)||i.split("@")[0],message:r,mentionAll:Boolean(s?.mentionAll)&&i.endsWith("@g.us"),repeatType:o,dailyTime:d,intervalMinutes:l,nextRunAt:c,lastRunAt:0,runCount:0,isActive:!0,lastStatus:"SCHEDULED",createdAt:u};m.scheduledMessages=[p,...g],F(n,m),e.to(`user_${n}`).emit("schedule:list",m.scheduledMessages),t.emit("schedule:result",{isSuccess:!0,schedule:p}),a(n,"SUCCESS",`Jadwal pesan [${p.title}] ditambahkan (${o.toUpperCase()}).`)}),t.on("schedule:toggle",s=>{const t=String(s?.id||"").trim();if(!t)return;const a=R(n),i=Date.now();a.scheduledMessages=(a.scheduledMessages||[]).map(e=>{if(e.id!==t)return e;const s=!e.isActive;let a=Number(e.nextRunAt||0);return s&&a<=i&&(a="daily"===e.repeatType?Y(e.dailyTime||"08:00",i):"interval"===e.repeatType?i+60*Math.max(1,Number(e.intervalMinutes||60))*1e3:i+6e4),{...e,isActive:s,nextRunAt:a,lastStatus:s?"SCHEDULED":"PAUSED"}}),F(n,a),e.to(`user_${n}`).emit("schedule:list",a.scheduledMessages)}),t.on("schedule:delete",s=>{const t=String(s?.id||"").trim();if(!t)return;const i=R(n);i.scheduledMessages=(i.scheduledMessages||[]).filter(e=>e.id!==t),F(n,i),e.to(`user_${n}`).emit("schedule:list",i.scheduledMessages),a(n,"WARN",`Jadwal pesan [${t}] dihapus.`)}),t.on("broadcast:groups",async s=>{ie("POST","/api/whatsapp/broadcast"),Ae(e);const a=await V(e,n,s?.message,s?.delaySeconds);t.emit("broadcast:result",{...a,sentCount:a?.successCount??0,totalGroups:a?.total??0})}),t.on("manage:list",()=>{ie("GET","/api/manage/entities"),Ae(e),t.emit("manage:data",we(n))}),t.on("manage:user:update",t=>{const i=String(t?.jid||"").trim();if(!/(@s\.whatsapp\.net|@lid)$/i.test(i))return;global.db=global.db||{},global.db.users=global.db.users||{};const r=global.db.users[i]||{name:i.split("@")[0],limit:25,premium:!1,banned:!1};void 0===t?.limit||Number.isNaN(Number(t.limit))||(r.limit=Math.max(0,parseInt(t.limit,10))),"boolean"==typeof t?.premium&&(r.premium=t.premium),"boolean"==typeof t?.banned&&(r.banned=t.banned),global.db.users[i]=r,s.multidb&&"function"==typeof s.multidb.save&&s.multidb.save(),a(n,"INFO",`User [${i.split("@")[0]}] diperbarui (Limit: ${r.limit}, Premium: ${r.premium?"Ya":"Tidak"}, Banned: ${r.banned?"Ya":"Tidak"}).`),e.to(`user_${n}`).emit("manage:data",we(n))}),t.on("manage:users:bulkUpdate",i=>{const r=(Array.isArray(i?.jids)?i.jids:[]).map(e=>String(e||"").trim()).filter(e=>/(@s\.whatsapp\.net|@lid)$/i.test(e));if(0!==r.length){global.db=global.db||{},global.db.users=global.db.users||{};for(const e of r){const s=global.db.users[e]||{name:e.split("@")[0],limit:25,premium:!1,banned:!1};void 0===i?.addLimit||Number.isNaN(Number(i.addLimit))||(s.limit=Math.max(0,Number(s.limit||0)+parseInt(i.addLimit,10))),void 0===i?.setLimit||Number.isNaN(Number(i.setLimit))||(s.limit=Math.max(0,parseInt(i.setLimit,10))),"boolean"==typeof i?.premium&&(s.premium=i.premium),"boolean"==typeof i?.banned&&(s.banned=i.banned),global.db.users[e]=s}s.multidb&&"function"==typeof s.multidb.save&&s.multidb.save(),a(n,"SUCCESS",`Pembaruan massal diterapkan ke ${r.length} user.`),e.to(`user_${n}`).emit("manage:data",we(n)),t.emit("manage:users:bulkResult",{isSuccess:!0,count:r.length})}}),t.on("manage:user:delete",async i=>{const r=String(i?.jid||"").trim();if(!/(@s\.whatsapp\.net|@lid)$/i.test(r))return;const o=s.lid||await import("../system/lid.js").then(e=>e.default).catch(()=>null),u=o?r.endsWith("@lid")?o.get(r):o.getLid(r):null,c=new Set([r,u].filter(Boolean)),d=new Set([...c].map(e=>String(e).split("@")[0].split(":")[0].replace(/\D/g,"")).filter(Boolean));if(global.db?.users)for(const e of c)global.db.users[e]&&delete global.db.users[e];if(o&&"function"==typeof o.delete)for(const e of c)o.delete(e);const l=R(n);Array.isArray(l.uniqueUsers)&&(l.uniqueUsers=l.uniqueUsers.filter(e=>{const s=String(e).split("@")[0].split(":")[0].replace(/\D/g,"");return!d.has(s)}),F(n,l)),s.multidb&&"function"==typeof s.multidb.save&&s.multidb.save();const m=[...d][0]||r.split("@")[0];a(n,"WARN",`User [${m}] telah dihapus permanen dari database.`),se(e,n,l),e.to(`user_${n}`).emit("manage:data",we(n)),t.emit("manage:user:deleted",{jid:r,number:m})}),t.on("manage:group:update",t=>{const i=String(t?.jid||"").trim();if(!i.endsWith("@g.us"))return;global.db=global.db||{},global.db.groups=global.db.groups||{};const r=global.db.groups[i]||{banned:!1};"boolean"==typeof t?.banned&&(r.banned=t.banned),global.db.groups[i]=r,s.multidb&&"function"==typeof s.multidb.save&&s.multidb.save(),a(n,"INFO",`Grup [${i.split("@")[0]}] ${r.banned?"dibanned":"diaktifkan kembali"}.`),e.to(`user_${n}`).emit("manage:data",we(n))}),t.on("plugin:save",async s=>{if(!r)return void t.emit("plugin:save:result",{isSuccess:!1,errorMessage:"Akses ditolak: hanya admin platform yang dapat menyunting plugin."});const{fileName:i,codeContent:o}=s||{};a(n,"INFO",`Menguji validitas sintaks plugin [${i}]...`);const u=await z(n,i,o,a);if(u.isSuccess){const s=await O();e.to("platform_admins").emit("plugin:list",K()),e.emit("catalog:update",s),t.emit("plugin:save:result",{isSuccess:!0,fileName:u.fileName})}else a(n,"ERROR",`Validasi Gagal [${i}]: ${u.errorType}${u.lineNumber?` (Baris ${u.lineNumber})`:""}`),t.emit("plugin:save:result",{isSuccess:!1,errorType:u.errorType,lineNumber:u.lineNumber,errorMessage:u.errorMessage})}),t.on("plugin:toggle",async s=>{if(r&&W(n,s?.fileName,a).isSuccess){const s=await O();e.to("platform_admins").emit("plugin:list",K()),e.emit("catalog:update",s)}}),t.on("plugin:delete",async s=>{if(r&&G(n,s?.fileName,a)){const s=await O();e.to("platform_admins").emit("plugin:list",K()),e.emit("catalog:update",s)}})})}
+// --- registrasi route express, api gateway, otp password, voucher, monitor admin, dan socket.io ---
+import express from 'express';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import {
+  GOOGLE_CLIENT_ID,
+  MAIN_DATABASE_FILE_PATH,
+  PLUGINS_ROOT_DIR,
+  PUBLIC_ROOT_DIR,
+  SESSIONS_VOLUME_ROOT
+} from './config.js';
+import {
+  clearSessionCookie,
+  createSignedSessionToken,
+  getSessionUserFromCookieHeader,
+  loginLocalEmailAccount,
+  registerLocalEmailAccount,
+  setSessionCookie,
+  verifyGoogleCredentialToken
+} from './auth.js';
+import {
+  addGlobalAnnouncement,
+  calculateDirectorySizeBytes,
+  changeLocalAccountPassword,
+  clearAllGlobalAnnouncements,
+  createPasswordResetOtp,
+  createVoucher,
+  deleteGlobalAnnouncementById,
+  deleteVoucher,
+  extendUserSubscriptionAtomic,
+  findAuthAccountByEmail,
+  findUserByApiKey,
+  formatBytesReadable,
+  generateUserApiKey,
+  getAllUsersGlobalMonitorSnapshot,
+  getGlobalAnnouncement,
+  getGlobalAnnouncements,
+  isPlatformAdminUser,
+  listVouchers,
+  readBotDatabase,
+  recordApiKeyUsage,
+  redeemVoucherForUser,
+  revokeUserApiKey,
+  updateVoucher,
+  verifyAndResetPasswordWithOtp,
+  writeBotDatabaseAtomic
+} from './database.js';
+import {
+  deletePluginFile,
+  getAvailablePluginsList,
+  getFeatureCatalogList,
+  scanPluginFilesRecursive,
+  togglePluginEnabledState,
+  validateAndSavePlugin
+} from './plugin-manager.js';
+import {
+  activeBotSessions,
+  advanceTrafficVelocityBucket,
+  broadcastToBotGroups,
+  clearUserSessionPreKeys,
+  computeNextJakartaDailyTimestamp,
+  destroyBotSession,
+  emitAdminGlobalSessionsSnapshot,
+  emitTerminalLog,
+  emitUserStatsSnapshot,
+  getRealtimeTrafficSnapshot,
+  isBotSubscriptionExpired,
+  recordRealtimeActivityHit,
+  resolveTargetWhatsappJid,
+  restartWhatsAppSession,
+  sendDirectWhatsAppMessage,
+  sendSystemOtpWhatsAppMessage,
+  startMessageSchedulerWorker,
+  startWhatsAppSession,
+  syncBotSettingsToGlobalDb,
+  syncSessionStateToSocket
+} from './session-manager.js';
+
+let systemMetricsInterval = null;
+let trafficVelocityInterval = null;
+let activeSocketIoServer = null;
+let activeCoreModules = null;
+let cachedVolumeSizeBytes = 0;
+let lastVolumeScanTimestamp = 0;
+let lastImmediateVelocityEmitMs = 0;
+
+// --- pancarkan pembaruan daftar pengumuman ke semua klien (format baru & lama) ---
+function broadcastAnnouncementsUpdate(ioServer, announcementsList) {
+  if (!ioServer) return;
+  ioServer.emit('announcements:update', announcementsList);
+  ioServer.emit('announcement:update', getGlobalAnnouncement());
+}
+
+// --- pancarkan snapshot live traffic dengan throttling ringan agar tidak membanjiri socket ---
+function emitRealtimeVelocityThrottled(ioServer) {
+  if (!ioServer || ioServer.engine.clientsCount === 0) return;
+  const nowMs = Date.now();
+  if (nowMs - lastImmediateVelocityEmitMs < 400) return;
+  lastImmediateVelocityEmitMs = nowMs;
+  ioServer.emit('traffic:velocity', getRealtimeTrafficSnapshot());
+}
+
+// --- ambil snapshot total dan idle tick cpu dari os ---
+function getCpuTimesSnapshot() {
+  const cpus = os.cpus();
+  let idle = 0;
+  let total = 0;
+
+  for (const cpu of cpus) {
+    idle += cpu.times.idle;
+    total +=
+      cpu.times.user +
+      cpu.times.nice +
+      cpu.times.sys +
+      cpu.times.idle +
+      cpu.times.irq;
+  }
+
+  return { idle, total };
+}
+
+// --- mulai broadcast utilisasi cpu, ram, volume disk, dan live traffic velocity ---
+function startRealtimeSystemBroadcaster(io) {
+  if (!systemMetricsInterval) {
+    let previousSnapshot = getCpuTimesSnapshot();
+
+    systemMetricsInterval = setInterval(() => {
+      try {
+        const currentSnapshot = getCpuTimesSnapshot();
+        const idleDiff = currentSnapshot.idle - previousSnapshot.idle;
+        const totalDiff = currentSnapshot.total - previousSnapshot.total;
+        previousSnapshot = currentSnapshot;
+
+        if (io.engine.clientsCount === 0) return;
+
+        const rawUsage = totalDiff > 0 ? (1 - idleDiff / totalDiff) * 100 : 0;
+        const usage = Math.max(0, Math.min(100, Math.round(rawUsage * 10) / 10));
+
+        const memUsage = process.memoryUsage();
+        const ramRssMb = Math.round((memUsage.rss / (1024 * 1024)) * 10) / 10;
+        const ramHeapMb = Math.round((memUsage.heapUsed / (1024 * 1024)) * 10) / 10;
+        const ramTotalMb = Math.round(os.totalmem() / (1024 * 1024));
+
+        const nowMs = Date.now();
+        if (nowMs - lastVolumeScanTimestamp > 15000) {
+          cachedVolumeSizeBytes = calculateDirectorySizeBytes(SESSIONS_VOLUME_ROOT);
+          lastVolumeScanTimestamp = nowMs;
+        }
+
+        io.emit('cpu-update', {
+          usage,
+          cores: os.cpus().length,
+          ramRssMb,
+          ramHeapMb,
+          ramTotalMb,
+          volumeSizeBytes: cachedVolumeSizeBytes,
+          volumeSizeLabel: formatBytesReadable(cachedVolumeSizeBytes),
+          timestamp: nowMs
+        });
+      } catch {
+        // --- abaikan error sementara pembacaan metrik sistem ---
+      }
+    }, 1000);
+
+    systemMetricsInterval.unref();
+  }
+
+  if (!trafficVelocityInterval) {
+    trafficVelocityInterval = setInterval(() => {
+      try {
+        const snapshot = advanceTrafficVelocityBucket();
+        if (io.engine.clientsCount > 0) {
+          io.emit('traffic:velocity', snapshot);
+        }
+      } catch {
+        // --- abaikan error pergeseran bucket velocity ---
+      }
+    }, 3000);
+
+    trafficVelocityInterval.unref();
+  }
+}
+
+// --- susun daftar user (termasuk @lid dan @s.whatsapp.net) serta grup aktif ---
+function buildManagedEntitiesPayload(googleUserId) {
+  const botDb = readBotDatabase(googleUserId);
+  const globalUsers = global.db?.users || {};
+  const globalGroups = global.db?.groups || {};
+  const globalMetadata = global.db?.metadata || {};
+
+  const usersMap = new Map();
+
+  for (const rawNum of botDb.uniqueUsers || []) {
+    const cleanNum = String(rawNum || '').replace(/\D/g, '');
+    if (!cleanNum) continue;
+    const jid = `${cleanNum}@s.whatsapp.net`;
+    const dbEntry = globalUsers[jid] || {};
+    usersMap.set(jid, {
+      jid,
+      number: cleanNum,
+      name: dbEntry.name || cleanNum,
+      limit: Number(dbEntry.limit ?? 25),
+      premium: Boolean(dbEntry.premium),
+      banned: Boolean(dbEntry.banned)
+    });
+  }
+
+  for (const [jid, dbEntry] of Object.entries(globalUsers)) {
+    if (!/(@s\.whatsapp\.net|@lid)$/i.test(jid)) continue;
+    const cleanNum = jid.split('@')[0];
+    usersMap.set(jid, {
+      jid,
+      number: cleanNum,
+      name: dbEntry?.name || cleanNum,
+      limit: Number(dbEntry?.limit ?? 25),
+      premium: Boolean(dbEntry?.premium),
+      banned: Boolean(dbEntry?.banned)
+    });
+  }
+
+  const groupsMap = new Map();
+  const allGroupIds = new Set([...Object.keys(globalGroups), ...Object.keys(globalMetadata)]);
+
+  for (const groupId of allGroupIds) {
+    if (!groupId.endsWith('@g.us')) continue;
+    const grpEntry = globalGroups[groupId] || {};
+    const metaEntry = globalMetadata[groupId] || {};
+    groupsMap.set(groupId, {
+      jid: groupId,
+      subject: metaEntry.subject || grpEntry.name || groupId.split('@')[0],
+      participantsCount: Array.isArray(metaEntry.participants) ? metaEntry.participants.length : 0,
+      banned: Boolean(grpEntry.banned)
+    });
+  }
+
+  return {
+    users: Array.from(usersMap.values()).sort((a, b) => Number(b.premium) - Number(a.premium)),
+    groups: Array.from(groupsMap.values())
+  };
+}
+
+// --- eksekusi aksi admin tunggal maupun massal pada sesi user target ---
+async function executeAdminSessionControlAction({ action = '', targetUserIds = [], durationDays = 30 } = {}) {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  const validActions = ['force_restart', 'force_logout', 'clear_prekeys', 'extend'];
+  if (!validActions.includes(normalizedAction)) {
+    throw new Error('Aksi admin tidak valid. Gunakan: force_restart, force_logout, clear_prekeys, atau extend.');
+  }
+
+  const cleanedIds = Array.from(
+    new Set(
+      (Array.isArray(targetUserIds) ? targetUserIds : [targetUserIds])
+        .map((id) => String(id || '').trim().replace(/[^a-zA-Z0-9_-]/g, ''))
+        .filter(Boolean)
+    )
+  );
+
+  if (cleanedIds.length === 0) {
+    throw new Error('Minimal satu User ID target wajib dipilih.');
+  }
+
+  const results = [];
+  for (const targetUserId of cleanedIds) {
+    try {
+      if (normalizedAction === 'force_restart') {
+        const ok = await restartWhatsAppSession(activeSocketIoServer, activeCoreModules || {}, targetUserId);
+        results.push({ userId: targetUserId, isSuccess: ok, message: ok ? 'Restart dipicu' : 'Sesi tersimpan tidak ditemukan' });
+      } else if (normalizedAction === 'force_logout') {
+        await destroyBotSession(activeSocketIoServer, activeCoreModules || {}, targetUserId, true, 'ADMIN_FORCE_LOGOUT');
+        results.push({ userId: targetUserId, isSuccess: true, message: 'Sesi diputus & dihapus' });
+      } else if (normalizedAction === 'clear_prekeys') {
+        const res = clearUserSessionPreKeys(activeSocketIoServer, targetUserId);
+        results.push({ userId: targetUserId, isSuccess: res.isSuccess, deletedCount: res.deletedCount, freedLabel: res.freedLabel });
+      } else if (normalizedAction === 'extend') {
+        const updatedDb = extendUserSubscriptionAtomic(targetUserId, durationDays);
+        emitUserStatsSnapshot(activeSocketIoServer, targetUserId, updatedDb);
+        results.push({ userId: targetUserId, isSuccess: true, expiresAt: updatedDb.subscription?.expiresAt || 0 });
+      }
+    } catch (err) {
+      results.push({ userId: targetUserId, isSuccess: false, errorMessage: err.message });
+    }
+  }
+
+  emitAdminGlobalSessionsSnapshot(activeSocketIoServer);
+  return {
+    action: normalizedAction,
+    processedCount: results.length,
+    successCount: results.filter((r) => r.isSuccess).length,
+    results,
+    monitor: getAllUsersGlobalMonitorSnapshot(activeBotSessions)
+  };
+}
+
+// --- pasang route halaman, middleware pelacak trafik, api gateway, otp, voucher, dan admin ---
+export function registerHttpRoutes(app) {
+  const EXCLUSIVE_ADMIN_EMAIL = 'suryadev2105@gmail.com';
+  const EXCLUSIVE_ADMIN_GOOGLE_ID = '113793372874509761088';
+
+  // --- middleware pencatat hit asli untuk grafik live api traffic velocity ---
+  app.use((request, _response, next) => {
+    const cleanPath = String(request.path || '/').split('?')[0];
+    const isAsset = /\.(css|js|png|jpg|jpeg|svg|ico|webp|woff2?)$/i.test(cleanPath);
+    if (!isAsset && !cleanPath.startsWith('/socket.io')) {
+      recordRealtimeActivityHit(request.method, cleanPath);
+      emitRealtimeVelocityThrottled(activeSocketIoServer);
+    }
+    next();
+  });
+
+  // --- verifikasi ketat hak akses eksklusif admin berdasarkan email atau google sub id ---
+  function isExclusiveAdminSession(sessionUser) {
+    if (!sessionUser) return false;
+    const normalizedEmail = String(sessionUser.email || '').trim().toLowerCase();
+    const normalizedGoogleId = String(sessionUser.googleId || '').trim();
+    return (
+      normalizedEmail === EXCLUSIVE_ADMIN_EMAIL ||
+      normalizedGoogleId === EXCLUSIVE_ADMIN_GOOGLE_ID
+    );
+  }
+
+  // --- middleware reusable untuk memproteksi endpoint api user terautentikasi ---
+  function requireAuthenticatedUserApi(request, response, next) {
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    if (!sessionUser) {
+      return response.status(401).json({ isSuccess: false, errorMessage: 'Autentikasi diperlukan.' });
+    }
+    request.sessionUser = sessionUser;
+    return next();
+  }
+
+  // --- middleware reusable untuk memproteksi endpoint api khusus admin utama ---
+  function requireExclusiveAdminApi(request, response, next) {
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    if (!sessionUser) {
+      return response.status(401).json({ isSuccess: false, errorMessage: 'Autentikasi diperlukan.' });
+    }
+    if (!isExclusiveAdminSession(sessionUser)) {
+      return response.status(403).json({ isSuccess: false, errorMessage: 'Akses ditolak: khusus admin utama.' });
+    }
+    request.adminSessionUser = sessionUser;
+    return next();
+  }
+
+  // --- sisipkan tombol navigasi panel admin ke dropdown profil hanya untuk admin eksklusif ---
+  function buildDashboardHtmlForSession(sessionUser) {
+    const dashboardFilePath = path.join(PUBLIC_ROOT_DIR, 'dashboard.html');
+    const rawHtml = fs.readFileSync(dashboardFilePath, 'utf-8');
+
+    if (!isExclusiveAdminSession(sessionUser)) {
+      return rawHtml;
+    }
+
+    const adminNavButtonHtml = [
+      '            <a id="navAdminPanelLink" href="/admin" onclick="toggleUserDropdownMenu()" class="w-full text-left px-3 py-2 flex items-center justify-between text-amber-300 hover:bg-amber-500/10 transition-colors font-semibold">',
+      '              <span class="flex items-center gap-2">',
+      '                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>',
+      '                <span>Panel Admin</span>',
+      '              </span>',
+      '              <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 font-mono-code">ADMIN</span>',
+      '            </a>'
+    ].join('\n');
+
+    return rawHtml.replace(
+      /(<div[^>]*id="userDropdownMenuPopup"[\s\S]*?<div\s+class="py-1">)/,
+      `$1\n${adminNavButtonHtml}`
+    );
+  }
+
+  app.get('/', (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    return response.redirect(302, sessionUser ? '/dashboard' : '/login');
+  });
+
+  app.get(['/login', '/login.html'], (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    if (getSessionUserFromCookieHeader(request.headers.cookie)) {
+      return response.redirect(302, '/dashboard');
+    }
+    return response.sendFile(path.join(PUBLIC_ROOT_DIR, 'login.html'));
+  });
+
+  app.get(['/dashboard', '/dashboard.html'], (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    if (!sessionUser) {
+      return response.redirect(302, '/login');
+    }
+
+    const renderedHtml = buildDashboardHtmlForSession(sessionUser);
+    return response.status(200).type('html').send(renderedHtml);
+  });
+
+  app.get(['/admin', '/admin/', '/admin.html'], (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    if (!sessionUser) {
+      return response.redirect(302, '/login');
+    }
+    if (!isExclusiveAdminSession(sessionUser)) {
+      return response.redirect(302, '/dashboard');
+    }
+
+    const adminFilePath = path.join(PUBLIC_ROOT_DIR, 'admin.html');
+    if (!fs.existsSync(adminFilePath)) {
+      return response.status(404).send('Halaman admin tidak ditemukan.');
+    }
+    return response.sendFile(adminFilePath);
+  });
+
+  app.get(['/terms-of-service', '/terms-of-service.html'], (_request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const pageFilePath = path.join(PUBLIC_ROOT_DIR, 'terms-of-service.html');
+    if (!fs.existsSync(pageFilePath)) return response.status(404).send('Halaman Terms of Service tidak ditemukan.');
+    return response.sendFile(pageFilePath);
+  });
+
+  app.get(['/privacy-policy', '/privacy-policy.html'], (_request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const pageFilePath = path.join(PUBLIC_ROOT_DIR, 'privacy-policy.html');
+    if (!fs.existsSync(pageFilePath)) return response.status(404).send('Halaman Privacy Policy tidak ditemukan.');
+    return response.sendFile(pageFilePath);
+  });
+
+  app.get(['/sewa-beli-paket', '/sewa-beli-paket.html'], (_request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const pageFilePath = path.join(PUBLIC_ROOT_DIR, 'sewa-beli-paket.html');
+    if (!fs.existsSync(pageFilePath)) return response.status(404).send('Halaman Sewa/Beli Paket tidak ditemukan.');
+    return response.sendFile(pageFilePath);
+  });
+
+  app.get(['/dokumentasi', '/dokumentasi.html'], (_request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const pageFilePath = path.join(PUBLIC_ROOT_DIR, 'dokumentasi.html');
+    if (!fs.existsSync(pageFilePath)) return response.status(404).send('Halaman Dokumentasi tidak ditemukan.');
+    return response.sendFile(pageFilePath);
+  });
+
+  app.get(['/tutorial', '/tutorial.html'], (_request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+    const pageFilePath = path.join(PUBLIC_ROOT_DIR, 'tutorial.html');
+    if (!fs.existsSync(pageFilePath)) return response.status(404).send('Halaman Tutorial tidak ditemukan.');
+    return response.sendFile(pageFilePath);
+  });
+
+  app.use(express.static(PUBLIC_ROOT_DIR, { index: false }));
+
+  app.get('/api/auth/config', (_request, response) => {
+    response.status(200).json({
+      googleClientId: GOOGLE_CLIENT_ID,
+      volumePath: SESSIONS_VOLUME_ROOT,
+      pluginsPath: PLUGINS_ROOT_DIR
+    });
+  });
+
+  app.post('/api/auth/google', async (request, response) => {
+    try {
+      const verifiedUser = await verifyGoogleCredentialToken(request.body?.credential);
+      setSessionCookie(request, response, createSignedSessionToken(verifiedUser));
+      response.status(200).json({ isAuthenticated: true, user: verifiedUser });
+    } catch (authError) {
+      response.status(401).json({ isAuthenticated: false, errorMessage: authError.message });
+    }
+  });
+
+  // --- endpoint login akun lokal menggunakan email dan kata sandi ---
+  app.post('/api/auth/login', (request, response) => {
+    try {
+      const verifiedUser = loginLocalEmailAccount({
+        email: request.body?.email,
+        password: request.body?.password
+      });
+      setSessionCookie(request, response, createSignedSessionToken(verifiedUser));
+      return response.status(200).json({ isAuthenticated: true, user: verifiedUser });
+    } catch (authError) {
+      return response.status(401).json({ isAuthenticated: false, errorMessage: authError.message });
+    }
+  });
+
+  // --- endpoint pendaftaran akun lokal baru hanya dengan email dan kata sandi ---
+  app.post('/api/auth/register', (request, response) => {
+    try {
+      const createdUser = registerLocalEmailAccount({
+        email: request.body?.email,
+        password: request.body?.password
+      });
+      setSessionCookie(request, response, createSignedSessionToken(createdUser));
+      return response.status(201).json({ isAuthenticated: true, user: createdUser });
+    } catch (registerError) {
+      return response.status(400).json({ isAuthenticated: false, errorMessage: registerError.message });
+    }
+  });
+
+  app.get('/api/auth/me', (request, response) => {
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    if (!sessionUser) return response.status(401).json({ isAuthenticated: false });
+    return response.status(200).json({
+      isAuthenticated: true,
+      isAdmin: isExclusiveAdminSession(sessionUser),
+      user: sessionUser
+    });
+  });
+
+  app.post('/api/auth/logout', (request, response) => {
+    clearSessionCookie(request, response);
+    response.status(200).json({ isLoggedOut: true });
+  });
+
+  // --- endpoint ganti kata sandi akun lokal untuk user yang sedang login ---
+  app.post('/api/auth/password/change', requireAuthenticatedUserApi, (request, response) => {
+    try {
+      const updated = changeLocalAccountPassword({
+        userId: request.sessionUser.googleId,
+        email: request.sessionUser.email,
+        currentPassword: request.body?.currentPassword,
+        newPassword: request.body?.newPassword
+      });
+      return response.status(200).json({
+        isSuccess: true,
+        email: updated.email,
+        message: 'Kata sandi akun berhasil diperbarui.'
+      });
+    } catch (changeErr) {
+      return response.status(400).json({ isSuccess: false, errorMessage: changeErr.message });
+    }
+  });
+
+  // --- endpoint minta kode otp reset password yang dikirim ke nomor whatsapp owner terdaftar ---
+  app.post('/api/auth/password/request-otp', async (request, response) => {
+    try {
+      const normalizedEmail = String(request.body?.email || '').trim().toLowerCase();
+      if (!normalizedEmail) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'Alamat email wajib diisi.' });
+      }
+
+      const account = findAuthAccountByEmail(normalizedEmail);
+      if (!account) {
+        return response.status(404).json({ isSuccess: false, errorMessage: 'Email lokal tidak terdaftar di sistem.' });
+      }
+
+      const userDb = readBotDatabase(account.userId);
+      const registeredOwners = [
+        ...(Array.isArray(userDb.settings?.owners) ? userDb.settings.owners : []),
+        userDb.phoneNumber
+      ]
+        .map((n) => String(n || '').replace(/\D/g, ''))
+        .filter((n) => n.length >= 8);
+
+      const targetPhone = registeredOwners[0];
+      if (!targetPhone) {
+        return response.status(400).json({
+          isSuccess: false,
+          errorMessage: 'Akun ini belum memiliki nomor WhatsApp owner atau bot terhubung untuk menerima OTP.'
+        });
+      }
+
+      const otpRecord = createPasswordResetOtp({
+        email: normalizedEmail,
+        userId: account.userId,
+        targetPhone
+      });
+
+      const sendResult = await sendSystemOtpWhatsAppMessage(activeSocketIoServer, {
+        preferredUserId: account.userId,
+        targetPhone: otpRecord.targetPhone,
+        email: normalizedEmail,
+        otpCode: otpRecord.otpCode
+      });
+
+      if (!sendResult.isSuccess) {
+        return response.status(503).json({ isSuccess: false, errorMessage: sendResult.errorMessage });
+      }
+
+      const maskedPhone = `${targetPhone.slice(0, 4)}****${targetPhone.slice(-3)}`;
+      return response.status(200).json({
+        isSuccess: true,
+        maskedPhone,
+        expiresAt: otpRecord.expiresAt,
+        message: `Kode OTP 6 digit telah dikirim ke WhatsApp ${maskedPhone}.`
+      });
+    } catch (otpErr) {
+      return response.status(400).json({ isSuccess: false, errorMessage: otpErr.message });
+    }
+  });
+
+  // --- endpoint verifikasi otp whatsapp dan simpan kata sandi baru ---
+  app.post('/api/auth/password/verify-otp', (request, response) => {
+    try {
+      const result = verifyAndResetPasswordWithOtp({
+        email: request.body?.email,
+        otpCode: request.body?.otpCode,
+        newPassword: request.body?.newPassword
+      });
+      return response.status(200).json({
+        isSuccess: true,
+        email: result.email,
+        message: 'Kata sandi berhasil direset. Silakan masuk dengan kata sandi baru Anda.'
+      });
+    } catch (verifyErr) {
+      return response.status(400).json({ isSuccess: false, errorMessage: verifyErr.message });
+    }
+  });
+
+  // --- endpoint whatsapp api gateway eksternal berbasis api key per user ---
+  app.post('/api/v1/gateway/send', async (request, response) => {
+    try {
+      const authHeader = String(request.headers.authorization || '').trim();
+      const bearerKey = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '';
+      const rawApiKey = String(request.headers['x-api-key'] || request.headers['apikey'] || bearerKey || '').trim();
+
+      if (!rawApiKey) {
+        return response.status(401).json({
+          isSuccess: false,
+          errorMessage: 'API Key wajib disertakan pada header x-api-key atau Authorization: Bearer <apiKey>.'
+        });
+      }
+
+      const ownerMatch = findUserByApiKey(rawApiKey);
+      if (!ownerMatch) {
+        return response.status(403).json({ isSuccess: false, errorMessage: 'API Key tidak valid atau telah dicabut.' });
+      }
+
+      if (isBotSubscriptionExpired(ownerMatch.googleUserId, ownerMatch.userDatabase)) {
+        return response.status(402).json({ isSuccess: false, errorMessage: 'Masa aktif langganan bot telah berakhir.' });
+      }
+
+      const targetJid = request.body?.targetJid || request.body?.to || request.body?.number;
+      const messageText = request.body?.message || request.body?.text;
+      const mentionAll = Boolean(request.body?.mentionAll);
+
+      const sendResult = await sendDirectWhatsAppMessage(activeSocketIoServer, ownerMatch.googleUserId, {
+        targetJid: request.body?.targetJid || request.body?.to || request.body?.number,
+        mediaType: request.body?.mediaType || 'text',
+        message: request.body?.message || request.body?.text,
+        caption: request.body?.caption,
+        mediaUrl: request.body?.mediaUrl,
+        mediaBase64: request.body?.mediaBase64,
+        ptt: Boolean(request.body?.ptt),
+        fileName: request.body?.fileName,
+        mimetype: request.body?.mimetype,
+        location: request.body?.location,
+        contact: request.body?.contact,
+        mentionAll: Boolean(request.body?.mentionAll),
+        sourceRoute: '/api/v1/gateway/send'
+      });
+
+      if (!sendResult.isSuccess) {
+        return response.status(400).json(sendResult);
+      }
+
+      const updatedStats = recordApiKeyUsage(ownerMatch.googleUserId);
+      return response.status(200).json({
+        isSuccess: true,
+        targetJid: sendResult.targetJid,
+        messageId: sendResult.messageId,
+        apiKeyStats: updatedStats
+      });
+    } catch (gatewayErr) {
+      return response.status(500).json({ isSuccess: false, errorMessage: gatewayErr.message });
+    }
+  });
+
+  // --- endpoint manajemen api key milik user di dashboard ---
+  app.get('/api/gateway/key', requireAuthenticatedUserApi, (request, response) => {
+    const userDb = readBotDatabase(request.sessionUser.googleId);
+    return response.status(200).json({
+      isSuccess: true,
+      apiKey: userDb.apiKey || null,
+      apiKeyStats: userDb.apiKeyStats || { createdAt: 0, lastUsedAt: 0, totalCalls: 0 }
+    });
+  });
+
+  app.post('/api/gateway/key/generate', requireAuthenticatedUserApi, (request, response) => {
+    const generated = generateUserApiKey(request.sessionUser.googleId);
+    return response.status(200).json({ isSuccess: true, ...generated });
+  });
+
+  app.delete('/api/gateway/key', requireAuthenticatedUserApi, (request, response) => {
+    revokeUserApiKey(request.sessionUser.googleId);
+    return response.status(200).json({ isSuccess: true, apiKey: null });
+  });
+
+  // --- endpoint klaim kode voucher trial / perpanjangan oleh user ---
+  app.post('/api/vouchers/redeem', requireAuthenticatedUserApi, (request, response) => {
+    try {
+      const redeemed = redeemVoucherForUser(request.sessionUser.googleId, request.body?.code);
+      emitUserStatsSnapshot(activeSocketIoServer, request.sessionUser.googleId, redeemed.userDatabase);
+      emitAdminGlobalSessionsSnapshot(activeSocketIoServer);
+      if (activeSocketIoServer) {
+        activeSocketIoServer.to('platform_admins').emit('admin:vouchers:data', listVouchers());
+      }
+      return response.status(200).json({
+        isSuccess: true,
+        addedDays: redeemed.addedDays,
+        subscription: redeemed.userDatabase.subscription
+      });
+    } catch (redeemErr) {
+      return response.status(400).json({ isSuccess: false, errorMessage: redeemErr.message });
+    }
+  });
+
+  // --- endpoint bersihkan cache pre-key sesi baileys milik user tanpa menghapus creds.json ---
+  app.post('/api/session/clear-prekeys', requireAuthenticatedUserApi, (request, response) => {
+    const result = clearUserSessionPreKeys(activeSocketIoServer, request.sessionUser.googleId);
+    if (!result.isSuccess) {
+      return response.status(400).json(result);
+    }
+    return response.status(200).json(result);
+  });
+
+  // --- endpoint khusus admin: perpanjang masa aktif user target ---
+  app.post('/api/admin/subscription/extend', requireExclusiveAdminApi, (request, response) => {
+    try {
+      const targetGoogleId = String(request.body?.googleUserId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+      const durationDays = Number(request.body?.durationDays || 0);
+
+      if (!targetGoogleId) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'Google ID target tidak valid.' });
+      }
+      if (![7, 30, 90].includes(durationDays)) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'Durasi paket harus 7, 30, atau 90 hari.' });
+      }
+
+      const updatedDb = extendUserSubscriptionAtomic(targetGoogleId, durationDays);
+      emitUserStatsSnapshot(activeSocketIoServer, targetGoogleId, updatedDb);
+      emitAdminGlobalSessionsSnapshot(activeSocketIoServer);
+
+      return response.status(200).json({
+        isSuccess: true,
+        googleUserId: targetGoogleId,
+        subscription: updatedDb.subscription
+      });
+    } catch (extendError) {
+      return response.status(500).json({ isSuccess: false, errorMessage: extendError.message });
+    }
+  });
+
+  // --- endpoint khusus admin: crud kode voucher ---
+  app.get('/api/admin/vouchers', requireExclusiveAdminApi, (_request, response) => {
+    return response.status(200).json({ isSuccess: true, vouchers: listVouchers() });
+  });
+
+  app.post('/api/admin/vouchers', requireExclusiveAdminApi, (request, response) => {
+    try {
+      const created = createVoucher({
+        code: request.body?.code,
+        durationDays: request.body?.durationDays,
+        planName: request.body?.planName,
+        maxUses: request.body?.maxUses,
+        expiresAt: request.body?.expiresAt
+      });
+      const latestList = listVouchers();
+      if (activeSocketIoServer) {
+        activeSocketIoServer.to('platform_admins').emit('admin:vouchers:data', latestList);
+      }
+      return response.status(201).json({ isSuccess: true, voucher: created, vouchers: latestList });
+    } catch (err) {
+      return response.status(400).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
+  app.patch('/api/admin/vouchers/:code', requireExclusiveAdminApi, (request, response) => {
+    try {
+      const updated = updateVoucher(request.params.code, request.body || {});
+      const latestList = listVouchers();
+      if (activeSocketIoServer) {
+        activeSocketIoServer.to('platform_admins').emit('admin:vouchers:data', latestList);
+      }
+      return response.status(200).json({ isSuccess: true, voucher: updated, vouchers: latestList });
+    } catch (err) {
+      return response.status(400).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
+  app.delete('/api/admin/vouchers/:code', requireExclusiveAdminApi, (request, response) => {
+    const deleted = deleteVoucher(request.params.code);
+    if (!deleted) {
+      return response.status(404).json({ isSuccess: false, errorMessage: 'Kode voucher tidak ditemukan.' });
+    }
+    const latestList = listVouchers();
+    if (activeSocketIoServer) {
+      activeSocketIoServer.to('platform_admins').emit('admin:vouchers:data', latestList);
+    }
+    return response.status(200).json({ isSuccess: true, vouchers: latestList });
+  });
+
+  // --- endpoint khusus admin: monitor sesi global terpusat dan aksi massal ---
+  app.get('/api/admin/sessions', requireExclusiveAdminApi, (_request, response) => {
+    const monitor = getAllUsersGlobalMonitorSnapshot(activeBotSessions);
+    return response.status(200).json({ isSuccess: true, ...monitor });
+  });
+
+  app.post('/api/admin/sessions/action', requireExclusiveAdminApi, async (request, response) => {
+    try {
+      const actionResult = await executeAdminSessionControlAction({
+        action: request.body?.action,
+        targetUserIds: request.body?.userIds || request.body?.userId,
+        durationDays: request.body?.durationDays
+      });
+      return response.status(200).json({ isSuccess: true, ...actionResult });
+    } catch (actionErr) {
+      return response.status(400).json({ isSuccess: false, errorMessage: actionErr.message });
+    }
+  });
+
+  // --- endpoint admin: ambil daftar pengumuman global ---
+  app.get('/api/admin/announcements', requireExclusiveAdminApi, (_request, response) => {
+    return response.status(200).json({
+      isSuccess: true,
+      announcements: getGlobalAnnouncements()
+    });
+  });
+
+  // --- endpoint admin: terbitkan pengumuman baru dan pancarkan ke semua dashboard ---
+  app.post('/api/admin/announcements', requireExclusiveAdminApi, (request, response) => {
+    try {
+      const title = String(request.body?.title || '').trim();
+      const category = String(request.body?.category || 'INFO').toUpperCase();
+      const text = String(request.body?.text || '').trim();
+
+      if (!text) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'Isi pengumuman wajib diisi.' });
+      }
+
+      const created = addGlobalAnnouncement({ title, category, text });
+      broadcastAnnouncementsUpdate(activeSocketIoServer, created.list);
+
+      return response.status(200).json({
+        isSuccess: true,
+        announcement: created.item,
+        announcements: created.list
+      });
+    } catch (createError) {
+      return response.status(500).json({ isSuccess: false, errorMessage: createError.message });
+    }
+  });
+
+  // --- endpoint admin: hapus satu pengumuman berdasarkan id ---
+  app.delete('/api/admin/announcements/:id', requireExclusiveAdminApi, (request, response) => {
+    try {
+      const updatedList = deleteGlobalAnnouncementById(request.params.id);
+      if (!updatedList) {
+        return response.status(404).json({ isSuccess: false, errorMessage: 'Pengumuman tidak ditemukan.' });
+      }
+
+      broadcastAnnouncementsUpdate(activeSocketIoServer, updatedList);
+
+      return response.status(200).json({
+        isSuccess: true,
+        announcements: updatedList
+      });
+    } catch (deleteError) {
+      return response.status(500).json({ isSuccess: false, errorMessage: deleteError.message });
+    }
+  });
+
+  // --- endpoint admin: bersihkan seluruh pengumuman dari database.json ---
+  app.delete('/api/admin/announcements', requireExclusiveAdminApi, (_request, response) => {
+    try {
+      const emptyList = clearAllGlobalAnnouncements();
+      broadcastAnnouncementsUpdate(activeSocketIoServer, emptyList);
+
+      return response.status(200).json({
+        isSuccess: true,
+        announcements: emptyList
+      });
+    } catch (clearError) {
+      return response.status(500).json({ isSuccess: false, errorMessage: clearError.message });
+    }
+  });
+
+  // --- unduh arsip backup zip berisi plugins dan database.json khusus admin eksklusif ---
+  app.get('/api/backup/download', async (request, response) => {
+    response.setHeader('Cache-Control', 'no-store');
+
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+    if (!sessionUser) {
+      return response.status(401).json({
+        isSuccess: false,
+        errorMessage: 'Access Denied: The authentication session is invalid or has expired.'
+      });
+    }
+
+    const resolvedRole = isExclusiveAdminSession(sessionUser) ? 'admin' : 'user';
+    if (resolvedRole !== 'admin') {
+      return response.status(403).json({
+        isSuccess: false,
+        errorMessage: 'Access Denied: Only admin roles are allowed to download Backup ZIP.'
+      });
+    }
+
+    try {
+      const { zipSync } = await import('fflate');
+      const zipEntries = {};
+
+      if (fs.existsSync(MAIN_DATABASE_FILE_PATH)) {
+        zipEntries['database.json'] = new Uint8Array(fs.readFileSync(MAIN_DATABASE_FILE_PATH));
+      }
+
+      const pluginFiles = scanPluginFilesRecursive(PLUGINS_ROOT_DIR);
+      for (const relativePath of pluginFiles) {
+        const fullPluginPath = path.join(PLUGINS_ROOT_DIR, relativePath);
+        if (fs.existsSync(fullPluginPath)) {
+          zipEntries[`plugins/${relativePath}`] = new Uint8Array(fs.readFileSync(fullPluginPath));
+        }
+      }
+
+      const archiveBuffer = Buffer.from(zipSync(zipEntries, { level: 6 }));
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+      response.setHeader('Content-Type', 'application/zip');
+      response.setHeader('Content-Disposition', `attachment; filename="jadibot-backup-${stamp}.zip"`);
+      return response.status(200).send(archiveBuffer);
+    } catch (backupError) {
+      return response.status(500).json({
+        isSuccess: false,
+        errorMessage: `Gagal membuat arsip backup: ${backupError.message}`
+      });
+    }
+  });
+
+  app.get('/health', (_request, response) => {
+    response.status(200).json({
+      status: 'ok',
+      volumeRoot: SESSIONS_VOLUME_ROOT,
+      pluginsRoot: PLUGINS_ROOT_DIR,
+      uptime: process.uptime()
+    });
+  });
+}
+
+// --- pasang event listener socket.io terproteksi cookie sesi dan peran admin ---
+export function registerSocketHandlers(io, coreModules) {
+  activeSocketIoServer = io;
+  activeCoreModules = coreModules;
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+
+  startRealtimeSystemBroadcaster(io);
+  startMessageSchedulerWorker(io);
+
+  io.on('connection', (clientSocket) => {
+    const sessionUser = getSessionUserFromCookieHeader(clientSocket.handshake.headers.cookie);
+
+    if (!sessionUser) {
+      clientSocket.emit('auth:expired', { errorMessage: 'Sesi login telah berakhir, silakan masuk kembali.' });
+      clientSocket.disconnect(true);
+      return;
+    }
+
+    const authenticatedGoogleId = sessionUser.googleId;
+    const isAdmin = isPlatformAdminUser(sessionUser);
+
+    clientSocket.join(`user_${authenticatedGoogleId}`);
+    if (isAdmin) {
+      clientSocket.join('platform_admins');
+    }
+
+    syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser);
+
+    clientSocket.on('session:sync', () => {
+      recordRealtimeActivityHit('WS', '/socket/session-sync');
+      emitRealtimeVelocityThrottled(io);
+      syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser);
+    });
+
+    clientSocket.on('session:connect', async (payload) => {
+      const method = payload?.method === 'pairing' ? 'pairing' : 'qr';
+      const phoneNumber = payload?.phoneNumber || '';
+      await startWhatsAppSession(io, coreModules, authenticatedGoogleId, method, phoneNumber, 1, true);
+    });
+
+    clientSocket.on('session:restart', async () => {
+      await restartWhatsAppSession(io, coreModules, authenticatedGoogleId);
+    });
+
+    clientSocket.on('session:logout', async () => {
+      await destroyBotSession(io, coreModules, authenticatedGoogleId, true);
+    });
+
+    // --- bersihkan cache pre-key sesi user tanpa menghapus creds.json ---
+    clientSocket.on('session:clear-prekeys', () => {
+      const result = clearUserSessionPreKeys(io, authenticatedGoogleId);
+      clientSocket.emit('session:clear-prekeys:result', result);
+    });
+
+    // --- toggle saklar cepat termasuk fitur ai persona ---
+    clientSocket.on('settings:toggle', (payload) => {
+      const settingKey = payload?.key;
+      const allowedBooleanKeys = ['autoRead', 'publicMode', 'isNoPrefix', 'allowedPc', 'isAiEnabled', 'aiGroupAutoReply'];
+      if (!allowedBooleanKeys.includes(settingKey)) return;
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      currentDatabase.settings[settingKey] = !currentDatabase.settings[settingKey];
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+      const activeSession = activeBotSessions.get(authenticatedGoogleId);
+      const activeBotJid = activeSession?.socketInstance?.user?.jid;
+      if (activeBotJid) {
+        syncBotSettingsToGlobalDb(activeBotJid, currentDatabase.settings);
+      }
+
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      emitLog(
+        authenticatedGoogleId,
+        'INFO',
+        `Pengaturan [${settingKey}] diubah ke: ${currentDatabase.settings[settingKey] ? 'AKTIF' : 'NONAKTIF'}`
+      );
+    });
+
+    // --- event khusus toggle & pembaruan persona ai per bot ---
+    clientSocket.on('ai:toggle', (payload) => {
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const nextValue = typeof payload?.enabled === 'boolean'
+        ? payload.enabled
+        : !Boolean(currentDatabase.settings.isAiEnabled);
+
+      currentDatabase.settings.isAiEnabled = nextValue;
+      if (typeof payload?.aiGroupAutoReply === 'boolean') {
+        currentDatabase.settings.aiGroupAutoReply = payload.aiGroupAutoReply;
+      }
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+      const activeSession = activeBotSessions.get(authenticatedGoogleId);
+      const activeBotJid = activeSession?.socketInstance?.user?.jid;
+      if (activeBotJid) {
+        syncBotSettingsToGlobalDb(activeBotJid, currentDatabase.settings);
+      }
+
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      clientSocket.emit('ai:updated', {
+        isSuccess: true,
+        isAiEnabled: currentDatabase.settings.isAiEnabled,
+        aiGroupAutoReply: currentDatabase.settings.aiGroupAutoReply,
+        aiSystemPrompt: currentDatabase.settings.aiSystemPrompt
+      });
+      emitLog(authenticatedGoogleId, 'INFO', `AI Persona Auto-Reply: ${nextValue ? 'AKTIF' : 'NONAKTIF'}.`);
+    });
+
+    clientSocket.on('ai:update', (payload) => {
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      if (typeof payload?.isAiEnabled === 'boolean') {
+        currentDatabase.settings.isAiEnabled = payload.isAiEnabled;
+      }
+      if (typeof payload?.aiGroupAutoReply === 'boolean') {
+        currentDatabase.settings.aiGroupAutoReply = payload.aiGroupAutoReply;
+      }
+      if (typeof payload?.aiSystemPrompt === 'string') {
+        currentDatabase.settings.aiSystemPrompt = payload.aiSystemPrompt.trim().slice(0, 2000);
+      }
+
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+      const activeSession = activeBotSessions.get(authenticatedGoogleId);
+      const activeBotJid = activeSession?.socketInstance?.user?.jid;
+      if (activeBotJid) {
+        syncBotSettingsToGlobalDb(activeBotJid, currentDatabase.settings);
+      }
+
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      clientSocket.emit('ai:updated', {
+        isSuccess: true,
+        isAiEnabled: currentDatabase.settings.isAiEnabled,
+        aiGroupAutoReply: currentDatabase.settings.aiGroupAutoReply,
+        aiSystemPrompt: currentDatabase.settings.aiSystemPrompt
+      });
+      emitLog(authenticatedGoogleId, 'SUCCESS', 'Konfigurasi AI Persona berhasil disimpan.');
+    });
+
+    // --- manajemen api key whatsapp gateway via socket ---
+    clientSocket.on('gateway:key:generate', () => {
+      const generated = generateUserApiKey(authenticatedGoogleId);
+      const latestDb = readBotDatabase(authenticatedGoogleId);
+      emitUserStatsSnapshot(io, authenticatedGoogleId, latestDb);
+      clientSocket.emit('gateway:key:updated', { isSuccess: true, ...generated });
+      emitLog(authenticatedGoogleId, 'SUCCESS', 'API Key WhatsApp Gateway baru telah diterbitkan.');
+    });
+
+    clientSocket.on('gateway:key:revoke', () => {
+      revokeUserApiKey(authenticatedGoogleId);
+      const latestDb = readBotDatabase(authenticatedGoogleId);
+      emitUserStatsSnapshot(io, authenticatedGoogleId, latestDb);
+      clientSocket.emit('gateway:key:updated', {
+        isSuccess: true,
+        apiKey: null,
+        apiKeyStats: { createdAt: 0, lastUsedAt: 0, totalCalls: 0 }
+      });
+      emitLog(authenticatedGoogleId, 'WARN', 'API Key WhatsApp Gateway telah dicabut.');
+    });
+
+    // --- klaim voucher trial/perpanjangan dari dashboard user ---
+    clientSocket.on('voucher:redeem', (payload) => {
+      try {
+        const redeemed = redeemVoucherForUser(authenticatedGoogleId, payload?.code);
+        emitUserStatsSnapshot(io, authenticatedGoogleId, redeemed.userDatabase);
+        emitAdminGlobalSessionsSnapshot(io);
+        io.to('platform_admins').emit('admin:vouchers:data', listVouchers());
+        clientSocket.emit('voucher:redeem:result', {
+          isSuccess: true,
+          addedDays: redeemed.addedDays,
+          subscription: redeemed.userDatabase.subscription
+        });
+        emitLog(
+          authenticatedGoogleId,
+          'SUCCESS',
+          `Voucher [${redeemed.voucher.code}] berhasil diklaim (+${redeemed.addedDays} hari masa aktif).`
+        );
+      } catch (err) {
+        clientSocket.emit('voucher:redeem:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    // --- perbarui konfigurasi bot, daftar owner, ai persona, kategori nonaktif, dan auto-reply ---
+    clientSocket.on('settings:update', (payload) => {
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const nextSettings = { ...currentDatabase.settings };
+
+      if (typeof payload?.botName === 'string' && payload.botName.trim()) {
+        nextSettings.botName = payload.botName.trim().slice(0, 60);
+      }
+      if (typeof payload?.packname === 'string') {
+        nextSettings.packname = payload.packname.trim().slice(0, 60);
+      }
+      if (typeof payload?.author === 'string') {
+        nextSettings.author = payload.author.trim().slice(0, 60);
+      }
+      if (typeof payload?.isNoPrefix === 'boolean') {
+        nextSettings.isNoPrefix = payload.isNoPrefix;
+      }
+      if (typeof payload?.allowedPc === 'boolean') {
+        nextSettings.allowedPc = payload.allowedPc;
+      }
+      if (typeof payload?.isAiEnabled === 'boolean') {
+        nextSettings.isAiEnabled = payload.isAiEnabled;
+      }
+      if (typeof payload?.aiGroupAutoReply === 'boolean') {
+        nextSettings.aiGroupAutoReply = payload.aiGroupAutoReply;
+      }
+      if (typeof payload?.aiSystemPrompt === 'string') {
+        nextSettings.aiSystemPrompt = payload.aiSystemPrompt.trim().slice(0, 2000);
+      }
+      if (Array.isArray(payload?.toxic)) {
+        nextSettings.toxic = payload.toxic
+          .map((w) => String(w).trim().toLowerCase())
+          .filter(Boolean)
+          .slice(0, 100);
+      }
+      if (Array.isArray(payload?.owners)) {
+        nextSettings.owners = Array.from(
+          new Set(
+            payload.owners
+              .map((num) => String(num).replace(/\D/g, ''))
+              .filter((num) => num.length >= 6 && num.length <= 18)
+          )
+        ).slice(0, 20);
+      }
+      if (Array.isArray(payload?.disabledCategories)) {
+        nextSettings.disabledCategories = Array.from(
+          new Set(
+            payload.disabledCategories
+              .map((cat) => String(cat).trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+      }
+      if (Array.isArray(payload?.autoReplies)) {
+        nextSettings.autoReplies = payload.autoReplies
+          .filter((item) => item && String(item.trigger || '').trim() && String(item.response || '').trim())
+          .map((item) => {
+            const rawMode = String(item.matchType || 'exact').trim().toLowerCase();
+            const matchType = ['exact', 'contains', 'starts'].includes(rawMode) ? rawMode : 'exact';
+            return {
+              trigger: String(item.trigger).trim().slice(0, 80),
+              response: String(item.response).trim().slice(0, 500),
+              matchType
+            };
+          })
+          .slice(0, 30);
+      }
+
+      currentDatabase.settings = nextSettings;
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+      const activeSession = activeBotSessions.get(authenticatedGoogleId);
+      const activeBotJid = activeSession?.socketInstance?.user?.jid;
+      if (activeBotJid) {
+        syncBotSettingsToGlobalDb(activeBotJid, nextSettings);
+      }
+
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      clientSocket.emit('settings:saved', { isSuccess: true, settings: nextSettings });
+      emitLog(authenticatedGoogleId, 'SUCCESS', 'Konfigurasi bot berhasil diperbarui dari dashboard.');
+    });
+
+    // --- toggle kategori fitur khusus untuk bot milik pengguna ---
+    clientSocket.on('catalog:toggleCategory', (payload) => {
+      const categoryName = String(payload?.category || '').trim().toLowerCase();
+      if (!categoryName) return;
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const disabledSet = new Set(
+        (currentDatabase.settings.disabledCategories || []).map((c) => String(c).toLowerCase())
+      );
+
+      let isEnabledNow = true;
+      if (disabledSet.has(categoryName)) {
+        disabledSet.delete(categoryName);
+        isEnabledNow = true;
+      } else {
+        disabledSet.add(categoryName);
+        isEnabledNow = false;
+      }
+
+      currentDatabase.settings.disabledCategories = Array.from(disabledSet);
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      emitLog(
+        authenticatedGoogleId,
+        isEnabledNow ? 'SUCCESS' : 'WARN',
+        `Kategori fitur [${categoryName}] ${isEnabledNow ? 'diaktifkan' : 'dinonaktifkan'} untuk bot Anda.`
+      );
+    });
+
+    // --- operasional panel admin: monitor sesi global, aksi massal, dan crud voucher ---
+    clientSocket.on('admin:sessions:list', () => {
+      if (!isAdmin) return;
+      clientSocket.emit('admin:sessions:data', getAllUsersGlobalMonitorSnapshot(activeBotSessions));
+    });
+
+    clientSocket.on('admin:sessions:action', async (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('admin:sessions:action:result', {
+          isSuccess: false,
+          errorMessage: 'Akses ditolak: khusus admin platform.'
+        });
+        return;
+      }
+      try {
+        const result = await executeAdminSessionControlAction({
+          action: payload?.action,
+          targetUserIds: payload?.userIds || payload?.userId,
+          durationDays: payload?.durationDays
+        });
+        clientSocket.emit('admin:sessions:action:result', { isSuccess: true, ...result });
+      } catch (err) {
+        clientSocket.emit('admin:sessions:action:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    clientSocket.on('admin:vouchers:list', () => {
+      if (!isAdmin) return;
+      clientSocket.emit('admin:vouchers:data', listVouchers());
+    });
+
+    clientSocket.on('admin:voucher:create', (payload) => {
+      if (!isAdmin) return;
+      try {
+        const created = createVoucher(payload || {});
+        const latest = listVouchers();
+        io.to('platform_admins').emit('admin:vouchers:data', latest);
+        clientSocket.emit('admin:voucher:result', { isSuccess: true, action: 'created', voucher: created, vouchers: latest });
+      } catch (err) {
+        clientSocket.emit('admin:voucher:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    clientSocket.on('admin:voucher:toggle', (payload) => {
+      if (!isAdmin) return;
+      try {
+        const existing = listVouchers().find((v) => v.code === String(payload?.code || '').trim().toUpperCase());
+        if (!existing) throw new Error('Voucher tidak ditemukan.');
+        const updated = updateVoucher(existing.code, { isActive: !existing.isActive });
+        const latest = listVouchers();
+        io.to('platform_admins').emit('admin:vouchers:data', latest);
+        clientSocket.emit('admin:voucher:result', { isSuccess: true, action: 'toggled', voucher: updated, vouchers: latest });
+      } catch (err) {
+        clientSocket.emit('admin:voucher:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    clientSocket.on('admin:voucher:delete', (payload) => {
+      if (!isAdmin) return;
+      const deleted = deleteVoucher(payload?.code);
+      if (!deleted) {
+        clientSocket.emit('admin:voucher:result', { isSuccess: false, errorMessage: 'Voucher tidak ditemukan.' });
+        return;
+      }
+      const latest = listVouchers();
+      io.to('platform_admins').emit('admin:vouchers:data', latest);
+      clientSocket.emit('admin:voucher:result', { isSuccess: true, action: 'deleted', vouchers: latest });
+    });
+
+    // --- manajemen multi-pengumuman global khusus admin via socket.io ---
+    clientSocket.on('announcement:create', (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Hanya admin yang dapat menerbitkan pengumuman.' });
+        return;
+      }
+
+      try {
+        const cleanText = String(payload?.text || '').trim();
+        if (!cleanText) {
+          clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Isi pengumuman tidak boleh kosong.' });
+          return;
+        }
+
+        const created = addGlobalAnnouncement({
+          title: payload?.title || 'Pengumuman / Update API',
+          category: payload?.category || payload?.level || 'INFO',
+          text: cleanText
+        });
+
+        broadcastAnnouncementsUpdate(io, created.list);
+        clientSocket.emit('announcement:result', { isSuccess: true, action: 'created', announcement: created.item, announcements: created.list });
+        emitLog(authenticatedGoogleId, 'INFO', `Pengumuman [${created.item.category}] diterbitkan: ${created.item.title}`);
+      } catch (err) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    clientSocket.on('announcement:delete', (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Hanya admin yang dapat menghapus pengumuman.' });
+        return;
+      }
+
+      try {
+        const updatedList = deleteGlobalAnnouncementById(payload?.id);
+        if (!updatedList) {
+          clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Pengumuman tidak ditemukan.' });
+          return;
+        }
+
+        broadcastAnnouncementsUpdate(io, updatedList);
+        clientSocket.emit('announcement:result', { isSuccess: true, action: 'deleted', announcements: updatedList });
+        emitLog(authenticatedGoogleId, 'WARN', `Pengumuman [${payload?.id}] dihapus dari database.json.`);
+      } catch (err) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    clientSocket.on('announcement:clear', () => {
+      if (!isAdmin) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Hanya admin yang dapat menghapus semua pengumuman.' });
+        return;
+      }
+
+      try {
+        const emptyList = clearAllGlobalAnnouncements();
+        broadcastAnnouncementsUpdate(io, emptyList);
+        clientSocket.emit('announcement:result', { isSuccess: true, action: 'cleared', announcements: emptyList });
+        emitLog(authenticatedGoogleId, 'WARN', 'Seluruh daftar pengumuman global telah dibersihkan.');
+      } catch (err) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    // --- kompatibilitas event announcement:set lama ---
+    clientSocket.on('announcement:set', (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('announcement:result', { isSuccess: false, errorMessage: 'Hanya admin yang dapat mengirim pengumuman global.' });
+        return;
+      }
+
+      const cleanText = String(payload?.text || '').trim();
+      if (!cleanText) {
+        const emptyList = clearAllGlobalAnnouncements();
+        broadcastAnnouncementsUpdate(io, emptyList);
+        clientSocket.emit('announcement:result', { isSuccess: true, action: 'cleared', announcements: emptyList });
+        return;
+      }
+
+      const created = addGlobalAnnouncement({
+        title: payload?.title || 'Pengumuman / Update API',
+        category: payload?.level || payload?.category || 'INFO',
+        text: cleanText
+      });
+      broadcastAnnouncementsUpdate(io, created.list);
+      clientSocket.emit('announcement:result', { isSuccess: true, action: 'created', announcement: created.item, announcements: created.list });
+    });
+
+    // --- kirim pesan langsung ke satu grup atau nomor pribadi ---
+    clientSocket.on('direct:send', async (payload) => {
+      const result = await sendDirectWhatsAppMessage(io, authenticatedGoogleId, {
+        targetJid: payload?.targetJid,
+        message: payload?.message,
+        mentionAll: Boolean(payload?.mentionAll)
+      });
+      clientSocket.emit('direct:result', result);
+    });
+
+    // --- manajemen pesan terjadwal & reminder otomatis ---
+    clientSocket.on('schedule:list', () => {
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      clientSocket.emit('schedule:list', currentDatabase.scheduledMessages || []);
+    });
+
+    clientSocket.on('schedule:create', (payload) => {
+      const targetJid = resolveTargetWhatsappJid(payload?.targetJid);
+      if (!targetJid) {
+        clientSocket.emit('schedule:result', { isSuccess: false, errorMessage: 'Nomor tujuan atau ID Grup (@g.us) tidak valid.' });
+        return;
+      }
+
+      const cleanMessage = String(payload?.message || '').trim().slice(0, 1500);
+      if (!cleanMessage) {
+        clientSocket.emit('schedule:result', { isSuccess: false, errorMessage: 'Isi pesan terjadwal tidak boleh kosong.' });
+        return;
+      }
+
+      const repeatType = ['once', 'daily', 'interval'].includes(payload?.repeatType) ? payload.repeatType : 'once';
+      const nowMs = Date.now();
+      let nextRunAt = 0;
+      let dailyTime = '';
+      let intervalMinutes = 0;
+
+      if (repeatType === 'once') {
+        nextRunAt = Number(payload?.runAtMs || 0);
+        if (!nextRunAt || nextRunAt < nowMs - 60000) {
+          clientSocket.emit('schedule:result', { isSuccess: false, errorMessage: 'Waktu kirim sekali harus diatur ke waktu mendatang.' });
+          return;
+        }
+      } else if (repeatType === 'daily') {
+        dailyTime = String(payload?.dailyTime || '08:00').trim();
+        if (!/^\d{2}:\d{2}$/.test(dailyTime)) {
+          clientSocket.emit('schedule:result', { isSuccess: false, errorMessage: 'Format jam harian tidak valid (HH:MM).' });
+          return;
+        }
+        nextRunAt = computeNextJakartaDailyTimestamp(dailyTime, nowMs);
+      } else {
+        intervalMinutes = Math.max(1, Math.min(10080, parseInt(payload?.intervalMinutes || '60', 10) || 60));
+        nextRunAt = nowMs + intervalMinutes * 60 * 1000;
+      }
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const existingSchedules = Array.isArray(currentDatabase.scheduledMessages) ? currentDatabase.scheduledMessages : [];
+      if (existingSchedules.length >= 25) {
+        clientSocket.emit('schedule:result', { isSuccess: false, errorMessage: 'Batas maksimal 25 jadwal pesan per akun tercapai.' });
+        return;
+      }
+
+      const newScheduleItem = {
+        id: `sch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        title: String(payload?.title || '').trim().slice(0, 60) || targetJid.split('@')[0],
+        targetJid,
+        targetLabel: String(payload?.targetLabel || '').trim().slice(0, 80) || targetJid.split('@')[0],
+        message: cleanMessage,
+        mentionAll: Boolean(payload?.mentionAll) && targetJid.endsWith('@g.us'),
+        repeatType,
+        dailyTime,
+        intervalMinutes,
+        nextRunAt,
+        lastRunAt: 0,
+        runCount: 0,
+        isActive: true,
+        lastStatus: 'SCHEDULED',
+        createdAt: nowMs
+      };
+
+      currentDatabase.scheduledMessages = [newScheduleItem, ...existingSchedules];
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+      io.to(`user_${authenticatedGoogleId}`).emit('schedule:list', currentDatabase.scheduledMessages);
+      clientSocket.emit('schedule:result', { isSuccess: true, schedule: newScheduleItem });
+      emitLog(authenticatedGoogleId, 'SUCCESS', `Jadwal pesan [${newScheduleItem.title}] ditambahkan (${repeatType.toUpperCase()}).`);
+    });
+
+    clientSocket.on('schedule:toggle', (payload) => {
+      const scheduleId = String(payload?.id || '').trim();
+      if (!scheduleId) return;
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const nowMs = Date.now();
+      currentDatabase.scheduledMessages = (currentDatabase.scheduledMessages || []).map((item) => {
+        if (item.id !== scheduleId) return item;
+        const nextActive = !item.isActive;
+        let nextRunAt = Number(item.nextRunAt || 0);
+        if (nextActive && nextRunAt <= nowMs) {
+          if (item.repeatType === 'daily') {
+            nextRunAt = computeNextJakartaDailyTimestamp(item.dailyTime || '08:00', nowMs);
+          } else if (item.repeatType === 'interval') {
+            nextRunAt = nowMs + Math.max(1, Number(item.intervalMinutes || 60)) * 60 * 1000;
+          } else {
+            nextRunAt = nowMs + 60 * 1000;
+          }
+        }
+        return {
+          ...item,
+          isActive: nextActive,
+          nextRunAt,
+          lastStatus: nextActive ? 'SCHEDULED' : 'PAUSED'
+        };
+      });
+
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+      io.to(`user_${authenticatedGoogleId}`).emit('schedule:list', currentDatabase.scheduledMessages);
+    });
+
+    clientSocket.on('schedule:delete', (payload) => {
+      const scheduleId = String(payload?.id || '').trim();
+      if (!scheduleId) return;
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      currentDatabase.scheduledMessages = (currentDatabase.scheduledMessages || []).filter((item) => item.id !== scheduleId);
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+
+      io.to(`user_${authenticatedGoogleId}`).emit('schedule:list', currentDatabase.scheduledMessages);
+      emitLog(authenticatedGoogleId, 'WARN', `Jadwal pesan [${scheduleId}] dihapus.`);
+    });
+
+    // --- kirim broadcast grup dengan jeda anti-spam dan format payload sinkron ---
+    clientSocket.on('broadcast:groups', async (payload) => {
+      recordRealtimeActivityHit('POST', '/api/whatsapp/broadcast');
+      emitRealtimeVelocityThrottled(io);
+      const result = await broadcastToBotGroups(
+        io,
+        authenticatedGoogleId,
+        payload?.message,
+        payload?.delaySeconds
+      );
+      clientSocket.emit('broadcast:result', {
+        ...result,
+        sentCount: result?.successCount ?? 0,
+        totalGroups: result?.total ?? 0
+      });
+    });
+
+    clientSocket.on('manage:list', () => {
+      recordRealtimeActivityHit('GET', '/api/manage/entities');
+      emitRealtimeVelocityThrottled(io);
+      clientSocket.emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+    });
+
+    clientSocket.on('manage:user:update', (payload) => {
+      const targetJid = String(payload?.jid || '').trim();
+      if (!/(@s\.whatsapp\.net|@lid)$/i.test(targetJid)) return;
+
+      global.db = global.db || {};
+      global.db.users = global.db.users || {};
+      const existingUser = global.db.users[targetJid] || {
+        name: targetJid.split('@')[0],
+        limit: 25,
+        premium: false,
+        banned: false
+      };
+
+      if (payload?.limit !== undefined && !Number.isNaN(Number(payload.limit))) {
+        existingUser.limit = Math.max(0, parseInt(payload.limit, 10));
+      }
+      if (typeof payload?.premium === 'boolean') {
+        existingUser.premium = payload.premium;
+      }
+      if (typeof payload?.banned === 'boolean') {
+        existingUser.banned = payload.banned;
+      }
+
+      global.db.users[targetJid] = existingUser;
+      if (coreModules.multidb && typeof coreModules.multidb.save === 'function') {
+        coreModules.multidb.save();
+      }
+
+      emitLog(
+        authenticatedGoogleId,
+        'INFO',
+        `User [${targetJid.split('@')[0]}] diperbarui (Limit: ${existingUser.limit}, Premium: ${existingUser.premium ? 'Ya' : 'Tidak'}, Banned: ${existingUser.banned ? 'Ya' : 'Tidak'}).`
+      );
+      io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+    });
+
+    // --- pembaruan massal limit dan status premium reseller untuk user terpilih ---
+    clientSocket.on('manage:users:bulkUpdate', (payload) => {
+      const rawJids = Array.isArray(payload?.jids) ? payload.jids : [];
+      const validJids = rawJids
+        .map((j) => String(j || '').trim())
+        .filter((j) => /(@s\.whatsapp\.net|@lid)$/i.test(j));
+
+      if (validJids.length === 0) return;
+
+      global.db = global.db || {};
+      global.db.users = global.db.users || {};
+
+      for (const targetJid of validJids) {
+        const existingUser = global.db.users[targetJid] || {
+          name: targetJid.split('@')[0],
+          limit: 25,
+          premium: false,
+          banned: false
+        };
+
+        if (payload?.addLimit !== undefined && !Number.isNaN(Number(payload.addLimit))) {
+          existingUser.limit = Math.max(0, Number(existingUser.limit || 0) + parseInt(payload.addLimit, 10));
+        }
+        if (payload?.setLimit !== undefined && !Number.isNaN(Number(payload.setLimit))) {
+          existingUser.limit = Math.max(0, parseInt(payload.setLimit, 10));
+        }
+        if (typeof payload?.premium === 'boolean') {
+          existingUser.premium = payload.premium;
+        }
+        if (typeof payload?.banned === 'boolean') {
+          existingUser.banned = payload.banned;
+        }
+
+        global.db.users[targetJid] = existingUser;
+      }
+
+      if (coreModules.multidb && typeof coreModules.multidb.save === 'function') {
+        coreModules.multidb.save();
+      }
+
+      emitLog(authenticatedGoogleId, 'SUCCESS', `Pembaruan massal diterapkan ke ${validJids.length} user.`);
+      io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+      clientSocket.emit('manage:users:bulkResult', { isSuccess: true, count: validJids.length });
+    });
+
+    // --- hapus data user dari global.db, lid.json, dan daftar uniqueUsers ---
+    clientSocket.on('manage:user:delete', async (payload) => {
+      const targetJid = String(payload?.jid || '').trim();
+      if (!/(@s\.whatsapp\.net|@lid)$/i.test(targetJid)) return;
+
+      const lidModule = coreModules.lid || (await import('../system/lid.js').then((m) => m.default).catch(() => null));
+      const mappedPairJid = lidModule
+        ? (targetJid.endsWith('@lid') ? lidModule.get(targetJid) : lidModule.getLid(targetJid))
+        : null;
+
+      const candidateJids = new Set([targetJid, mappedPairJid].filter(Boolean));
+      const candidateNumbers = new Set(
+        [...candidateJids]
+          .map((id) => String(id).split('@')[0].split(':')[0].replace(/\D/g, ''))
+          .filter(Boolean)
+      );
+
+      if (global.db?.users) {
+        for (const jid of candidateJids) {
+          if (global.db.users[jid]) {
+            delete global.db.users[jid];
+          }
+        }
+      }
+
+      if (lidModule && typeof lidModule.delete === 'function') {
+        for (const id of candidateJids) {
+          lidModule.delete(id);
+        }
+      }
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      if (Array.isArray(currentDatabase.uniqueUsers)) {
+        currentDatabase.uniqueUsers = currentDatabase.uniqueUsers.filter((num) => {
+          const cleanEntry = String(num).split('@')[0].split(':')[0].replace(/\D/g, '');
+          return !candidateNumbers.has(cleanEntry);
+        });
+        writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+      }
+
+      if (coreModules.multidb && typeof coreModules.multidb.save === 'function') {
+        coreModules.multidb.save();
+      }
+
+      const labelNumber = [...candidateNumbers][0] || targetJid.split('@')[0];
+      emitLog(authenticatedGoogleId, 'WARN', `User [${labelNumber}] telah dihapus permanen dari database.`);
+
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+      clientSocket.emit('manage:user:deleted', { jid: targetJid, number: labelNumber });
+    });
+
+    clientSocket.on('manage:group:update', (payload) => {
+      const targetGroupJid = String(payload?.jid || '').trim();
+      if (!targetGroupJid.endsWith('@g.us')) return;
+
+      global.db = global.db || {};
+      global.db.groups = global.db.groups || {};
+      const existingGroup = global.db.groups[targetGroupJid] || { banned: false };
+
+      if (typeof payload?.banned === 'boolean') {
+        existingGroup.banned = payload.banned;
+      }
+
+      global.db.groups[targetGroupJid] = existingGroup;
+      if (coreModules.multidb && typeof coreModules.multidb.save === 'function') {
+        coreModules.multidb.save();
+      }
+
+      emitLog(
+        authenticatedGoogleId,
+        'INFO',
+        `Grup [${targetGroupJid.split('@')[0]}] ${existingGroup.banned ? 'dibanned' : 'diaktifkan kembali'}.`
+      );
+      io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+    });
+
+    clientSocket.on('plugin:save', async (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('plugin:save:result', {
+          isSuccess: false,
+          errorMessage: 'Akses ditolak: hanya admin platform yang dapat menyunting plugin.'
+        });
+        return;
+      }
+
+      const { fileName, codeContent } = payload || {};
+      emitLog(authenticatedGoogleId, 'INFO', `Menguji validitas sintaks plugin [${fileName}]...`);
+      const validationResult = await validateAndSavePlugin(authenticatedGoogleId, fileName, codeContent, emitLog);
+
+      if (validationResult.isSuccess) {
+        const latestCatalog = await getFeatureCatalogList();
+        io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:update', latestCatalog);
+        clientSocket.emit('plugin:save:result', {
+          isSuccess: true,
+          fileName: validationResult.fileName
+        });
+      } else {
+        emitLog(
+          authenticatedGoogleId,
+          'ERROR',
+          `Validasi Gagal [${fileName}]: ${validationResult.errorType}${validationResult.lineNumber ? ` (Baris ${validationResult.lineNumber})` : ''}`
+        );
+        clientSocket.emit('plugin:save:result', {
+          isSuccess: false,
+          errorType: validationResult.errorType,
+          lineNumber: validationResult.lineNumber,
+          errorMessage: validationResult.errorMessage
+        });
+      }
+    });
+
+    clientSocket.on('plugin:toggle', async (payload) => {
+      if (!isAdmin) return;
+      const result = togglePluginEnabledState(authenticatedGoogleId, payload?.fileName, emitLog);
+      if (result.isSuccess) {
+        const latestCatalog = await getFeatureCatalogList();
+        io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:update', latestCatalog);
+      }
+    });
+
+    clientSocket.on('plugin:delete', async (payload) => {
+      if (!isAdmin) return;
+      const deleted = deletePluginFile(authenticatedGoogleId, payload?.fileName, emitLog);
+      if (deleted) {
+        const latestCatalog = await getFeatureCatalogList();
+        io.to('platform_admins').emit('plugin:list', getAvailablePluginsList());
+        io.emit('catalog:update', latestCatalog);
+      }
+    });
+  });
+}

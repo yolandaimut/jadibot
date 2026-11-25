@@ -292,7 +292,7 @@ function parseBase64MediaInput(rawBase64) {
   };
 }
 
-// --- kirim pesan teks atau multi-media ke grup atau chat pribadi ---
+// --- kirim pesan teks atau multi-media asli baileys ke grup atau chat pribadi ---
 export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
   const activeSession = activeBotSessions.get(googleUserId);
@@ -309,16 +309,36 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
   const botDatabase = readBotDatabase(googleUserId);
   const client = activeSession.socketInstance;
   const mediaType = String(payload.mediaType || 'text').trim().toLowerCase();
-  const formattedText = formatMessageTemplateVariables(payload.caption ?? payload.message ?? '', botDatabase).trim();
+  const formattedCaption = formatMessageTemplateVariables(payload.caption ?? payload.message ?? '', botDatabase).trim();
+
+  // --- siapkan daftar mentions jika mentionAll aktif pada target grup ---
+  let mentionsList = undefined;
+  if (payload.mentionAll && targetJid.endsWith('@g.us')) {
+    try {
+      let participants = global.db?.metadata?.[targetJid]?.participants || [];
+      if (participants.length === 0) {
+        const meta = await client.groupMetadata(targetJid).catch(() => null);
+        participants = meta?.participants || [];
+      }
+      const mentionJids = participants
+        .map((p) => p?.id)
+        .filter((id) => typeof id === 'string' && /(@s\.whatsapp\.net|@lid)$/i.test(id));
+      if (mentionJids.length > 0) {
+        mentionsList = mentionJids;
+      }
+    } catch {
+      // --- lanjutkan kirim tanpa mentions jika metadata grup gagal diambil ---
+    }
+  }
 
   let messageContent = null;
 
   if (mediaType === 'text') {
-    if (!formattedText) {
-      return { isSuccess: false, errorMessage: 'Isi pesan tidak boleh kosong.' };
+    if (!formattedCaption) {
+      return { isSuccess: false, errorMessage: 'Isi pesan teks tidak boleh kosong.' };
     }
-    messageContent = { text: formattedText };
-  } else if (['video', 'audio', 'sticker', 'document'].includes(mediaType)) {
+    messageContent = { text: formattedCaption };
+  } else if (['image', 'video', 'audio', 'sticker', 'document'].includes(mediaType)) {
     const parsedBase64 = parseBase64MediaInput(payload.mediaBase64);
     const mediaUrl = String(payload.mediaUrl || '').trim();
     const mediaSource = parsedBase64 ? parsedBase64.buffer : (mediaUrl ? { url: mediaUrl } : null);
@@ -327,28 +347,48 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
       return { isSuccess: false, errorMessage: 'URL media atau file lokal wajib diisi.' };
     }
 
-    if (mediaType === 'video') {
+    if (mediaType === 'image') {
+      messageContent = {
+        image: mediaSource,
+        caption: formattedCaption || undefined,
+        mimetype: parsedBase64?.mimetype || undefined
+      };
+    } else if (mediaType === 'video') {
       messageContent = {
         video: mediaSource,
-        caption: formattedText || undefined
+        caption: formattedCaption || undefined,
+        mimetype: parsedBase64?.mimetype || 'video/mp4'
       };
     } else if (mediaType === 'audio') {
+      const isPtt = Boolean(payload.ptt);
       messageContent = {
         audio: mediaSource,
-        mimetype: parsedBase64?.mimetype || 'audio/mpeg',
-        ptt: Boolean(payload.ptt)
+        mimetype: isPtt ? 'audio/ogg; codecs=opus' : (parsedBase64?.mimetype || 'audio/mpeg'),
+        ptt: isPtt
       };
     } else if (mediaType === 'sticker') {
-      // --- gunakan helper sendSticker jika media berupa gambar non-webp ---
-      if (parsedBase64 && typeof client.sendSticker === 'function') {
-        await client.sendSticker(targetJid, parsedBase64.buffer, null, {
-          packname: botDatabase?.settings?.packname || CONFIG.platformName,
-          author: botDatabase?.settings?.author || 'Xu Core'
-        });
-        recordRealtimeActivityHit('POST', payload.sourceRoute || '/api/whatsapp/direct-send');
-        if (io && io.engine.clientsCount > 0) io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
-        emitLog(googleUserId, 'SUCCESS', `Sticker terkirim ke [${targetJid.split('@')[0]}].`);
-        return { isSuccess: true, targetJid, messageId: null };
+      // --- konversi otomatis gambar ke stiker webp jika client.sendSticker tersedia ---
+      if (typeof client.sendSticker === 'function') {
+        try {
+          let stickerInput = parsedBase64 ? parsedBase64.buffer : null;
+          if (!stickerInput && mediaUrl) {
+            const fetched = await fetch(mediaUrl);
+            if (!fetched.ok) throw new Error(`Gagal mengunduh URL stiker (HTTP ${fetched.status}).`);
+            stickerInput = Buffer.from(await fetched.arrayBuffer());
+          }
+          if (stickerInput) {
+            await client.sendSticker(targetJid, stickerInput, null, {
+              packname: botDatabase?.settings?.packname || CONFIG.platformName,
+              author: botDatabase?.settings?.author || 'Xu Core'
+            });
+            recordRealtimeActivityHit('POST', payload.sourceRoute || '/api/whatsapp/direct-send');
+            if (io && io.engine.clientsCount > 0) io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
+            emitLog(googleUserId, 'SUCCESS', `Pesan [STICKER] terkirim ke [${targetJid.split('@')[0]}].`);
+            return { isSuccess: true, targetJid, messageId: null };
+          }
+        } catch (stickerErr) {
+          emitLog(googleUserId, 'WARN', `Fallback sendMessage sticker: ${stickerErr.message}`);
+        }
       }
       messageContent = { sticker: mediaSource };
     } else if (mediaType === 'document') {
@@ -356,7 +396,7 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
         document: mediaSource,
         fileName: String(payload.fileName || 'document').trim(),
         mimetype: String(payload.mimetype || parsedBase64?.mimetype || 'application/octet-stream').trim(),
-        caption: formattedText || undefined
+        caption: formattedCaption || undefined
       };
     }
   } else if (mediaType === 'location') {
@@ -393,22 +433,8 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
     return { isSuccess: false, errorMessage: `Tipe media [${mediaType}] tidak didukung.` };
   }
 
-  if (payload.mentionAll && targetJid.endsWith('@g.us')) {
-    try {
-      let participants = global.db?.metadata?.[targetJid]?.participants || [];
-      if (participants.length === 0) {
-        const meta = await client.groupMetadata(targetJid).catch(() => null);
-        participants = meta?.participants || [];
-      }
-      const mentionJids = participants
-        .map((p) => p?.id)
-        .filter((id) => typeof id === 'string' && /(@s\.whatsapp\.net|@lid)$/i.test(id));
-      if (mentionJids.length > 0) {
-        messageContent.mentions = mentionJids;
-      }
-    } catch {
-      // --- lanjutkan kirim pesan tanpa mention jika metadata grup gagal diambil ---
-    }
+  if (mentionsList) {
+    messageContent.mentions = mentionsList;
   }
 
   try {
@@ -421,11 +447,11 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
     emitLog(
       googleUserId,
       'SUCCESS',
-      `Pesan [${mediaType.toUpperCase()}] terkirim ke [${shortTarget}]${payload.mentionAll && targetJid.endsWith('@g.us') ? ' (Mention All)' : ''}.`
+      `Pesan [${mediaType.toUpperCase()}] terkirim ke [${shortTarget}]${mentionsList ? ' (Mention All)' : ''}.`
     );
     return { isSuccess: true, targetJid, messageId: sentMsg?.key?.id || null };
   } catch (sendError) {
-    emitLog(googleUserId, 'ERROR', `Gagal mengirim pesan ke [${targetJid.split('@')[0]}]: ${sendError.message}`);
+    emitLog(googleUserId, 'ERROR', `Gagal mengirim pesan [${mediaType.toUpperCase()}] ke [${targetJid.split('@')[0]}]: ${sendError.message}`);
     return { isSuccess: false, errorMessage: sendError.message || 'Gagal mengirim pesan.' };
   }
 }
