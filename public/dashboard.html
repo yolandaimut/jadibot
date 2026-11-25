@@ -195,8 +195,8 @@
 
   <!-- --- navbar utama sticky dengan ukuran judul xu core asli dan jarak aman ke ikon lonceng --- -->
   <header class="sticky top-0 z-40 flex items-center justify-between gap-1.5 sm:gap-3 w-full overflow-visible px-2 py-2 sm:px-6 sm:py-2.5 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_4px_24px_rgba(0,0,0,0.45)]">
-    <!-- --- grup kiri: logo orbital, teks xu core ukuran asli digeser ke kiri, dan 4 ikon navigasi --- -->
-    <div class="flex items-center gap-1.5 sm:gap-3.5 min-w-0 flex-1 -ml-0.5 sm:ml-0">
+    <!-- --- grup kiri: logo orbital, teks xu core ukuran normal, dan 4 ikon navigasi rapat --- -->
+    <div class="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
       <a href="/dashboard" class="flex items-center gap-1 sm:gap-2 shrink-0 select-none" aria-label="Xu Core">
         <!-- --- wadah ikon skener orbital svg bawaan dashboard --- -->
         <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-900 border accent-border flex items-center justify-center relative overflow-hidden shrink-0 group/icon shadow-lg">
@@ -1183,12 +1183,24 @@
               <span id="gwApiKeyStatusBadge" class="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-400 shrink-0">BELUM ADA</span>
             </div>
 
+            <!-- --- input api key dengan tombol ikon mata dan ikon copy --- -->
             <div class="space-y-2">
               <label for="gwApiKeyInput" class="block text-[11px] font-semibold text-slate-300">API Key Aktif (Header: x-api-key)</label>
-              <div class="flex items-center gap-2">
-                <input id="gwApiKeyInput" type="password" readonly value="" placeholder="Klik Generate API Key untuk membuat kunci..." class="flex-1 bg-slate-950/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
-                <button id="gwToggleKeyVisibilityBtn" type="button" onclick="toggleGatewayKeyVisibility()" title="Tampilkan / Sembunyikan Key" class="px-2.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 font-mono-code">Lihat</button>
-                <button type="button" onclick="copyGatewayApiKey()" title="Salin API Key" class="px-2.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs accent-text font-semibold">Salin</button>
+              <div class="flex items-center gap-1.5">
+                <input id="gwApiKeyInput" type="password" readonly value="" placeholder="Klik Generate API Key untuk membuat kunci..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
+
+                <button id="gwToggleKeyVisibilityBtn" type="button" onclick="toggleGatewayKeyVisibility()" title="Tampilkan API Key" aria-label="Tampilkan API Key" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[var(--accent-main)] text-slate-300 hover:text-white transition-all active:scale-95 shrink-0">
+                  <svg id="gwToggleKeyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+
+                <button type="button" onclick="copyGatewayApiKey()" title="Salin API Key" aria-label="Salin API Key" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[var(--accent-main)] accent-text transition-all active:scale-95 shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
               </div>
             </div>
 
@@ -1205,7 +1217,7 @@
 
             <div class="grid grid-cols-2 gap-2.5 pt-1">
               <button type="button" onclick="generateGatewayApiKey()" class="py-2.5 px-3 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 accent-shadow">
-                Generate / Rotasi Key
+                Generate Key
               </button>
               <button type="button" onclick="revokeGatewayApiKey()" class="py-2.5 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-all active:scale-95">
                 Cabut Key
@@ -1331,6 +1343,7 @@
                 <label for="gwMediaTypeSelect" class="block text-[11px] text-slate-300 font-semibold">Tipe Payload Media</label>
                 <select id="gwMediaTypeSelect" onchange="switchGatewayMediaFields()" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none">
                   <option value="text">Teks (Message)</option>
+                  <option value="image">Gambar (URL / File + Caption)</option>
                   <option value="video">Video (URL / File + Caption)</option>
                   <option value="audio">Audio / Voice Note (URL / File)</option>
                   <option value="sticker">Sticker (URL / File WebP/Image)</option>
@@ -1349,17 +1362,27 @@
 
             <!-- --- input media url atau unggah file lokal (untuk video, audio, sticker, document) --- -->
             <div id="gwMediaSourceGroup" class="hidden rounded-xl bg-slate-950/75 border border-slate-800 p-3.5 space-y-3">
+              <!-- --- custom file picker kompak pengganti input file bawaan browser --- -->
               <div class="space-y-1.5">
-                <label for="gwMediaUrlInput" class="block text-[11px] text-slate-300 font-semibold">URL Media Langsung (HTTP/HTTPS)</label>
-                <input id="gwMediaUrlInput" oninput="updateGatewayPayloadPreview()" type="url" placeholder="https://domain.com/file.mp4" class="w-full bg-slate-900/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
-              </div>
+                <label class="block text-[11px] text-slate-300 font-semibold">Atau Pilih File Lokal (Otomatis Base64)</label>
+                <input id="gwMediaFileInput" onchange="handleGatewayLocalFileSelect(event)" type="file" class="hidden" />
 
-              <div class="space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <label for="gwMediaFileInput" class="block text-[11px] text-slate-300 font-semibold">Atau Pilih File Lokal (Otomatis Base64)</label>
-                  <span id="gwMediaFileInfo" class="text-[10px] font-mono-code text-slate-500">belum ada file</span>
+                <div class="flex items-center justify-between gap-2 p-1.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                  <button type="button" onclick="getEl('gwMediaFileInput')?.click()" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-slate-100 transition-all active:scale-95 shrink-0">
+                    <svg class="w-3.5 h-3.5 accent-text shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span>Pilih File</span>
+                  </button>
+
+                  <span id="gwMediaFileInfo" class="flex-1 min-w-0 text-[11px] font-mono-code text-slate-400 truncate px-1">belum ada file</span>
+
+                  <button id="gwClearMediaFileBtn" type="button" onclick="clearGatewayLocalFile()" title="Hapus File" aria-label="Hapus File" class="hidden p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-                <input id="gwMediaFileInput" onchange="handleGatewayLocalFileSelect(event)" type="file" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-900 file:text-slate-200 file:text-xs file:font-semibold hover:file:bg-slate-800 cursor-pointer" />
               </div>
 
               <!-- --- opsi ptt khusus tipe audio / voice note --- -->
@@ -2965,12 +2988,24 @@
       updateGatewayPayloadPreview();
     }
 
+    // --- toggle visibilitas api key dengan ikon mata terbuka dan tertutup ---
     function toggleGatewayKeyVisibility() {
       isGatewayKeyVisible = !isGatewayKeyVisible;
       const inputEl = getEl('gwApiKeyInput');
       const btn = getEl('gwToggleKeyVisibilityBtn');
+      const iconEl = getEl('gwToggleKeyIcon');
+
       if (inputEl) inputEl.type = isGatewayKeyVisible ? 'text' : 'password';
-      if (btn) btn.textContent = isGatewayKeyVisible ? 'Tutup' : 'Lihat';
+      if (btn) {
+        const label = isGatewayKeyVisible ? 'Sembunyikan API Key' : 'Tampilkan API Key';
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+      }
+      if (iconEl) {
+        iconEl.innerHTML = isGatewayKeyVisible
+          ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />'
+          : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />';
+      }
     }
 
     function copyGatewayApiKey() {
@@ -2985,12 +3020,13 @@
       socketClient.emit('gateway:key:revoke');
     }
 
+    // --- tampilkan input form gateway sesuai tipe media yang dipilih ---
     function switchGatewayMediaFields() {
       const type = getEl('gwMediaTypeSelect')?.value || 'text';
-      const isMedia = ['video', 'audio', 'sticker', 'document'].includes(type);
+      const isMedia = ['image', 'video', 'audio', 'sticker', 'document'].includes(type);
       const isLoc = type === 'location';
       const isContact = type === 'contact';
-      const showTextGroup = type === 'text' || type === 'video' || type === 'document';
+      const showTextGroup = ['text', 'image', 'video', 'document'].includes(type);
 
       getEl('gwTextGroup')?.classList.toggle('hidden', !showTextGroup);
       getEl('gwMediaSourceGroup')?.classList.toggle('hidden', !isMedia);
@@ -3019,9 +3055,22 @@
         msgLabel.textContent = type === 'text' ? 'Isi Pesan Teks' : 'Caption Media (Opsional)';
       }
 
+      const urlInput = getEl('gwMediaUrlInput');
+      if (urlInput) {
+        const placeholderMap = {
+          image: 'https://domain.com/foto.jpg',
+          video: 'https://domain.com/video.mp4',
+          audio: 'https://domain.com/audio.mp3',
+          sticker: 'https://domain.com/stiker.webp',
+          document: 'https://domain.com/dokumen.pdf'
+        };
+        urlInput.placeholder = placeholderMap[type] || 'https://domain.com/file';
+      }
+
       const fileInput = getEl('gwMediaFileInput');
       if (fileInput) {
         const acceptMap = {
+          image: 'image/*',
           video: 'video/*',
           audio: 'audio/*',
           sticker: 'image/webp,image/png,image/jpeg',
@@ -3033,19 +3082,84 @@
       updateGatewayPayloadPreview();
     }
 
+    // --- susun objek payload asli untuk pengiriman gateway multi-media ---
+    function buildGatewayPayloadObject(forPreview = false) {
+      const targetJid = String(getEl('gwTargetJidInput')?.value || '').trim();
+      const mediaType = getEl('gwMediaTypeSelect')?.value || 'text';
+      const rawMessage = String(getEl('gwMessageTextarea')?.value || '').trim();
+      const mentionAll = Boolean(getEl('gwMentionAllCheck')?.checked);
+
+      const payload = {
+        targetJid: targetJid || '6281234567890',
+        mediaType,
+        mentionAll
+      };
+
+      if (mediaType === 'text') {
+        payload.message = rawMessage || 'Halo dari Xu Core API Gateway';
+      } else if (['image', 'video', 'audio', 'sticker', 'document'].includes(mediaType)) {
+        const mediaUrl = String(getEl('gwMediaUrlInput')?.value || '').trim();
+        if (mediaUrl) payload.mediaUrl = mediaUrl;
+        if (gatewayLocalFilePayload?.base64) {
+          payload.mediaBase64 = forPreview
+            ? `[BASE64:${gatewayLocalFilePayload.fileName} (${(gatewayLocalFilePayload.size / 1024).toFixed(1)} KB)]`
+            : gatewayLocalFilePayload.base64;
+        }
+        if (['image', 'video', 'document'].includes(mediaType) && rawMessage) {
+          payload.caption = rawMessage;
+        }
+        if (mediaType === 'audio') {
+          payload.ptt = Boolean(getEl('gwAudioPttCheck')?.checked);
+        }
+        if (mediaType === 'document') {
+          payload.fileName = String(getEl('gwDocFileNameInput')?.value || gatewayLocalFilePayload?.fileName || 'document.pdf').trim();
+          payload.mimetype = String(getEl('gwDocMimeInput')?.value || gatewayLocalFilePayload?.mimetype || 'application/pdf').trim();
+        }
+      } else if (mediaType === 'location') {
+        const lat = Number(getEl('gwLocLatInput')?.value || -6.9932);
+        const lng = Number(getEl('gwLocLngInput')?.value || 110.4203);
+        const locName = String(getEl('gwLocNameInput')?.value || '').trim();
+        const locAddress = String(getEl('gwLocAddressInput')?.value || '').trim();
+        payload.location = { degreesLatitude: lat, degreesLongitude: lng, name: locName, address: locAddress };
+      } else if (mediaType === 'contact') {
+        const contactName = String(getEl('gwContactNameInput')?.value || 'Admin Xu Core').trim();
+        const contactPhone = String(getEl('gwContactPhoneInput')?.value || '').replace(/\D/g, '');
+        payload.contact = { fullName: contactName, phoneNumber: contactPhone };
+      }
+
+      return payload;
+    }
+
+    // --- hapus file lokal yang dipilih pada gateway multi-media ---
+    function clearGatewayLocalFile() {
+      gatewayLocalFilePayload = null;
+      const fileInput = getEl('gwMediaFileInput');
+      const infoEl = getEl('gwMediaFileInfo');
+      const clearBtn = getEl('gwClearMediaFileBtn');
+
+      if (fileInput) fileInput.value = '';
+      if (infoEl) {
+        infoEl.textContent = 'belum ada file';
+        infoEl.className = 'flex-1 min-w-0 text-[11px] font-mono-code text-slate-400 truncate px-1';
+      }
+      if (clearBtn) clearBtn.classList.add('hidden');
+      updateGatewayPayloadPreview();
+    }
+
+    // --- proses file lokal yang dipilih menjadi base64 ---
     function handleGatewayLocalFileSelect(event) {
       const file = event?.target?.files?.[0];
       const infoEl = getEl('gwMediaFileInfo');
+      const clearBtn = getEl('gwClearMediaFileBtn');
+
       if (!file) {
-        gatewayLocalFilePayload = null;
-        if (infoEl) infoEl.textContent = 'belum ada file';
-        updateGatewayPayloadPreview();
+        clearGatewayLocalFile();
         return;
       }
 
       if (file.size > 12 * 1024 * 1024) {
         showCyberToast('File Terlalu Besar', 'Maksimal ukuran unggah lokal 12 MB. Gunakan URL untuk file besar.', 'danger');
-        event.target.value = '';
+        clearGatewayLocalFile();
         return;
       }
 
@@ -3057,7 +3171,11 @@
           size: file.size,
           base64: String(reader.result || '')
         };
-        if (infoEl) infoEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        if (infoEl) {
+          infoEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+          infoEl.className = 'flex-1 min-w-0 text-[11px] font-mono-code text-slate-200 truncate px-1';
+        }
+        if (clearBtn) clearBtn.classList.remove('hidden');
         if (getEl('gwDocFileNameInput') && !getEl('gwDocFileNameInput').value) {
           getEl('gwDocFileNameInput').value = file.name;
         }
@@ -3206,7 +3324,7 @@
 
     async function submitGatewayTestMessage() {
       if (!currentGatewayApiKey) {
-        showCyberToast('API Key Belum Ada', 'Klik "Generate / Rotasi Key" terlebih dahulu.', 'danger');
+        showCyberToast('API Key Belum Ada', 'Klik "Generate Key" terlebih dahulu.', 'danger');
         return;
       }
 
@@ -4329,9 +4447,9 @@ export default {
       safeExecute(() => {
         // --- skala kanvas logo presisi agar grup 4 ikon tetap terpisah bersih dari lonceng di mobile ---
         const brandCanvas = getEl('headerBrandTextCanvas');
-        const responsiveScale = window.innerWidth < 440 ? 0.56 : 0.68;
+        const responsiveScale = window.innerWidth < 440 ? 0.62 : 0.7;
         initHeaderBrandTextCanvas(brandCanvas, {
-          width: 138,
+          width: 146,
           height: 44,
           centerY: 22,
           fontSize: 27,
