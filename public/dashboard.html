@@ -155,7 +155,7 @@
     .accent-soft-bg { background-color: var(--accent-soft); }
     .accent-shadow { box-shadow: 0 0 18px -4px var(--accent-glow); }
 
-    /* --- pengaturan layout header agar grup ikon navigasi dan lonceng tidak tumpang tindih --- */
+    /* --- pengaturan layout header agar judul xu core tetap ukuran asli dan ikon navigasi tidak menimpa lonceng --- */
     .header-nav-pill {
       display: inline-flex;
       align-items: center;
@@ -172,8 +172,8 @@
     }
 
     .header-nav-btn {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       padding: 0;
     }
 
@@ -193,12 +193,11 @@
 </head>
 <body class="bg-animated-cyber-grid min-h-screen flex flex-col selection:bg-slate-700 selection:text-white antialiased">
 
-  <!-- --- navbar utama sticky glassmorphism anti-overflow mobile --- -->
-  <!-- --- navbar utama sticky dengan pemisahan presisi antara brand, grup navigasi, dan kontrol kanan --- -->
-  <header class="sticky top-0 z-40 flex items-center justify-between gap-2 sm:gap-3 w-full overflow-visible px-2.5 py-2 sm:px-6 sm:py-2.5 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_4px_24px_rgba(0,0,0,0.45)]">
-    <!-- --- grup kiri: logo orbital, teks canvas xu core presisi, dan 4 ikon navigasi tepat di kanannya --- -->
-    <div class="flex items-center gap-2 sm:gap-3.5 min-w-0 flex-1">
-      <a href="/dashboard" class="flex items-center gap-1.5 sm:gap-2 shrink-0 select-none" aria-label="Xu Core">
+  <!-- --- navbar utama sticky dengan ukuran judul xu core asli dan jarak aman ke ikon lonceng --- -->
+  <header class="sticky top-0 z-40 flex items-center justify-between gap-1.5 sm:gap-3 w-full overflow-visible px-2 py-2 sm:px-6 sm:py-2.5 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_4px_24px_rgba(0,0,0,0.45)]">
+    <!-- --- grup kiri: logo orbital, teks xu core ukuran asli digeser ke kiri, dan 4 ikon navigasi --- -->
+    <div class="flex items-center gap-1.5 sm:gap-3.5 min-w-0 flex-1 -ml-0.5 sm:ml-0">
+      <a href="/dashboard" class="flex items-center gap-1 sm:gap-2 shrink-0 select-none" aria-label="Xu Core">
         <!-- --- wadah ikon skener orbital svg bawaan dashboard --- -->
         <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-900 border accent-border flex items-center justify-center relative overflow-hidden shrink-0 group/icon shadow-lg">
           <div class="absolute inset-0 bg-[var(--accent-soft)] opacity-25 transition-opacity duration-300 group-hover/icon:opacity-55"></div>
@@ -213,13 +212,13 @@
           </svg>
         </div>
 
-        <!-- --- teks animasi xu core pada canvas dengan lebar ketat --- -->
+        <!-- --- teks animasi xu core pada canvas ukuran asli --- -->
         <span class="sr-only">XU CORE</span>
         <canvas id="headerBrandTextCanvas" class="brand-canvas" aria-hidden="true"></canvas>
       </a>
 
-      <!-- --- grup 4 ikon navigasi terpisah bersih tepat di kanan teks logo xu core --- -->
-      <nav aria-label="Navigasi Workspace" class="header-nav-pill bg-slate-900/90 border border-slate-800/90 rounded-xl shadow-inner ml-0.5 sm:ml-1">
+      <!-- --- grup 4 ikon navigasi terpisah rapi di sebelah kanan teks logo xu core --- -->
+      <nav aria-label="Navigasi Workspace" class="header-nav-pill bg-slate-900/90 border border-slate-800/90 rounded-xl shadow-inner">
         <button id="navTabDashboard" type="button" onclick="switchWorkspaceTab('dashboard')" title="Dashboard" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
           <span class="hidden sm:inline">dash</span>
@@ -243,7 +242,7 @@
     </div>
 
     <!-- --- grup kanan terisolasi: tombol lonceng pengumuman & menu profil --- -->
-    <div class="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 flex-none pl-1">
+    <div class="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 flex-none">
       <!-- --- tombol lonceng pemicu modal pusat pemberitahuan --- -->
       <button id="announcementTriggerBtn" type="button" onclick="openAnnouncementCenterModal()" title="Pusat Pemberitahuan & Notifikasi" aria-label="Pusat Pemberitahuan" class="relative flex items-center justify-center w-8 h-8 min-w-[32px] min-h-[32px] shrink-0 flex-none rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all active:scale-95">
         <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1420,30 +1419,22 @@
               <input id="gwMentionAllCheck" onchange="updateGatewayPayloadPreview()" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" />
             </label>
 
-            <!-- --- pratinjau payload json & generator kode siap pakai (curl, fetch api, axios) --- -->
+            <!-- --- pratinjau payload default json dengan dropdown javascript/curl dan ikon copy di kanan atas --- -->
             <div class="rounded-xl bg-black/80 border border-slate-800 p-3 space-y-2">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] font-mono-code text-slate-400 uppercase">pratinjau payload &amp; kode</span>
-                  <span id="gwPreviewModeBadge" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono-code text-[9px] text-slate-300 uppercase">JSON</span>
-                </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[10px] font-mono-code text-slate-400 uppercase truncate">pratinjau payload</span>
 
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <select id="gwJsClientSelect" onchange="handleGatewayJsClientChange()" aria-label="Pilih Library JavaScript" class="px-2 py-1 rounded-md bg-slate-900 border border-slate-800 text-[10px] font-mono-code text-slate-200 focus:outline-none focus:border-[var(--accent-main)]">
-                    <option value="fetch">Fetch API</option>
-                    <option value="axios">Axios</option>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <select id="gwSnippetFormatSelect" onchange="handleGatewayFormatChange()" aria-label="Pilih Format Kode" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono-code text-slate-200 focus:outline-none focus:border-[var(--accent-main)]">
+                    <option value="json" selected>JSON</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="curl">cURL</option>
                   </select>
 
-                  <button id="gwPreviewJsonBtn" type="button" onclick="setGatewayPreviewMode('json')" class="px-2 py-1 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code text-slate-200 transition-colors">
-                    JSON
-                  </button>
-
-                  <button type="button" onclick="copyGatewayCurlSnippet()" class="px-2 py-1 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] font-mono-code accent-text font-semibold transition-colors">
-                    salin cURL
-                  </button>
-
-                  <button type="button" onclick="copyGatewayJsSnippet()" class="px-2 py-1 rounded-md accent-soft-bg hover:opacity-90 border accent-border text-[10px] font-mono-code accent-text font-bold transition-all active:scale-95">
-                    salin JS
+                  <button type="button" onclick="copyGatewayPreviewSnippet()" title="Salin Kode" aria-label="Salin Kode" class="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[var(--accent-main)] text-slate-300 hover:text-white transition-all active:scale-95 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -3130,118 +3121,87 @@
       return payload;
     }
 
-    // --- state mode pratinjau payload gateway (json atau javascript fetch/axios) ---
-    let gatewayPreviewMode = 'json';
-
-    // --- bangun potongan kode javascript siap pakai menggunakan fetch api atau axios ---
-    function buildGatewayJsSnippet(clientFlavor = 'fetch') {
-      const origin = window.location.origin;
-      const endpointUrl = `${origin}/api/v1/gateway/send`;
-      const apiKeyValue = currentGatewayApiKey || 'YOUR_API_KEY';
+    // --- bangun objek payload bersih untuk pratinjau kode gateway ---
+    function getSanitizedGatewaySnippetPayload() {
       const rawPayload = buildGatewayPayloadObject(true);
-
       const cleanPayload = {};
       for (const [key, value] of Object.entries(rawPayload)) {
         if (value === undefined) continue;
-        if (key === 'mediaBase64') {
-          cleanPayload[key] = 'data:application/octet-stream;base64,ISI_BASE64_FILE_ANDA';
-        } else {
-          cleanPayload[key] = value;
-        }
+        cleanPayload[key] = key === 'mediaBase64'
+          ? 'data:application/octet-stream;base64,ISI_BASE64_FILE_ANDA'
+          : value;
       }
+      return cleanPayload;
+    }
 
-      const indentedPayload = JSON.stringify(cleanPayload, null, 2)
-        .split('\n')
-        .map((line, idx) => (idx === 0 ? line : `  ${line}`))
-        .join('\n');
+    // --- format teks pratinjau sesuai pilihan dropdown (default json, javascript fetch, atau curl) ---
+    function buildGatewayFormattedSnippet(formatType = 'json') {
+      const origin = window.location.origin;
+      const endpointUrl = `${origin}/api/v1/gateway/send`;
+      const apiKeyValue = currentGatewayApiKey || 'YOUR_API_KEY';
+      const cleanPayload = getSanitizedGatewaySnippetPayload();
 
-      if (clientFlavor === 'axios') {
+      if (formatType === 'javascript') {
+        const indentedPayload = JSON.stringify(cleanPayload, null, 2)
+          .split('\n')
+          .map((line, idx) => (idx === 0 ? line : `  ${line}`))
+          .join('\n');
+
         return [
-          "import axios from 'axios';",
+          `const response = await fetch('${endpointUrl}', {`,
+          "  method: 'POST',",
+          '  headers: {',
+          "    'Content-Type': 'application/json',",
+          `    'x-api-key': '${apiKeyValue}'`,
+          '  },',
+          `  body: JSON.stringify(${indentedPayload})`,
+          '});',
           '',
-          'const { data } = await axios.post(',
-          `  '${endpointUrl}',`,
-          `  ${indentedPayload},`,
-          '  {',
-          '    headers: {',
-          "      'Content-Type': 'application/json',",
-          `      'x-api-key': '${apiKeyValue}'`,
-          '    }',
-          '  }',
-          ');',
-          '',
-          'console.log(data);'
+          'const result = await response.json();',
+          'console.log(result);'
         ].join('\n');
       }
 
-      return [
-        `const response = await fetch('${endpointUrl}', {`,
-        "  method: 'POST',",
-        '  headers: {',
-        "    'Content-Type': 'application/json',",
-        `    'x-api-key': '${apiKeyValue}'`,
-        '  },',
-        `  body: JSON.stringify(${indentedPayload})`,
-        '});',
-        '',
-        'const result = await response.json();',
-        'console.log(result);'
-      ].join('\n');
+      if (formatType === 'curl') {
+        const compactJson = JSON.stringify(cleanPayload);
+        return [
+          `curl -X POST "${endpointUrl}" \\`,
+          '  -H "Content-Type: application/json" \\',
+          `  -H "x-api-key: ${apiKeyValue}" \\`,
+          `  -d '${compactJson}'`
+        ].join('\n');
+      }
+
+      return JSON.stringify(cleanPayload, null, 2);
     }
 
-    // --- ubah mode tampilan kotak pratinjau antara json dan kode javascript ---
-    function setGatewayPreviewMode(mode) {
-      gatewayPreviewMode = mode === 'js' ? 'js' : 'json';
-      updateGatewayPayloadPreview();
-    }
-
-    // --- perbarui pratinjau otomatis saat pilihan fetch api / axios diganti ---
-    function handleGatewayJsClientChange() {
-      gatewayPreviewMode = 'js';
-      updateGatewayPayloadPreview();
-    }
-
-    // --- perbarui konten kotak pratinjau payload sesuai mode aktif ---
+    // --- perbarui isi kotak pratinjau saat pilihan dropdown atau input form berubah ---
     function updateGatewayPayloadPreview() {
       const previewEl = getEl('gwPayloadPreviewCode');
-      const modeBadge = getEl('gwPreviewModeBadge');
       if (!previewEl) return;
 
       safeExecute(() => {
-        const selectedClient = getEl('gwJsClientSelect')?.value || 'fetch';
-        if (gatewayPreviewMode === 'js') {
-          previewEl.textContent = buildGatewayJsSnippet(selectedClient);
-          if (modeBadge) modeBadge.textContent = selectedClient === 'axios' ? 'JS AXIOS' : 'JS FETCH';
-          return;
-        }
-
-        const previewObj = buildGatewayPayloadObject(true);
-        previewEl.textContent = JSON.stringify(previewObj, null, 2);
-        if (modeBadge) modeBadge.textContent = 'JSON';
+        const selectedFormat = getEl('gwSnippetFormatSelect')?.value || 'json';
+        previewEl.textContent = buildGatewayFormattedSnippet(selectedFormat);
       }, 'updateGatewayPayloadPreview');
     }
 
-    // --- salin contoh perintah curl siap pakai ke clipboard ---
-    function copyGatewayCurlSnippet() {
-      safeExecute(() => {
-        const origin = window.location.origin;
-        const apiKeyLabel = currentGatewayApiKey || 'YOUR_API_KEY';
-        const payloadJson = JSON.stringify(buildGatewayPayloadObject(true));
-        const curlText = `curl -X POST "${origin}/api/v1/gateway/send" \\\n  -H "Content-Type: application/json" \\\n  -H "x-api-key: ${apiKeyLabel}" \\\n  -d '${payloadJson}'`;
-        copyTextToClipboard(curlText, 'cURL Disalin', 'Gagal membuat contoh cURL.');
-      }, 'copyGatewayCurlSnippet');
+    function handleGatewayFormatChange() {
+      updateGatewayPayloadPreview();
     }
 
-    // --- format payload ke javascript fetch/axios, tampilkan di pratinjau, dan salin ke clipboard ---
-    function copyGatewayJsSnippet() {
+    // --- salin konten aktif di kotak pratinjau menggunakan tombol ikon copy ---
+    function copyGatewayPreviewSnippet() {
       safeExecute(() => {
-        const selectedClient = getEl('gwJsClientSelect')?.value || 'fetch';
-        gatewayPreviewMode = 'js';
-        const jsCode = buildGatewayJsSnippet(selectedClient);
-        updateGatewayPayloadPreview();
-        const label = selectedClient === 'axios' ? 'Kode Axios JS Disalin' : 'Kode Fetch API JS Disalin';
-        copyTextToClipboard(jsCode, label, 'Gagal memformat kode JavaScript.');
-      }, 'copyGatewayJsSnippet');
+        const selectedFormat = getEl('gwSnippetFormatSelect')?.value || 'json';
+        const snippetText = buildGatewayFormattedSnippet(selectedFormat);
+        const labelMap = {
+          json: 'Payload JSON Disalin',
+          javascript: 'Kode JavaScript Disalin',
+          curl: 'Perintah cURL Disalin'
+        };
+        copyTextToClipboard(snippetText, labelMap[selectedFormat] || 'Kode Disalin', 'Tidak ada konten untuk disalin.');
+      }, 'copyGatewayPreviewSnippet');
     }
 
     async function submitGatewayTestMessage() {
@@ -4369,11 +4329,11 @@ export default {
       safeExecute(() => {
         // --- skala kanvas logo presisi agar grup 4 ikon tetap terpisah bersih dari lonceng di mobile ---
         const brandCanvas = getEl('headerBrandTextCanvas');
-        const responsiveScale = window.innerWidth < 400 ? 0.48 : (window.innerWidth < 440 ? 0.54 : 0.68);
+        const responsiveScale = window.innerWidth < 440 ? 0.56 : 0.68;
         initHeaderBrandTextCanvas(brandCanvas, {
           width: 138,
-          height: 42,
-          centerY: 21,
+          height: 44,
+          centerY: 22,
           fontSize: 27,
           scale: responsiveScale
         });
