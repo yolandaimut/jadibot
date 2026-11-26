@@ -1,4 +1,4 @@
-// --- manajer sesi baileys, auto-connect, ai persona, clear pre-keys, worker h-3/h-1, dan trafik ---
+// --- manajer sesi baileys, auto-connect, multi-media, webhook, grup visual, ai persona, spintax, clear pre-keys, dan auto-backup ---
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
@@ -16,6 +16,8 @@ import {
   ADMIN_WA_NUMBER,
   AUTO_CONNECT_MAX_RETRIES,
   AUTO_CONNECT_TIMEOUT_MS,
+  MAIN_DATABASE_FILE_PATH,
+  PLUGINS_ROOT_DIR,
   SESSIONS_ROOT_FOLDER_PATH,
   CONFIG
 } from './config.js';
@@ -33,12 +35,14 @@ import {
   listVouchers,
   readBotDatabase,
   readMasterDatabaseFile,
-  writeBotDatabaseAtomic
+  writeBotDatabaseAtomic,
+  writeMasterDatabaseFileAtomic
 } from './database.js';
 import {
   executeDynamicPlugins,
   getAvailablePluginsList,
-  getFeatureCatalogList
+  getFeatureCatalogList,
+  scanPluginFilesRecursive
 } from './plugin-manager.js';
 import Extra from '../system/extra.js';
 
@@ -49,11 +53,13 @@ export const userTerminalLogsCache = new Map();
 const silentLogger = pino({ level: 'silent' });
 let schedulerWorkerInterval = null;
 let lastExpiryReminderCheckMs = 0;
+let lastAutoBackupCheckMs = 0;
 
 // --- cooldown ai persona per bot & chat agar tidak memicu spam beruntun ---
 const aiReplyCooldownMap = new Map();
 const AI_REPLY_COOLDOWN_MS = 3500;
 const EXPIRY_REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const AUTO_BACKUP_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 // --- pelacak velocity request real-time & top active endpoints tanpa data palsu ---
 const VELOCITY_BUCKET_SECONDS = 3;
@@ -227,6 +233,23 @@ export async function forwardIncomingToUserWebhook(userDatabase, payload) {
   }
 }
 
+// --- konversi data url base64 menjadi buffer dan deteksi mimetype ---
+function parseBase64MediaInput(rawBase64) {
+  const clean = String(rawBase64 || '').trim();
+  if (!clean) return null;
+  const match = clean.match(/^data:([^;]+);base64,(.+)$/i);
+  if (match) {
+    return {
+      mimetype: match[1],
+      buffer: Buffer.from(match[2], 'base64')
+    };
+  }
+  return {
+    mimetype: 'application/octet-stream',
+    buffer: Buffer.from(clean, 'base64')
+  };
+}
+
 // --- generator jawaban ai persona yang modular dan dapat dihubungkan ke llm api ---
 export async function generateAiPersonaReply({
   systemPrompt = '',
@@ -239,7 +262,6 @@ export async function generateAiPersonaReply({
   const cleanUserMsg = String(userMessage || '').trim().slice(0, 1000);
   if (!cleanUserMsg) return null;
 
-  // --- opsi 1: openai-compatible api jika env AI_API_URL dan AI_API_KEY dikonfigurasi ---
   const customApiUrl = String(process.env.AI_API_URL || '').trim();
   const customApiKey = String(process.env.AI_API_KEY || '').trim();
   const customModel = String(process.env.AI_MODEL || 'gpt-4o-mini').trim();
@@ -277,7 +299,6 @@ export async function generateAiPersonaReply({
     }
   }
 
-  // --- opsi 2: free public llm endpoint tanpa api key ---
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -306,7 +327,6 @@ export async function generateAiPersonaReply({
     // --- lanjutkan ke fallback respons lokal jika jaringan eksternal tidak terjangkau ---
   }
 
-  // --- opsi 3: fallback respons persona lokal agar fitur tetap berfungsi tanpa internet llm ---
   const lower = cleanUserMsg.toLowerCase();
   if (/^(halo|hai|hi|assalamualaikum|p|permisi|selamat)/i.test(lower)) {
     return `Halo ${senderName}! Saya asisten otomatis *${botName}*. Ada yang bisa saya bantu hari ini?`;
@@ -315,23 +335,6 @@ export async function generateAiPersonaReply({
     return `Terima kasih sudah menghubungi *${botName}*, ${senderName}. Pesan Anda terkait informasi layanan/order telah kami terima. Silakan sebutkan detail kebutuhan Anda agar segera dibantu.`;
   }
   return `Halo ${senderName}, pesan Anda sudah diterima oleh asisten AI *${botName}*. Saat ini saya membantu berdasarkan panduan sistem kami—silakan jelaskan pertanyaan Anda secara singkat.`;
-}
-
-// --- konversi data url base64 menjadi buffer dan deteksi mimetype ---
-function parseBase64MediaInput(rawBase64) {
-  const clean = String(rawBase64 || '').trim();
-  if (!clean) return null;
-  const match = clean.match(/^data:([^;]+);base64,(.+)$/i);
-  if (match) {
-    return {
-      mimetype: match[1],
-      buffer: Buffer.from(match[2], 'base64')
-    };
-  }
-  return {
-    mimetype: 'application/octet-stream',
-    buffer: Buffer.from(clean, 'base64')
-  };
 }
 
 // --- kirim pesan teks atau multi-media asli baileys ke grup atau chat pribadi ---
@@ -353,7 +356,6 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
   const mediaType = String(payload.mediaType || 'text').trim().toLowerCase();
   const formattedCaption = formatMessageTemplateVariables(payload.caption ?? payload.message ?? '', botDatabase).trim();
 
-  // --- siapkan daftar mentions jika mentionAll aktif pada target grup ---
   let mentionsList = undefined;
   if (payload.mentionAll && targetJid.endsWith('@g.us')) {
     try {
@@ -399,7 +401,7 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
       messageContent = {
         video: mediaSource,
         caption: formattedCaption || undefined,
-        mimetype: parsedBase64?.mimetype || 'video/mp4'
+        mimetype: parsedBase64?.mimetype || payload.mimetype || 'video/mp4'
       };
     } else if (mediaType === 'audio') {
       const isPtt = Boolean(payload.ptt);
@@ -409,7 +411,6 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
         ptt: isPtt
       };
     } else if (mediaType === 'sticker') {
-      // --- konversi otomatis gambar ke stiker webp jika client.sendSticker tersedia ---
       if (typeof client.sendSticker === 'function') {
         try {
           let stickerInput = parsedBase64 ? parsedBase64.buffer : null;
@@ -623,6 +624,73 @@ export function clearUserSessionPreKeys(io, googleUserId) {
   }
 }
 
+// --- buat arsip zip database.json dan plugins lalu kirim otomatis ke whatsapp admin ---
+export async function runScheduledAutoBackupToAdmin(io, forceNow = false) {
+  const masterDb = readMasterDatabaseFile();
+  const backupCfg = masterDb.autoBackup || { enabled: false, intervalHours: 24, lastRunAt: 0 };
+
+  if (!forceNow) {
+    if (!backupCfg.enabled) return { isSuccess: false, skipped: true };
+    const intervalMs = Math.max(1, Number(backupCfg.intervalHours || 24)) * 60 * 60 * 1000;
+    if (Date.now() - Number(backupCfg.lastRunAt || 0) < intervalMs) {
+      return { isSuccess: false, skipped: true };
+    }
+  }
+
+  const delivery = findAvailableDeliverySocket(null);
+  const adminJid = resolveTargetWhatsappJid(backupCfg.targetWaNumber || ADMIN_WA_NUMBER);
+  if (!delivery || !adminJid) {
+    return { isSuccess: false, errorMessage: 'Tidak ada sesi bot aktif atau nomor WA admin tidak valid.' };
+  }
+
+  try {
+    const { zipSync } = await import('fflate');
+    const zipEntries = {};
+
+    if (fs.existsSync(MAIN_DATABASE_FILE_PATH)) {
+      zipEntries['database.json'] = new Uint8Array(fs.readFileSync(MAIN_DATABASE_FILE_PATH));
+    }
+
+    const pluginFiles = scanPluginFilesRecursive(PLUGINS_ROOT_DIR);
+    for (const relativePath of pluginFiles) {
+      const fullPluginPath = path.join(PLUGINS_ROOT_DIR, relativePath);
+      if (fs.existsSync(fullPluginPath)) {
+        zipEntries[`plugins/${relativePath}`] = new Uint8Array(fs.readFileSync(fullPluginPath));
+      }
+    }
+
+    const archiveBuffer = Buffer.from(zipSync(zipEntries, { level: 6 }));
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const fileName = `xu-core-autobackup-${stamp}.zip`;
+
+    await delivery.socketInstance.sendMessage(adminJid, {
+      document: archiveBuffer,
+      fileName,
+      mimetype: 'application/zip',
+      caption: `*[XU CORE — AUTO BACKUP]*\nArsip database.json & ${pluginFiles.length} plugin (${formatBytesReadable(archiveBuffer.length)}).`
+    });
+
+    const latestMaster = readMasterDatabaseFile();
+    latestMaster.autoBackup = {
+      ...(latestMaster.autoBackup || {}),
+      enabled: Boolean(backupCfg.enabled),
+      intervalHours: Number(backupCfg.intervalHours || 24),
+      targetWaNumber: String(backupCfg.targetWaNumber || ADMIN_WA_NUMBER),
+      lastRunAt: Date.now(),
+      lastFileName: fileName,
+      lastSizeLabel: formatBytesReadable(archiveBuffer.length)
+    };
+    writeMasterDatabaseFileAtomic(latestMaster);
+
+    if (io) {
+      emitTerminalLog(io, delivery.senderUserId, 'SUCCESS', `Auto-Backup ZIP [${fileName}] terkirim ke WA Admin.`);
+    }
+    return { isSuccess: true, fileName, sizeLabel: formatBytesReadable(archiveBuffer.length) };
+  } catch (err) {
+    return { isSuccess: false, errorMessage: err.message };
+  }
+}
+
 // --- hitung waktu eksekusi berikutnya untuk jadwal harian berbasis zona Asia/Jakarta ---
 export function computeNextJakartaDailyTimestamp(timeHHMM, fromMs = Date.now()) {
   const [rawHour, rawMinute] = String(timeHHMM || '08:00').split(':').map((n) => parseInt(n, 10));
@@ -730,7 +798,7 @@ async function processSubscriptionExpiryReminders(io, nowMs) {
   }
 }
 
-// --- worker latar belakang untuk jadwal pesan & notifikasi masa aktif h-3 / h-1 ---
+// --- worker latar belakang untuk jadwal pesan, notifikasi h-3/h-1, dan auto-backup zip ---
 export function startMessageSchedulerWorker(io) {
   if (schedulerWorkerInterval) return;
 
@@ -795,8 +863,12 @@ export function startMessageSchedulerWorker(io) {
         }
       }
 
-      // --- jalankan pengecekan notifikasi pengingat masa aktif h-3 dan h-1 ---
       await processSubscriptionExpiryReminders(io, nowMs);
+
+      if (nowMs - lastAutoBackupCheckMs >= AUTO_BACKUP_CHECK_INTERVAL_MS) {
+        lastAutoBackupCheckMs = nowMs;
+        await runScheduledAutoBackupToAdmin(io, false);
+      }
     } catch {
       // --- jaga worker scheduler tetap berjalan meski ada gangguan iterasi ---
     }
@@ -900,6 +972,7 @@ function cleanupSocketListenersAndEnd(socketInstance) {
     socketInstance.ev.removeAllListeners('messages.upsert');
     socketInstance.ev.removeAllListeners('groups.upsert');
     socketInstance.ev.removeAllListeners('groups.update');
+    socketInstance.ev.removeAllListeners('group-participants.update');
     socketInstance.end(undefined);
   } catch {
     // --- abaikan error penutupan socket ---
@@ -980,9 +1053,12 @@ async function serializeIncomingMessage(coreModules, client, rawMessage) {
       const serialized = await coreModules.serialize(client, rawMessage, coreModules.store);
       if (serialized && typeof serialized === 'object') {
         if (!serialized.command && serialized.cmd) serialized.command = serialized.cmd;
-        if (!serialized.reply) {
-          serialized.reply = async (text) =>
-            await client.sendMessage(serialized.chat || rawMessage.key.remoteJid, { text: String(text) }, { quoted: rawMessage });
+        if (typeof serialized.reply !== 'function') {
+          Object.defineProperty(serialized, 'reply', {
+            value: async (text) =>
+              await client.sendMessage(serialized.chat || rawMessage.key.remoteJid, { text: String(text) }, { quoted: rawMessage }),
+            configurable: true
+          });
         }
         return serialized;
       }
@@ -1216,7 +1292,6 @@ export async function startWhatsAppSession(
       syncFullHistory: false
     });
 
-    // --- pasang method helper client baileys ---
     extraInstance.registerComponents(client);
 
     // --- intercept pengiriman pesan untuk menghitung statistik, trafik, dan live velocity ---
@@ -1408,7 +1483,7 @@ export async function startWhatsAppSession(
       }
     });
 
-    // --- router pesan masuk menuju auto-reply, plugin dispatcher, dan interseptor ai persona ---
+    // --- router pesan masuk menuju webhook, moderasi grup, auto-reply media, plugin, dan ai persona ---
     client.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
 
@@ -1475,8 +1550,6 @@ export async function startWhatsAppSession(
         if (m.body) {
           emitLog(googleUserId, 'MSG', `${m.fromMe ? '[OUT]' : '[IN]'} ${m.sender.split('@')[0]}: ${m.body.slice(0, 80)}`);
 
-          let wasHandledByAutoReply = false;
-
           // --- teruskan pesan masuk ke webhook url user jika dikonfigurasi ---
           if (!m.fromMe && currentDatabase.settings.webhookUrl) {
             forwardIncomingToUserWebhook(currentDatabase, {
@@ -1493,8 +1566,8 @@ export async function startWhatsAppSession(
           }
 
           // --- moderasi grup visual (anti-link & anti-toxic per grup) ---
-          const isGroupMsg = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
-          const groupCfg = isGroupMsg ? currentDatabase.settings.groupConfigs?.[remoteJid] : null;
+          const isGroupChat = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
+          const groupCfg = isGroupChat ? currentDatabase.settings.groupConfigs?.[remoteJid] : null;
           if (!m.fromMe && groupCfg) {
             const hasWhatsappLink = /(https?:\/\/)?(chat\.whatsapp\.com|wa\.me|t\.me|bit\.ly)\/[^\s]+/i.test(m.body);
             if (groupCfg.antiLink && hasWhatsappLink) {
@@ -1512,6 +1585,8 @@ export async function startWhatsAppSession(
               }
             }
           }
+
+          let wasHandledByAutoReply = false;
 
           // --- jalankan custom auto-reply teks maupun media (image, sticker, document) ---
           if (!m.fromMe && Array.isArray(currentDatabase.settings.autoReplies) && currentDatabase.settings.autoReplies.length > 0) {
@@ -1547,16 +1622,8 @@ export async function startWhatsAppSession(
 
           if (!currentDatabase.settings.publicMode && !m.fromMe) continue;
 
-          // --- lacak apakah plugin memproses dan mengirim balasan pada pesan ini ---
+          // --- deteksi balasan plugin melalui selisih totalMessagesSent tanpa menimpa read-only m.reply ---
           const sentCountBeforePlugins = Number(readBotDatabase(googleUserId).totalMessagesSent || 0);
-          let wasRepliedViaM = false;
-          const originalMReply = m.reply;
-          if (typeof originalMReply === 'function') {
-            m.reply = async (...replyArgs) => {
-              wasRepliedViaM = true;
-              return await originalMReply(...replyArgs);
-            };
-          }
 
           await executeDynamicPlugins({
             googleUserId,
@@ -1569,10 +1636,9 @@ export async function startWhatsAppSession(
           });
 
           const sentCountAfterPlugins = Number(readBotDatabase(googleUserId).totalMessagesSent || 0);
-          const wasPluginTriggered = wasRepliedViaM || sentCountAfterPlugins > sentCountBeforePlugins;
+          const wasPluginTriggered = sentCountAfterPlugins > sentCountBeforePlugins;
 
           // --- interseptor auto-reply ai persona jika aktif dan tidak memicu plugin/auto-reply ---
-          const isGroupChat = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
           const normalizedBotJid = jidNormalizedUser(client.user?.id || '');
           const isBotMentionedOrQuoted =
             (Array.isArray(m.mentionedJid) && m.mentionedJid.some((jid) => jidNormalizedUser(jid) === normalizedBotJid)) ||
@@ -1603,7 +1669,7 @@ export async function startWhatsAppSession(
                   botName: currentDatabase.settings.botName || CONFIG.platformName
                 });
                 if (aiAnswer) {
-                  await originalMReply(aiAnswer);
+                  await client.sendMessage(m.chat, { text: aiAnswer }, { quoted: messageItem });
                   recordRealtimeActivityHit('AI', '/api/whatsapp/ai-persona');
                   emitLog(googleUserId, 'INFO', `[AI PERSONA] Menjawab ${m.sender.split('@')[0]} secara otomatis.`);
                 }
@@ -1699,8 +1765,8 @@ export async function startWhatsAppSession(
   }
 }
 
-// --- kirim pesan broadcast ke seluruh grup bot dengan jeda anti-spam ---
-export async function broadcastToBotGroups(io, googleUserId, messageText, delaySeconds = 4) {
+// --- kirim pesan broadcast ke seluruh grup bot dengan spintax & jeda anti-ban ---
+export async function broadcastToBotGroups(io, googleUserId, messageText, delaySeconds = 5) {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
   const activeSession = activeBotSessions.get(googleUserId);
 
@@ -1714,7 +1780,7 @@ export async function broadcastToBotGroups(io, googleUserId, messageText, delayS
     return { isSuccess: false, errorMessage: 'Isi pesan broadcast tidak boleh kosong.' };
   }
 
-  const safeDelayMs = Math.max(2, Math.min(30, Number(delaySeconds) || 4)) * 1000;
+  const safeDelayMs = Math.max(2, Math.min(30, Number(delaySeconds) || 5)) * 1000;
   const client = activeSession.socketInstance;
 
   let targetGroups = [];
