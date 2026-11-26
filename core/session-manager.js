@@ -1,1 +1,2123 @@
-import e from"fs";import t from"path";import s from"pino";import a from"qrcode";import{Boom as n}from"@hapi/boom";import i,{useMultiFileAuthState as o,DisconnectReason as r,fetchLatestBaileysVersion as c,makeCacheableSignalKeyStore as u,Browsers as l,jidNormalizedUser as m}from"@whiskeysockets/baileys";import{ADMIN_WA_NUMBER as d,AUTO_CONNECT_MAX_RETRIES as p,AUTO_CONNECT_TIMEOUT_MS as g,MAIN_DATABASE_FILE_PATH as f,PLUGINS_ROOT_DIR as h,SESSIONS_ROOT_FOLDER_PATH as S,CONFIG as b}from"./config.js";import{appendWebhookDeliveryLog as y,buildLast7DaysTrafficSeries as k,formatBytesReadable as N,getAllUsersGlobalMonitorSnapshot as A,getGlobalAnnouncement as T,getGlobalAnnouncements as C,getGlobalPlatformStatistics as w,getUserSessionFolderPath as v,incrementDailyTrafficRecord as E,isPlatformAdminById as I,isPlatformAdminUser as M,listVouchers as R,readBotDatabase as $,readMasterDatabaseFile as x,writeBotDatabaseAtomic as D,writeMasterDatabaseFileAtomic as B}from"./database.js";import{executeDynamicPlugins as O,getAvailablePluginsList as U,getFeatureCatalogList as P,scanPluginFilesRecursive as L}from"./plugin-manager.js";import W from"../system/extra.js";const j=new W;export const activeBotSessions=new Map;export const userTerminalLogsCache=new Map;const G=s({level:"silent"});let _=null,J=0,H=0;const F=new Map,K=Array(6).fill(0);let q=0;const V=new Map;export function recordRealtimeActivityHit(e="GET",t="/api/unknown"){q+=1;const s=String(e||"GET").toUpperCase().slice(0,8),a=String(t||"/").trim().slice(0,80),n=`${s} ${a}`,i=V.get(n)||{method:s,path:a,hits:0,lastHitAt:0};i.hits+=1,i.lastHitAt=Date.now(),V.set(n,i)}export function advanceTrafficVelocityBucket(){return K.shift(),K.push(q),q=0,getRealtimeTrafficSnapshot()}export function getRealtimeTrafficSnapshot(){const e=[...K,q],t=e.reduce((e,t)=>e+Number(t||0),0),s=3*e.length,a=Math.round(t/s*10)/10,n=Array.from(V.values()).sort((e,t)=>t.hits-e.hits||t.lastHitAt-e.lastHitAt).slice(0,5);return{labels:["-18s","-15s","-12s","-9s","-6s","-3s","Now"],series:e,reqPerSec:a,currentHits:q,topEndpoints:n,timestamp:Date.now()}}export function emitUserStatsSnapshot(e,t,s){e&&t&&s&&e.to(`user_${t}`).emit("stats:update",{userStats:{...s,expiresAt:s.subscription?.expiresAt||0},globalStats:w(activeBotSessions),trafficSeries:k(s.trafficHistory),topCommands:getTopCommandsLeaderboard(5)})}export function emitAdminGlobalSessionsSnapshot(e){if(e)try{const t=A(activeBotSessions);e.to("platform_admins").emit("admin:sessions:data",t)}catch{}}export function emitTerminalLog(e,t,s,a){const n={timestamp:(new Date).toLocaleTimeString("id-ID",{hour12:!1}),level:s,message:a};userTerminalLogsCache.has(t)||userTerminalLogsCache.set(t,[]);const i=userTerminalLogsCache.get(t);i.push(n),i.length>100&&i.shift(),e.to(`user_${t}`).emit("terminal:log",n)}export function resolveTargetWhatsappJid(e){const t=String(e||"").trim();if(!t)return null;if(/^[\d-]+@g\.us$/i.test(t))return t;if(/^\d+@(s\.whatsapp\.net|lid)$/i.test(t))return m(t);const s=t.replace(/\D/g,"");return s.length<6||s.length>20?null:`${s}@s.whatsapp.net`}export function formatMessageTemplateVariables(e,t){const s=new Date,a=new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"full"}).format(s),n=`${new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",hour:"2-digit",minute:"2-digit",hour12:!1}).format(s)} WIB`,i=t?.settings?.botName||b.platformName;return String(e||"").replaceAll("{botName}",i).replaceAll("{date}",a).replaceAll("{time}",n)}export function parseSpintaxText(e){let t=String(e||"");const s=/\{([^{}]+)\}/g;let a=0;for(;s.test(t)&&a<10;)a+=1,t=t.replace(s,(e,t)=>{const s=String(t).split("|").map(e=>e.trim()).filter(Boolean);return 0===s.length?"":s[Math.floor(Math.random()*s.length)]});return t}export async function forwardIncomingToUserWebhook(e,t,s=null,a=""){const n=String(e?.settings?.webhookUrl||"").trim();if(!/^https?:\/\/.+/i.test(n))return;const i=String(a||t?.botUserId||"").trim(),o=Date.now();let r=0,c=!1,u="";try{const s=new AbortController,a=setTimeout(()=>s.abort(),8e3),i={"Content-Type":"application/json"};e?.settings?.webhookSecret&&(i["x-webhook-secret"]=e.settings.webhookSecret);const o=await fetch(n,{method:"POST",headers:i,body:JSON.stringify(t),signal:s.signal});clearTimeout(a),r=Number(o.status||0),c=Boolean(o.ok),o.ok||(u=`HTTP ${r}`)}catch(e){u="AbortError"===e?.name?"Timeout (>8s)":String(e?.message||"Network error")}if(i){const e=y(i,{event:t?.event||"message.received",url:n,statusCode:r,isSuccess:c,durationMs:Date.now()-o,errorMessage:u,timestamp:Date.now()});s&&s.to(`user_${i}`).emit("webhook:logs:update",e)}}export async function updateBotWhatsappProfile(e,t,{bio:s=null,avatarBase64:a=""}={}){const n=activeBotSessions.get(t);if(!n||"CONNECTED"!==n.status||!n.socketInstance)return{isSuccess:!1,errorMessage:"Bot harus dalam status ONLINE untuk mengubah profil WhatsApp."};const i=n.socketInstance,o=i.user?.jid||(i.user?.id?`${i.user.id.split(":")[0]}@s.whatsapp.net`:"");if(!o)return{isSuccess:!1,errorMessage:"JID bot aktif tidak ditemukan."};let r=!1,c=!1,u=n.profile?.avatarUrl||"";try{if("string"==typeof s&&s.trim().length>0){const e=s.trim().slice(0,139);await i.updateProfileStatus(e),r=!0}if("string"==typeof a&&a.trim().length>0){const e=a.includes(",")?a.split(",").pop():a,t=Buffer.from(String(e||"").trim(),"base64");if(!t.length||t.length>5242880)return{isSuccess:!1,errorMessage:"Ukuran gambar avatar maksimal 5 MB."};await i.updateProfilePicture(o,t),c=!0;try{const e=await i.profilePictureUrl(o,"image");e&&(u=e,n.profile&&(n.profile.avatarUrl=e))}catch{}}return r||c?(e&&(c&&n.profile&&e.to(`user_${t}`).emit("connection:status",{status:"CONNECTED",profile:n.profile,isAutoReconnect:!1}),emitTerminalLog(e,t,"SUCCESS",`Profil WhatsApp bot (${[c?"Avatar":"",r?"Bio":""].filter(Boolean).join(" & ")}) berhasil diperbarui.`)),{isSuccess:!0,updatedBio:r,updatedAvatar:c,avatarUrl:u}):{isSuccess:!1,errorMessage:"Isi bio baru atau pilih gambar avatar terlebih dahulu."}}catch(e){return{isSuccess:!1,errorMessage:e?.message||"Gagal memperbarui profil WhatsApp bot."}}}export async function generateAiPersonaReply({systemPrompt:e="",userMessage:t="",senderName:s="Pengguna",botName:a=b.platformName}={}){const n=String(e||"").trim()||`Kamu adalah asisten WhatsApp ${a} yang ramah, ringkas, dan membantu dalam Bahasa Indonesia.`,i=String(t||"").trim().slice(0,1e3);if(!i)return null;const o=String(process.env.AI_API_URL||"").trim(),r=String(process.env.AI_API_KEY||"").trim(),c=String(process.env.AI_MODEL||"gpt-4o-mini").trim();if(o&&r)try{const e=new AbortController,t=setTimeout(()=>e.abort(),12e3),a=await fetch(o,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${r}`},body:JSON.stringify({model:c,messages:[{role:"system",content:n},{role:"user",content:`[Pengirim: ${s}] ${i}`}],temperature:.7,max_tokens:400}),signal:e.signal});if(clearTimeout(t),a.ok){const e=await a.json(),t=String(e?.choices?.[0]?.message?.content||"").trim();if(t)return t}}catch{}try{const e=new AbortController,t=setTimeout(()=>e.abort(),1e4),s=await fetch("https://text.pollinations.ai/",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"system",content:`${n}\nJawab singkat dan natural untuk chat WhatsApp.`},{role:"user",content:i}],model:"openai",private:!0}),signal:e.signal});if(clearTimeout(t),s.ok){const e=String(await s.text()).trim();if(e&&!e.toLowerCase().startsWith("<!doctype html"))return e.slice(0,1500)}}catch{}const u=i.toLowerCase();return/^(halo|hai|hi|assalamualaikum|p|permisi|selamat)/i.test(u)?`Halo ${s}! Saya asisten otomatis *${a}*. Ada yang bisa saya bantu hari ini?`:/(harga|price|beli|sewa|order|daftar)/i.test(u)?`Terima kasih sudah menghubungi *${a}*, ${s}. Pesan Anda terkait informasi layanan/order telah kami terima. Silakan sebutkan detail kebutuhan Anda agar segera dibantu.`:`Halo ${s}, pesan Anda sudah diterima oleh asisten AI *${a}*. Saat ini saya membantu berdasarkan panduan sistem kami—silakan jelaskan pertanyaan Anda secara singkat.`}export async function sendDirectWhatsAppMessage(e,t,s={}){const a=(t,s,a)=>emitTerminalLog(e,t,s,a),n=activeBotSessions.get(t);if(!n||"CONNECTED"!==n.status||!n.socketInstance)return{isSuccess:!1,errorMessage:"Bot harus dalam status Connected untuk mengirim pesan."};const i=resolveTargetWhatsappJid(s.targetJid);if(!i)return{isSuccess:!1,errorMessage:"Nomor tujuan atau ID Grup (@g.us) tidak valid."};const o=$(t),r=n.socketInstance,c=String(s.mediaType||"text").trim().toLowerCase(),u=formatMessageTemplateVariables(s.caption??s.message??"",o).trim();let l;if(s.mentionAll&&i.endsWith("@g.us"))try{let e=global.db?.metadata?.[i]?.participants||[];if(0===e.length){const t=await r.groupMetadata(i).catch(()=>null);e=t?.participants||[]}const t=e.map(e=>e?.id).filter(e=>"string"==typeof e&&/(@s\.whatsapp\.net|@lid)$/i.test(e));t.length>0&&(l=t)}catch{}let m=null;if("text"===c){if(!u)return{isSuccess:!1,errorMessage:"Isi pesan teks tidak boleh kosong."};m={text:u}}else if(["image","video","audio","sticker","document"].includes(c)){const n=function(e){const t=String(e||"").trim();if(!t)return null;const s=t.match(/^data:([^;]+);base64,(.+)$/i);return s?{mimetype:s[1],buffer:Buffer.from(s[2],"base64")}:{mimetype:"application/octet-stream",buffer:Buffer.from(t,"base64")}}(s.mediaBase64),l=String(s.mediaUrl||"").trim(),d=n?n.buffer:l?{url:l}:null;if(!d)return{isSuccess:!1,errorMessage:"URL media atau file lokal wajib diisi."};if("image"===c)m={image:d,caption:u||void 0,mimetype:n?.mimetype||s.mimetype||"image/jpeg"};else if("video"===c)m={video:d,caption:u||void 0,mimetype:n?.mimetype||s.mimetype||"video/mp4"};else if("audio"===c){const e=Boolean(s.ptt);m={audio:d,mimetype:e?"audio/ogg; codecs=opus":n?.mimetype||"audio/mpeg",ptt:e}}else if("sticker"===c){if("function"==typeof r.sendSticker)try{let c=n?n.buffer:null;if(!c&&l){const e=await fetch(l);if(!e.ok)throw new Error(`Gagal mengunduh URL stiker (HTTP ${e.status}).`);c=Buffer.from(await e.arrayBuffer())}if(c)return await r.sendSticker(i,c,null,{packname:o?.settings?.packname||b.platformName,author:o?.settings?.author||"Xu Core"}),recordRealtimeActivityHit("POST",s.sourceRoute||"/api/whatsapp/direct-send"),e&&e.engine.clientsCount>0&&e.emit("traffic:velocity",getRealtimeTrafficSnapshot()),a(t,"SUCCESS",`Pesan [STICKER] terkirim ke [${i.split("@")[0]}].`),{isSuccess:!0,targetJid:i,messageId:null}}catch(e){a(t,"WARN",`Fallback sendMessage sticker: ${e.message}`)}m={sticker:d}}else"document"===c&&(m={document:d,fileName:String(s.fileName||"document").trim(),mimetype:String(s.mimetype||n?.mimetype||"application/octet-stream").trim(),caption:u||void 0})}else if("location"===c){const e=s.location||{};m={location:{degreesLatitude:Number(e.degreesLatitude||0),degreesLongitude:Number(e.degreesLongitude||0),name:String(e.name||"").trim()||void 0,address:String(e.address||"").trim()||void 0}}}else{if("contact"!==c)return{isSuccess:!1,errorMessage:`Tipe media [${c}] tidak didukung.`};{const e=s.contact||{},t=String(e.phoneNumber||"").replace(/\D/g,""),a=String(e.fullName||"Kontak").trim();if(!t)return{isSuccess:!1,errorMessage:"Nomor kontak WhatsApp tidak valid."};m={contacts:{displayName:a,contacts:[{vcard:["BEGIN:VCARD","VERSION:3.0",`FN:${a}`,`TEL;type=CELL;type=VOICE;waid=${t}:+${t}`,"END:VCARD"].join("\n")}]}}}}l&&(m.mentions=l);try{const n=await r.sendMessage(i,m);recordRealtimeActivityHit("POST",s.sourceRoute||"/api/whatsapp/direct-send"),e&&e.engine.clientsCount>0&&e.emit("traffic:velocity",getRealtimeTrafficSnapshot());const o=i.split("@")[0];return a(t,"SUCCESS",`Pesan [${c.toUpperCase()}] terkirim ke [${o}]${l?" (Mention All)":""}.`),{isSuccess:!0,targetJid:i,messageId:n?.key?.id||null}}catch(e){return a(t,"ERROR",`Gagal mengirim pesan [${c.toUpperCase()}] ke [${i.split("@")[0]}]: ${e.message}`),{isSuccess:!1,errorMessage:e.message||"Gagal mengirim pesan."}}}function z(e=null){if(e){const t=activeBotSessions.get(e);if("CONNECTED"===t?.status&&t.socketInstance)return{senderUserId:e,socketInstance:t.socketInstance}}for(const[e,t]of activeBotSessions.entries())if("CONNECTED"===t?.status&&t.socketInstance&&I(e))return{senderUserId:e,socketInstance:t.socketInstance};for(const[e,t]of activeBotSessions.entries())if("CONNECTED"===t?.status&&t.socketInstance)return{senderUserId:e,socketInstance:t.socketInstance};return null}export async function sendSystemOtpWhatsAppMessage(e,{preferredUserId:t=null,targetPhone:s="",email:a="",otpCode:n=""}={}){const i=resolveTargetWhatsappJid(s);if(!i)return{isSuccess:!1,errorMessage:"Nomor WhatsApp tujuan tidak valid."};const o=z(t);if(!o)return{isSuccess:!1,errorMessage:"Tidak ada sesi bot WhatsApp aktif di server untuk mengirim OTP. Hubungi admin."};const r=`*[XU CORE — KEAMANAN AKUN]*\n\nPermintaan reset kata sandi untuk akun:\n• Email: ${a}\n• Kode OTP: *${n}*\n\nKode berlaku selama *10 menit*. Jangan bagikan kode ini kepada siapa pun.`;try{return await o.socketInstance.sendMessage(i,{text:r}),e&&emitTerminalLog(e,o.senderUserId,"INFO",`OTP reset password untuk [${a}] terkirim ke +${s}.`),{isSuccess:!0,sentViaUserId:o.senderUserId}}catch(e){return{isSuccess:!1,errorMessage:`Gagal mengirim OTP ke WhatsApp: ${e.message}`}}}export function clearUserSessionPreKeys(s,a){const n=findValidUserSession(a),i=$(a),o=n?.folderPath||v(a,i.sessionName);if(!o||!e.existsSync(o))return{isSuccess:!1,deletedCount:0,freedBytes:0,freedLabel:"0 B",errorMessage:"Folder sesi WhatsApp belum ditemukan di volume."};const r=/^(pre-key|sender-key|session)-.*\.json$/i;let c=0,u=0;try{const n=e.readdirSync(o,{withFileTypes:!0});for(const s of n){if(!s.isFile())continue;const a=s.name.toLowerCase();if("creds.json"===a||".owner.json"===a)continue;if(!r.test(s.name))continue;const n=t.join(o,s.name);try{const t=e.statSync(n).size;e.unlinkSync(n),c+=1,u+=t}catch{}}const i=N(u);return s&&(emitTerminalLog(s,a,"SUCCESS",`Cache sesi dibersihkan: ${c} file (${i}) dihapus. creds.json tetap aman.`),emitAdminGlobalSessionsSnapshot(s)),{isSuccess:!0,deletedCount:c,freedBytes:u,freedLabel:i,sessionFolder:o}}catch(e){return{isSuccess:!1,deletedCount:0,freedBytes:0,freedLabel:"0 B",errorMessage:`Gagal membersihkan cache sesi: ${e.message}`}}}export async function runScheduledAutoBackupToAdmin(s,a=!1){const n=x().autoBackup||{enabled:!1,intervalHours:24,lastRunAt:0};if(!a){if(!n.enabled)return{isSuccess:!1,skipped:!0};const e=60*Math.max(1,Number(n.intervalHours||24))*60*1e3;if(Date.now()-Number(n.lastRunAt||0)<e)return{isSuccess:!1,skipped:!0}}const i=z(null),o=resolveTargetWhatsappJid(n.targetWaNumber||d);if(!i||!o)return{isSuccess:!1,errorMessage:"Tidak ada sesi bot aktif atau nomor WA admin tidak valid."};try{const{zipSync:a}=await(import("fflate")),r={};e.existsSync(f)&&(r["database.json"]=new Uint8Array(e.readFileSync(f)));const c=L(h);for(const s of c){const a=t.join(h,s);e.existsSync(a)&&(r[`plugins/${s}`]=new Uint8Array(e.readFileSync(a)))}const u=Buffer.from(a(r,{level:6})),l=`xu-core-autobackup-${(new Date).toISOString().replace(/[:.]/g,"-").slice(0,19)}.zip`;await i.socketInstance.sendMessage(o,{document:u,fileName:l,mimetype:"application/zip",caption:`*[XU CORE — AUTO BACKUP]*\nArsip database.json & ${c.length} plugin (${N(u.length)}).`});const m=x();return m.autoBackup={...m.autoBackup||{},enabled:Boolean(n.enabled),intervalHours:Number(n.intervalHours||24),targetWaNumber:String(n.targetWaNumber||d),lastRunAt:Date.now(),lastFileName:l,lastSizeLabel:N(u.length)},B(m),s&&emitTerminalLog(s,i.senderUserId,"SUCCESS",`Auto-Backup ZIP [${l}] terkirim ke WA Admin.`),{isSuccess:!0,fileName:l,sizeLabel:N(u.length)}}catch(e){return{isSuccess:!1,errorMessage:e.message}}}export function computeNextJakartaDailyTimestamp(e,t=Date.now()){const[s,a]=String(e||"08:00").split(":").map(e=>parseInt(e,10)),n=Number.isFinite(s)?Math.max(0,Math.min(23,s)):8,i=Number.isFinite(a)?Math.max(0,Math.min(59,a)):0,o=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Jakarta",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(t)),r=String(n).padStart(2,"0"),c=String(i).padStart(2,"0");let u=Date.parse(`${o}T${r}:${c}:00+07:00`);return(Number.isNaN(u)||u<=t+5e3)&&(u=(Number.isNaN(u)?t:u)+864e5),u}export function startMessageSchedulerWorker(e){_||(_=setInterval(async()=>{try{const t=Date.now(),s=x();for(const a of Object.keys(s.users||{})){const s=activeBotSessions.get(a);if(!s||"CONNECTED"!==s.status||!s.socketInstance)continue;const n=$(a);if(isBotSubscriptionExpired(a,n))continue;const i=Array.isArray(n.scheduledMessages)?n.scheduledMessages:[];if(0===i.length)continue;let o=!1;const r=[];for(const s of i){if(!s||!s.isActive||Number(s.nextRunAt||0)>t){r.push(s);continue}const n=await sendDirectWhatsAppMessage(e,a,{targetJid:s.targetJid,message:s.message,mentionAll:Boolean(s.mentionAll),sourceRoute:"/api/whatsapp/scheduler"});o=!0;const i={...s,lastRunAt:t,runCount:Number(s.runCount||0)+1,lastStatus:n.isSuccess?"SENT":"FAILED"};if("daily"===s.repeatType)i.nextRunAt=computeNextJakartaDailyTimestamp(s.dailyTime||"08:00",t);else if("interval"===s.repeatType){const e=Math.max(1,Number(s.intervalMinutes||60));i.nextRunAt=t+60*e*1e3}else i.isActive=!1,i.lastStatus=n.isSuccess?"COMPLETED":"FAILED";r.push(i)}o&&(n.scheduledMessages=r,D(a,n),e.to(`user_${a}`).emit("schedule:list",r))}await async function(e,t){if(t-J<3e5)return;J=t;const s=x(),a=864e5;for(const n of Object.keys(s.users||{})){if(I(n))continue;const s=$(n),i=s.subscription||{},o=Number(i.expiresAt||0);if(o<=t)continue;const r=o-t,c=r<=2592e5&&r>a;let u=null;if(r<=a&&!i.notifiedH1?u="H-1":c&&!i.notifiedH3&&(u="H-3"),!u)continue;const l=[...Array.isArray(s.settings?.owners)?s.settings.owners:[],s.phoneNumber].map(e=>String(e||"").replace(/\D/g,"")).filter(e=>e.length>=8)[0];if(!l)continue;const m=z(n);if(!m)continue;const p=resolveTargetWhatsappJid(l);if(!p)continue;const g=new Intl.DateTimeFormat("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"full",timeStyle:"short"}).format(new Date(o)),f=`*[XU CORE — PENGINGAT MASA AKTIF ${u}]*\n\nHalo Owner *${s.settings?.botName||b.platformName}*,\nMasa aktif langganan bot Anda (*${i.plan||"Starter"}*) akan berakhir pada:\n• *${g} WIB*\n\nSegera lakukan perpanjangan melalui Dashboard Xu Core atau klaim kode voucher Anda agar koneksi bot tidak terputus otomatis.\n• Admin WA: https://wa.me/${d}`;try{await m.socketInstance.sendMessage(p,{text:f}),s.subscription={...i,notifiedH3:"H-3"===u||Boolean(i.notifiedH3),notifiedH1:"H-1"===u||Boolean(i.notifiedH1),lastNotifiedExpiresAt:o},D(n,s),emitTerminalLog(e,n,"WARN",`Pengingat masa aktif [${u}] otomatis terkirim ke +${l}.`),emitUserStatsSnapshot(e,n,s)}catch{}}}(e,t),t-H>=18e5&&(H=t,await runScheduledAutoBackupToAdmin(e,!1))}catch{}},15e3),_.unref())}export function getTopCommandsLeaderboard(e=5){const t=global.db?.statistic||{};return Object.entries(t).map(([e,t])=>({name:t?.name||e,hit:Number(t?.hit||0),hittoday:Number(t?.hittoday||0),lastused:Number(t?.lastused||0)})).filter(e=>e.hit>0).sort((e,t)=>t.hit-e.hit).slice(0,e)}export function isBotSubscriptionExpired(e,t){if(I(e))return!1;const s=Number(t?.subscription?.expiresAt||0);return!(s<=0)&&Date.now()>s}export function syncBotSettingsToGlobalDb(e,t){if(!e||!t)return;global.db=global.db||{},global.db.setting=global.db.setting||{};const s=(Array.isArray(t.owners)?t.owners:[]).map(e=>String(e).replace(/\D/g,"")).filter(e=>e.length>=6).map(e=>`${e}@s.whatsapp.net`);global.db.setting[e]={...global.db.setting[e]||{},botName:t.botName||b.platformName,packname:t.packname||b.platformName,author:t.author||"Surya Core",isNoPrefix:t.isNoPrefix??!0,allowedPc:t.allowedPc??!0,isAiEnabled:Boolean(t.isAiEnabled),aiSystemPrompt:String(t.aiSystemPrompt||""),owners:s,toxic:Array.isArray(t.toxic)?t.toxic:[]}}function X(s){const a=t.join(s,"creds.json");if(!e.existsSync(a))return!1;try{const t=JSON.parse(e.readFileSync(a,"utf-8"));return Boolean(t&&(!0===t.registered||t.me?.id))}catch{return!1}}function Q(s,a,n,i=null){try{e.mkdirSync(s,{recursive:!0});const o=t.join(s,".owner.json"),r=`${o}.${process.pid}.${Date.now()}.tmp`;e.writeFileSync(r,JSON.stringify({googleUserId:a,sessionName:n,phoneNumber:i||null,updatedAt:Date.now()},null,2),"utf-8"),e.renameSync(r,o)}catch{}}function Z(s){const a=t.join(s,".owner.json");if(!e.existsSync(a))return null;try{return JSON.parse(e.readFileSync(a,"utf-8"))}catch{return null}}function Y(e){if(e)try{e.ev.removeAllListeners("connection.update"),e.ev.removeAllListeners("creds.update"),e.ev.removeAllListeners("messages.upsert"),e.ev.removeAllListeners("groups.upsert"),e.ev.removeAllListeners("groups.update"),e.ev.removeAllListeners("group-participants.update"),e.end(void 0)}catch{}}export function findValidUserSession(s){const a=$(s),n=[a.sessionName,a.phoneNumber,`qr_${s}`].filter(Boolean);for(const e of n){const t=v(s,e);if(X(t))return a.sessionName!==e&&(a.sessionName=e,D(s,a)),Q(t,s,e,a.phoneNumber),{sessionName:e,folderPath:t}}if(!e.existsSync(S))return null;for(const n of e.readdirSync(S,{withFileTypes:!0})){if(!n.isDirectory())continue;const i=n.name,o=t.join(S,i);if(!X(o))continue;const r=Z(o);let c=!1;if(a.phoneNumber)try{const s=JSON.parse(e.readFileSync(t.join(o,"creds.json"),"utf-8"));c=String(s?.me?.id||"").split(":")[0].split("@")[0]===a.phoneNumber}catch{c=!1}if(r?.googleUserId===s||i.includes(s)||c)return a.sessionName=i,D(s,a),Q(o,s,i,a.phoneNumber),{sessionName:i,folderPath:o}}return null}function ee(e){e&&(e.reconnectTimer&&(clearTimeout(e.reconnectTimer),e.reconnectTimer=null),e.connectTimeoutTimer&&(clearTimeout(e.connectTimeoutTimer),e.connectTimeoutTimer=null))}function te(e){return e&&"object"==typeof e?e instanceof Uint8Array||Buffer.isBuffer(e)?e:{...e}:e}async function se(e,t,s){if("function"==typeof e.serialize)try{const a=await e.serialize(t,s,e.store);if(a&&"object"==typeof a)return!a.command&&a.cmd&&(a.command=a.cmd),"function"!=typeof a.reply&&Object.defineProperty(a,"reply",{value:async e=>await t.sendMessage(a.chat||s.key.remoteJid,{text:String(e)},{quoted:s}),configurable:!0}),a}catch{}const a=s.key.remoteJid,n=Boolean(s.key.fromMe),i=m(s.key.participant||a),o=s.message||{},r=Object.keys(o).find(e=>"messageContextInfo"!==e&&"senderKeyDistributionMessage"!==e)||"",c=o.conversation||o.extendedTextMessage?.text||o.imageMessage?.caption||o.videoMessage?.caption||o.documentWithCaptionMessage?.message?.documentMessage?.caption||"",u=c.trim();let l="";if(b.prefixes instanceof RegExp){const e=u.match(b.prefixes);l=e?e[0]:""}else Array.isArray(b.prefixes)&&(l=b.prefixes.find(e=>u.startsWith(e))||"");const d=l?u.slice(l.length).trim():u,p=d?d.split(/\s+/):[],g=l&&p.length>0?p[0].toLowerCase():"",f=l?p.slice(1):[],h=f.join(" "),S=o[r]?.contextInfo||null;let y=null;if(S?.quotedMessage){const e=te(S.quotedMessage),t=Object.keys(e)[0]||"",s=e[t]?te(e[t]):null;y={id:S.stanzaId||"",chat:a,sender:m(S.participant||a),mtype:t,msg:s,message:e,text:e.conversation||s?.text||s?.caption||""}}return{key:s.key,id:s.key.id,chat:a,sender:i,fromMe:n,isGroup:a.endsWith("@g.us"),mtype:r,msg:te(o[r]),body:c,prefix:l,command:g,cmd:g,args:f,text:h,quoted:y,mentionedJid:Array.isArray(S?.mentionedJid)?S.mentionedJid:[],pushname:s.pushName||"Pengguna",raw:s,reply:async e=>await t.sendMessage(a,{text:String(e)},{quoted:s})}}export async function startWhatsAppSession(t,s,d,f="qr",h="",S=1,y=!1){const k=(e,s,a)=>emitTerminalLog(t,e,s,a),N=$(d);if(isBotSubscriptionExpired(d,N))return k(d,"ERROR","Masa aktif langganan bot Anda telah habis. Silakan perpanjang paket untuk menyalakan bot."),void t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:"SUBSCRIPTION_EXPIRED"});const A=activeBotSessions.get(d),T="reconnect"===f;if(A){if(!y&&"CONNECTED"===A.status&&A.socketInstance)return void t.to(`user_${d}`).emit("connection:status",{status:"CONNECTED",profile:A.profile,isAutoReconnect:!1});if(T&&!y&&"CONNECTING"===A.status)return void t.to(`user_${d}`).emit("connection:status",{status:"CONNECTING",profile:null,isAutoReconnect:Boolean(A.isAutoReconnect)});ee(A),Y(A.socketInstance)}const C=String(h||"").replace(/[^0-9]/g,"");let w=N.sessionName;if("pairing"===f&&C){if(!X(v(d,C))&&w&&w!==C){const t=v(d,w);e.existsSync(t)&&e.rmSync(t,{recursive:!0,force:!0})}w=C,N.phoneNumber=C,N.sessionName=w,D(d,N)}else if(T){const e=findValidUserSession(d);if(!e)return activeBotSessions.delete(d),void t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1});w=e.sessionName}else w||(w=N.phoneNumber||`qr_${d}`,N.sessionName=w,D(d,N));const I=v(d,w);e.mkdirSync(I,{recursive:!0}),Q(I,d,w,N.phoneNumber);const M={socketInstance:null,status:"CONNECTING",profile:null,sessionName:w,isAutoReconnect:T,wasPreviouslyConnected:Boolean(A?.wasPreviouslyConnected),attemptCount:S,reconnectTimer:null,connectTimeoutTimer:null,isDeletingSession:!1};activeBotSessions.set(d,M),t.to(`user_${d}`).emit("connection:status",{status:"CONNECTING",profile:null,isAutoReconnect:T}),emitAdminGlobalSessionsSnapshot(t),k(d,"INFO",`Menyiapkan koneksi Baileys [${f.toUpperCase()}] sesi: ${w}`),T&&(M.connectTimeoutTimer=setTimeout(()=>{const e=activeBotSessions.get(d);e&&e===M&&"CONNECTED"!==e.status&&!e.isDeletingSession&&(ee(e),Y(e.socketInstance),activeBotSessions.delete(d),k(d,"WARN","Auto-connect melebihi batas waktu. Kembali ke mode Disconnected."),t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1}),emitAdminGlobalSessionsSnapshot(t))},g));try{const{state:e,saveCreds:g}=await o(I),{version:h}=await c();if(activeBotSessions.get(d)!==M||M.isDeletingSession)return;const S=i({version:h,logger:G,printQRInTerminal:!1,auth:{creds:e.creds,keys:u(e.keys,G)},browser:l.ubuntu("Chrome"),markOnlineOnConnect:!0,generateHighQualityLinkPreview:!0,syncFullHistory:!1});j.registerComponents(S);const y=S.sendMessage.bind(S);S.sendMessage=async(e,s,a={})=>{const n=await y(e,s,a);recordRealtimeActivityHit("POST","/api/whatsapp/send"),t.engine.clientsCount>0&&t.emit("traffic:velocity",getRealtimeTrafficSnapshot());const i=$(d);return i.totalMessagesSent+=1,E(i,"out"),D(d,i),emitUserStatsSnapshot(t,d,i),n},M.socketInstance=S,"pairing"===f&&C&&!S.authState.creds.registered&&setTimeout(async()=>{try{const e=activeBotSessions.get(d);if(!e||e!==M||e.isDeletingSession||S.authState.creds.registered)return;const s=await S.requestPairingCode(C),a=s?.match(/.{1,4}/g)?.join("-")||s;t.to(`user_${d}`).emit("pairing:code",a),k(d,"SUCCESS",`Kode Pairing diterbitkan: ${a}`)}catch(e){k(d,"ERROR",`Gagal meminta kode pairing: ${e.message}`),t.to(`user_${d}`).emit("pairing:error","Gagal menerbitkan kode pairing. Periksa nomor Anda.")}},2500),S.ev.on("creds.update",g),S.ev.on("connection.update",async e=>{const i=activeBotSessions.get(d);if(!i||i!==M||i.isDeletingSession)return;const{connection:o,lastDisconnect:c,qr:u}=e;if(u&&T)return ee(i),Y(S),activeBotSessions.delete(d),k(d,"WARN","Sesi tersimpan membutuhkan tautan ulang. Kembali ke mode Disconnected."),t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:"RELINK_REQUIRED"}),void emitAdminGlobalSessionsSnapshot(t);if(u&&"qr"===f&&!S.authState.creds.registered)try{const e=await a.toDataURL(u,{margin:2,width:280,color:{dark:"#090d16",light:"#ffffff"}});t.to(`user_${d}`).emit("qr:update",e),k(d,"INFO",`QR Code dimuat untuk sesi: ${w}`)}catch(e){k(d,"ERROR",`Gagal membuat QR Code: ${e.message}`)}if("open"===o){ee(i);const e=m(S.user?.id||""),a=e.split("@")[0],n=S.user?.name||S.user?.verifiedName||b.platformName;S.user&&(S.user.jid=e),s.socket&&"function"==typeof s.socket.set&&s.socket.set(e,S);const o=$(d);o.phoneNumber=a,o.sessionName=w,D(d,o),Q(I,d,w,a),syncBotSettingsToGlobalDb(e,o.settings);let r=`https://ui-avatars.com/api/?name=${encodeURIComponent(n)}&background=10b981&color=fff&size=128`;try{const t=await Promise.race([S.profilePictureUrl(e,"image"),new Promise((e,t)=>setTimeout(()=>t(new Error("AvatarTimeout")),3e3))]);t&&(r=t)}catch{}const c={name:n,number:a,avatarUrl:r};i.status="CONNECTED",i.profile=c,i.isAutoReconnect=!1,i.wasPreviouslyConnected=!0,i.attemptCount=1,t.to(`user_${d}`).emit("connection:status",{status:"CONNECTED",profile:c,isAutoReconnect:!1}),emitUserStatsSnapshot(t,d,o),emitAdminGlobalSessionsSnapshot(t),k(d,"SUCCESS",`Connected as ${n} (+${a})`)}if("close"===o){const e=activeBotSessions.get(d);if(!e||e!==M||e.isDeletingSession)return;ee(e);const a=new n(c?.error)?.output?.statusCode,i=r[a]||`Code ${a||"Unknown"}`;if(k(d,"WARN",`Koneksi terputus (${i}). Statistik tetap disimpan.`),a===r.loggedOut||a===r.badSession)return k(d,"ERROR","Sesi keluar (Logged Out). Membersihkan kredensial sesi..."),void await destroyBotSession(t,s,d,!1,i);const o=a===r.restartRequired||515===a;if(T&&!e.wasPreviouslyConnected&&!o&&e.attemptCount>=p)return activeBotSessions.delete(d),k(d,"ERROR","Gagal auto-connect setelah beberapa percobaan. Kembali ke Disconnected."),t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:i}),void emitAdminGlobalSessionsSnapshot(t);const u=$(d),l=o?800:3e3,m=e.wasPreviouslyConnected?1:e.attemptCount+1;e.status="CONNECTING",e.profile=null,e.isAutoReconnect=!0,t.to(`user_${d}`).emit("connection:status",{status:"CONNECTING",profile:null,isAutoReconnect:!0}),emitAdminGlobalSessionsSnapshot(t),e.reconnectTimer=setTimeout(()=>{startWhatsAppSession(t,s,d,"reconnect",u.phoneNumber||"",m,!0)},l)}}),S.ev.on("messages.upsert",async({messages:e,type:a})=>{if("notify"===a)for(const a of e){if(!a.message||"status@broadcast"===a.key.remoteJid)continue;const e=$(d);if(isBotSubscriptionExpired(d,e))return k(d,"WARN","Masa aktif bot berakhir. Memutus koneksi otomatis..."),Y(S),activeBotSessions.delete(d),t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:"SUBSCRIPTION_EXPIRED"}),void emitAdminGlobalSessionsSnapshot(t);s.store&&"function"==typeof s.store.saveMessage&&s.store.saveMessage(a,S.user?.id),"function"==typeof s.database&&s.database(S,a);const n=a.key.remoteJid;n?.endsWith("@g.us")&&"function"==typeof s.metadata&&(global.db?.metadata?.[n]?s.metadata(S,n,!1).catch(()=>{}):await s.metadata(S,n,!1).catch(()=>{}));const i=await se(s,S,a);if(!i.fromMe){recordRealtimeActivityHit(i.command?"CMD":"MSG",i.command?`/cmd/${i.command}`:"/api/whatsapp/incoming"),t.engine.clientsCount>0&&t.emit("traffic:velocity",getRealtimeTrafficSnapshot()),e.totalMessagesReceived+=1,E(e,"in");const s=i.sender.split("@")[0];if(e.uniqueUsers.includes(s)||e.uniqueUsers.push(s),D(d,e),emitUserStatsSnapshot(t,d,e),e.settings.autoRead)try{await S.readMessages([a.key])}catch{}}if(i.body){k(d,"MSG",`${i.fromMe?"[OUT]":"[IN]"} ${i.sender.split("@")[0]}: ${i.body.slice(0,80)}`),!i.fromMe&&e.settings.webhookUrl&&forwardIncomingToUserWebhook(e,{event:"message.received",botUserId:d,chat:i.chat,sender:i.sender,pushName:i.pushname||"",isGroup:Boolean(i.isGc||i.isGroup||n?.endsWith("@g.us")),messageType:i.mtype||"text",text:i.body,timestamp:Date.now()},t,d).catch(()=>{});const o=Boolean(i.isGc||i.isGroup||n?.endsWith("@g.us")),r=o?e.settings.groupConfigs?.[n]:null;if(!i.fromMe&&r){const t=/(https?:\/\/)?(chat\.whatsapp\.com|wa\.me|t\.me|bit\.ly)\/[^\s]+/i.test(i.body);if(r.antiLink&&t){await S.sendMessage(n,{delete:a.key}).catch(()=>{}),await i.reply("Link tidak diizinkan di grup ini.").catch(()=>{});continue}if(r.antiToxic&&Array.isArray(e.settings.toxic)&&e.settings.toxic.length>0){const t=i.body.toLowerCase();if(e.settings.toxic.some(e=>e&&t.includes(String(e).toLowerCase()))){await S.sendMessage(n,{delete:a.key}).catch(()=>{}),await i.reply("Mohon jaga bahasa di grup ini.").catch(()=>{});continue}}}let c=!1;if(!i.fromMe&&Array.isArray(e.settings.autoReplies)&&e.settings.autoReplies.length>0){const s=i.body.trim().toLowerCase(),a=e.settings.autoReplies.find(e=>{const t=String(e?.trigger||"").trim().toLowerCase();if(!t)return!1;const a=String(e?.matchType||"exact").trim().toLowerCase();return"contains"===a?s.includes(t):"starts"===a?s.startsWith(t):s===t});if(a){c=!0;const s=String(a.mediaType||"text").toLowerCase(),n=formatMessageTemplateVariables(a.response||"",e);"text"!==s&&a.mediaUrl?await sendDirectWhatsAppMessage(t,d,{targetJid:i.chat,mediaType:s,mediaUrl:a.mediaUrl,caption:n,fileName:a.fileName||"file",sourceRoute:"/api/whatsapp/auto-reply"}).catch(()=>{}):n&&await i.reply(n).catch(()=>{})}}if(!e.settings.publicMode&&!i.fromMe)continue;const u=Number($(d).totalMessagesSent||0);await O({googleUserId:d,m:i,client:S,botDatabase:e,coreModules:s,io:t,emitLog:k});const l=Number($(d).totalMessagesSent||0)>u,p=m(S.user?.id||""),g=Array.isArray(i.mentionedJid)&&i.mentionedJid.some(e=>m(e)===p)||i.quoted?.sender&&m(i.quoted.sender)===p,f=!o||Boolean(e.settings.aiGroupAutoReply)||g,h=Boolean(i.prefix&&i.command);if(!i.fromMe&&!c&&!l&&!h&&Boolean(e.settings.isAiEnabled)&&f){const t=`${d}:${n}`,s=F.get(t)||0,o=Date.now();if(o-s>=3500){F.set(t,o);try{const t=await generateAiPersonaReply({systemPrompt:e.settings.aiSystemPrompt,userMessage:i.body,senderName:i.pushname||i.sender.split("@")[0],botName:e.settings.botName||b.platformName});t&&(await S.sendMessage(i.chat,{text:t},{quoted:a}),recordRealtimeActivityHit("AI","/api/whatsapp/ai-persona"),k(d,"INFO",`[AI PERSONA] Menjawab ${i.sender.split("@")[0]} secara otomatis.`))}catch(e){k(d,"WARN",`[AI PERSONA] Gagal memproses jawaban AI: ${e.message}`)}}}}}}),S.ev.on("groups.upsert",e=>{if(Array.isArray(e)){global.db=global.db||{},global.db.metadata=global.db.metadata||{};for(const t of e)t?.id&&(global.db.metadata[t.id]={...t,participants:s.lid?.formatGroupParticipants?s.lid.formatGroupParticipants(t):t.participants||[]})}}),S.ev.on("groups.update",e=>{if(Array.isArray(e)){global.db=global.db||{},global.db.metadata=global.db.metadata||{};for(const t of e)t?.id&&(global.db.metadata[t.id]?Object.assign(global.db.metadata[t.id],t):"function"==typeof s.metadata&&s.metadata(S,t.id,!0).catch(()=>{}))}}),S.ev.on("group-participants.update",async e=>{try{const t=e?.id;if(!t||!Array.isArray(e.participants)||0===e.participants.length)return;const s=$(d),a=s.settings?.groupConfigs?.[t];if(!a)return;const n="add"===e.action,i="remove"===e.action;if(!n&&!i)return;const o=n?a.welcomeEnabled?String(a.welcomeMessage||"").trim():"":a.goodbyeEnabled?String(a.goodbyeMessage||"").trim():"";if(!o)return;const r=global.db?.metadata?.[t]||await S.groupMetadata(t).catch(()=>null),c=r?.subject||t.split("@")[0];for(const a of e.participants){const e=String(a).split("@")[0],n=formatMessageTemplateVariables(o,s).replaceAll("@user",`@${e}`).replaceAll("@group",c);await S.sendMessage(t,{text:n,mentions:[a]}).catch(()=>{})}}catch{}})}catch(e){ee(M),activeBotSessions.get(d)===M&&activeBotSessions.delete(d),k(d,"ERROR",`Kegagalan inisialisasi sesi: ${e.message}`),t.to(`user_${d}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:e.message}),emitAdminGlobalSessionsSnapshot(t)}}export async function broadcastToBotGroups(e,t,s,a=5){const n=(t,s,a)=>emitTerminalLog(e,t,s,a),i=activeBotSessions.get(t);if(!i||"CONNECTED"!==i.status||!i.socketInstance)return{isSuccess:!1,errorMessage:"Bot harus dalam status Connected untuk melakukan broadcast grup."};const o=formatMessageTemplateVariables(s,$(t)).trim();if(!o)return{isSuccess:!1,errorMessage:"Isi pesan broadcast tidak boleh kosong."};const r=1e3*Math.max(2,Math.min(30,Number(a)||5)),c=i.socketInstance;let u=[];try{const e=await c.groupFetchAllParticipating();u=Object.values(e||{}).filter(e=>e?.id&&!global.db?.groups?.[e.id]?.banned)}catch{u=Object.values(global.db?.metadata||{}).filter(e=>e?.id?.endsWith("@g.us")&&!global.db?.groups?.[e.id]?.banned)}if(0===u.length)return{isSuccess:!1,errorMessage:"Tidak ada grup aktif yang ditemukan untuk broadcast."};n(t,"INFO",`Memulai broadcast ke ${u.length} grup (jeda ${r/1e3} detik/grup)...`);let l=0,m=0;for(let s=0;s<u.length;s+=1){const a=u[s];try{const e=parseSpintaxText(o);await c.sendMessage(a.id,{text:e}),l+=1}catch{m+=1}e.to(`user_${t}`).emit("broadcast:progress",{current:s+1,total:u.length,successCount:l,failedCount:m}),s<u.length-1&&await new Promise(e=>setTimeout(e,r))}return n(t,"SUCCESS",`Broadcast selesai. Berhasil: ${l}, Gagal: ${m}.`),{isSuccess:!0,total:u.length,successCount:l,failedCount:m}}export async function restartWhatsAppSession(e,t,s){const a=(t,s,a)=>emitTerminalLog(e,t,s,a),n=findValidUserSession(s);if(!n)return a(s,"WARN","Tidak ada sesi tersimpan untuk di-restart. Silakan tautkan QR atau Pairing terlebih dahulu."),e.to(`user_${s}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1}),emitAdminGlobalSessionsSnapshot(e),!1;a(s,"INFO",`Memulai soft restart koneksi sesi [${n.sessionName}]...`);const i=$(s);return await startWhatsAppSession(e,t,s,"reconnect",i.phoneNumber||"",1,!0),!0}export async function destroyBotSession(t,s,a,n=!0,i="LOGGED_OUT"){const o=(e,s,a)=>emitTerminalLog(t,e,s,a),r=activeBotSessions.get(a),c=$(a),u=r?.sessionName||c.sessionName;if(r){if(r.isDeletingSession=!0,ee(r),r.profile?.number&&s.socket&&"function"==typeof s.socket.delete&&s.socket.delete(r.profile.number),r.socketInstance){try{n&&"CONNECTED"===r.status&&await Promise.race([r.socketInstance.logout(),new Promise(e=>setTimeout(e,2e3))])}catch{}Y(r.socketInstance)}activeBotSessions.delete(a)}if(u){const t=v(a,u);if(e.existsSync(t))try{e.rmSync(t,{recursive:!0,force:!0})}catch(e){o(a,"ERROR",`Gagal menghapus folder sesi: ${e.message}`)}}c.sessionName=null,c.phoneNumber=null,D(a,c);const l=w(activeBotSessions);t.to(`user_${a}`).emit("session:reset",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:i,database:c,globalStats:l}),t.to(`user_${a}`).emit("connection:status",{status:"DISCONNECTED",profile:null,isAutoReconnect:!1,reason:i}),emitUserStatsSnapshot(t,a,c),emitAdminGlobalSessionsSnapshot(t),o(a,"WARN","Sesi kredensial WhatsApp telah dihapus dari volume.")}export function restoreExistingSessionsOnBoot(s,a){if(e.existsSync(S))try{const n=x(),i=new Map;for(const e of Object.keys(n.users)){const t=findValidUserSession(e);t&&i.set(e,{sessionName:t.sessionName,phoneNumber:n.users[e]?.phoneNumber||""})}for(const s of e.readdirSync(S,{withFileTypes:!0})){if(!s.isDirectory())continue;const e=s.name,a=t.join(S,e);if(!X(a))continue;const o=Z(a);let r=o?.googleUserId||null;if(!r)for(const t of Object.keys(n.users)){const s=n.users[t];if(s.sessionName===e||s.phoneNumber===e||e.includes(t)){r=t;break}}r&&!i.has(r)&&i.set(r,{sessionName:e,phoneNumber:o?.phoneNumber||n.users[r]?.phoneNumber||""})}let o=0;for(const[e,t]of i.entries()){const n=400*o;o+=1,setTimeout(()=>{console.log(`[BOOT AUTO-START] Memulihkan sesi User ID: ${e} (${t.sessionName})`),startWhatsAppSession(s,a,e,"reconnect",t.phoneNumber,1,!1)},n)}}catch(e){console.error("[BOOT ERROR] Gagal memindai sesi tersimpan:",e.message)}else e.mkdirSync(S,{recursive:!0})}export async function syncSessionStateToSocket(e,t,s,a){const n=a.googleId,i=M(a),o=$(n);let r=activeBotSessions.get(n);const c=findValidUserSession(n);r||!c||isBotSubscriptionExpired(n,o)||(startWhatsAppSession(e,t,n,"reconnect",o.phoneNumber||"",1,!1),r=activeBotSessions.get(n));const u=r?r.status:"DISCONNECTED",l=r?r.profile:null,m=Boolean(r?.isAutoReconnect),p=await P();s.emit("session:ready",{user:a,isAdmin:i,adminWaNumber:d,volumePath:c?.folderPath||v(n),status:u,profile:l,isAutoReconnect:m,database:o,apiKey:o.apiKey||null,apiKeyStats:o.apiKeyStats||{createdAt:0,lastUsedAt:0,totalCalls:0},schedules:o.scheduledMessages||[],globalStats:w(activeBotSessions),trafficSeries:k(o.trafficHistory),trafficVelocity:getRealtimeTrafficSnapshot(),topCommands:getTopCommandsLeaderboard(5),announcement:T(),announcements:C(),catalog:p,plugins:i?U():[],vouchers:i?R():[],adminGlobalMonitor:i?A(activeBotSessions):null,logs:userTerminalLogsCache.get(n)||[]}),s.emit("connection:status",{status:u,profile:l,isAutoReconnect:m})}
+// --- manajer sesi baileys, auto-connect, multi-media, webhook logs, branding profil, grup visual, ai persona, spintax, clear pre-keys, dan auto-backup ---
+import fs from 'fs';
+import path from 'path';
+import pino from 'pino';
+import QRCode from 'qrcode';
+import { Boom } from '@hapi/boom';
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  Browsers,
+  jidNormalizedUser
+} from '@whiskeysockets/baileys';
+import {
+  ADMIN_WA_NUMBER,
+  AUTO_CONNECT_MAX_RETRIES,
+  AUTO_CONNECT_TIMEOUT_MS,
+  MAIN_DATABASE_FILE_PATH,
+  PLUGINS_ROOT_DIR,
+  SESSIONS_ROOT_FOLDER_PATH,
+  CONFIG
+} from './config.js';
+import {
+  appendWebhookDeliveryLog,
+  buildLast7DaysTrafficSeries,
+  formatBytesReadable,
+  getAllUsersGlobalMonitorSnapshot,
+  getGlobalAnnouncement,
+  getGlobalAnnouncements,
+  getGlobalPlatformStatistics,
+  getUserSessionFolderPath,
+  incrementDailyTrafficRecord,
+  isPlatformAdminById,
+  isPlatformAdminUser,
+  listVouchers,
+  readBotDatabase,
+  readMasterDatabaseFile,
+  writeBotDatabaseAtomic,
+  writeMasterDatabaseFileAtomic
+} from './database.js';
+import {
+  executeDynamicPlugins,
+  getAvailablePluginsList,
+  getFeatureCatalogList,
+  scanPluginFilesRecursive
+} from './plugin-manager.js';
+import Extra from '../system/extra.js';
+
+const extraInstance = new Extra();
+
+export const activeBotSessions = new Map();
+export const userTerminalLogsCache = new Map();
+const silentLogger = pino({ level: 'silent' });
+let schedulerWorkerInterval = null;
+let lastExpiryReminderCheckMs = 0;
+let lastAutoBackupCheckMs = 0;
+
+// --- cooldown ai persona per bot & chat agar tidak memicu spam beruntun ---
+const aiReplyCooldownMap = new Map();
+const AI_REPLY_COOLDOWN_MS = 3500;
+const EXPIRY_REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const AUTO_BACKUP_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+
+// --- pelacak velocity request real-time & top active endpoints tanpa data palsu ---
+const VELOCITY_BUCKET_SECONDS = 3;
+const VELOCITY_HISTORY_PAST_SLOTS = 6;
+const velocityHistoryBuckets = Array(VELOCITY_HISTORY_PAST_SLOTS).fill(0);
+let currentVelocityBucketCount = 0;
+const endpointActivityCounters = new Map();
+
+// --- catat hit asli dari http endpoint maupun pesan/perintah whatsapp ---
+export function recordRealtimeActivityHit(methodLabel = 'GET', routePath = '/api/unknown') {
+  currentVelocityBucketCount += 1;
+  const cleanMethod = String(methodLabel || 'GET').toUpperCase().slice(0, 8);
+  const cleanPath = String(routePath || '/').trim().slice(0, 80);
+  const counterKey = `${cleanMethod} ${cleanPath}`;
+  const existing = endpointActivityCounters.get(counterKey) || {
+    method: cleanMethod,
+    path: cleanPath,
+    hits: 0,
+    lastHitAt: 0
+  };
+  existing.hits += 1;
+  existing.lastHitAt = Date.now();
+  endpointActivityCounters.set(counterKey, existing);
+}
+
+// --- geser jendela bucket velocity setiap 3 detik tanpa duplikasi slot ---
+export function advanceTrafficVelocityBucket() {
+  velocityHistoryBuckets.shift();
+  velocityHistoryBuckets.push(currentVelocityBucketCount);
+  currentVelocityBucketCount = 0;
+  return getRealtimeTrafficSnapshot();
+}
+
+// --- bangun snapshot data live traffic velocity & top active endpoints ---
+export function getRealtimeTrafficSnapshot() {
+  const series = [...velocityHistoryBuckets, currentVelocityBucketCount];
+  const windowTotal = series.reduce((sum, val) => sum + Number(val || 0), 0);
+  const totalWindowSec = series.length * VELOCITY_BUCKET_SECONDS;
+  const reqPerSec = Math.round((windowTotal / totalWindowSec) * 10) / 10;
+
+  const topEndpoints = Array.from(endpointActivityCounters.values())
+    .sort((a, b) => b.hits - a.hits || b.lastHitAt - a.lastHitAt)
+    .slice(0, 5);
+
+  return {
+    labels: ['-18s', '-15s', '-12s', '-9s', '-6s', '-3s', 'Now'],
+    series,
+    reqPerSec,
+    currentHits: currentVelocityBucketCount,
+    topEndpoints,
+    timestamp: Date.now()
+  };
+}
+
+// --- pancarkan pembaruan statistik user & global secara terpusat ---
+export function emitUserStatsSnapshot(io, googleUserId, userDatabase) {
+  if (!io || !googleUserId || !userDatabase) return;
+  io.to(`user_${googleUserId}`).emit('stats:update', {
+    userStats: {
+      ...userDatabase,
+      expiresAt: userDatabase.subscription?.expiresAt || 0
+    },
+    globalStats: getGlobalPlatformStatistics(activeBotSessions),
+    trafficSeries: buildLast7DaysTrafficSeries(userDatabase.trafficHistory),
+    topCommands: getTopCommandsLeaderboard(5)
+  });
+}
+
+// --- pancarkan pembaruan monitor sesi global ke seluruh admin yang terhubung ---
+export function emitAdminGlobalSessionsSnapshot(io) {
+  if (!io) return;
+  try {
+    const snapshot = getAllUsersGlobalMonitorSnapshot(activeBotSessions);
+    io.to('platform_admins').emit('admin:sessions:data', snapshot);
+  } catch {
+    // --- abaikan error sementara pemancaran snapshot admin ---
+  }
+}
+
+// --- pancarkan log terminal ke klien dan simpan riwayat ringkas ---
+export function emitTerminalLog(io, googleUserId, logLevel, logMessage) {
+  const timestampText = new Date().toLocaleTimeString('id-ID', { hour12: false });
+  const logEntry = {
+    timestamp: timestampText,
+    level: logLevel,
+    message: logMessage
+  };
+
+  if (!userTerminalLogsCache.has(googleUserId)) {
+    userTerminalLogsCache.set(googleUserId, []);
+  }
+  const userLogs = userTerminalLogsCache.get(googleUserId);
+  userLogs.push(logEntry);
+  if (userLogs.length > 100) userLogs.shift();
+
+  io.to(`user_${googleUserId}`).emit('terminal:log', logEntry);
+}
+
+// --- normalisasi target jid grup maupun nomor whatsapp pribadi ---
+export function resolveTargetWhatsappJid(rawTarget) {
+  const clean = String(rawTarget || '').trim();
+  if (!clean) return null;
+  if (/^[\d-]+@g\.us$/i.test(clean)) return clean;
+  if (/^\d+@(s\.whatsapp\.net|lid)$/i.test(clean)) return jidNormalizedUser(clean);
+
+  const digits = clean.replace(/\D/g, '');
+  if (digits.length < 6 || digits.length > 20) return null;
+  return `${digits}@s.whatsapp.net`;
+}
+
+// --- proses variabel dinamis pada template pesan langsung maupun terjadwal ---
+export function formatMessageTemplateVariables(rawMessage, botDatabase) {
+  const nowJakarta = new Date();
+  const dateLabel = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    dateStyle: 'full'
+  }).format(nowJakarta);
+  const timeLabel = `${new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(nowJakarta)} WIB`;
+
+  const botName = botDatabase?.settings?.botName || CONFIG.platformName;
+  return String(rawMessage || '')
+    .replaceAll('{botName}', botName)
+    .replaceAll('{date}', dateLabel)
+    .replaceAll('{time}', timeLabel);
+}
+
+// --- proses pola spintax {opsi1|opsi2|opsi3} untuk variasi pesan anti-ban ---
+export function parseSpintaxText(rawText) {
+  let output = String(rawText || '');
+  const spintaxRegex = /\{([^{}]+)\}/g;
+  let guardCount = 0;
+
+  while (spintaxRegex.test(output) && guardCount < 10) {
+    guardCount += 1;
+    output = output.replace(spintaxRegex, (_match, groupContent) => {
+      const options = String(groupContent).split('|').map((s) => s.trim()).filter(Boolean);
+      if (options.length === 0) return '';
+      return options[Math.floor(Math.random() * options.length)];
+    });
+  }
+  return output;
+}
+
+// --- teruskan event pesan masuk ke webhook url user beserta pencatatan delivery log ---
+export async function forwardIncomingToUserWebhook(userDatabase, payload, io = null, googleUserId = '') {
+  const targetUrl = String(userDatabase?.settings?.webhookUrl || '').trim();
+  if (!/^https?:\/\/.+/i.test(targetUrl)) return;
+
+  const ownerUserId = String(googleUserId || payload?.botUserId || '').trim();
+  const startedAtMs = Date.now();
+  let statusCode = 0;
+  let isSuccess = false;
+  let errorMessage = '';
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const headers = { 'Content-Type': 'application/json' };
+    if (userDatabase?.settings?.webhookSecret) {
+      headers['x-webhook-secret'] = userDatabase.settings.webhookSecret;
+    }
+
+    const res = await fetch(targetUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+
+    statusCode = Number(res.status || 0);
+    isSuccess = Boolean(res.ok);
+    if (!res.ok) {
+      errorMessage = `HTTP ${statusCode}`;
+    }
+  } catch (err) {
+    errorMessage = err?.name === 'AbortError' ? 'Timeout (>8s)' : String(err?.message || 'Network error');
+  }
+
+  if (ownerUserId) {
+    const updatedLogs = appendWebhookDeliveryLog(ownerUserId, {
+      event: payload?.event || 'message.received',
+      url: targetUrl,
+      statusCode,
+      isSuccess,
+      durationMs: Date.now() - startedAtMs,
+      errorMessage,
+      timestamp: Date.now()
+    });
+    if (io) {
+      io.to(`user_${ownerUserId}`).emit('webhook:logs:update', updatedLogs);
+    }
+  }
+}
+
+// --- perbarui foto profil whatsapp bot langsung dari dashboard ---
+export async function updateBotWhatsappProfile(io, googleUserId, { avatarBase64 = '' } = {}) {
+  const session = activeBotSessions.get(googleUserId);
+  if (!session || session.status !== 'CONNECTED' || !session.socketInstance) {
+    return { isSuccess: false, errorMessage: 'Bot harus dalam status ONLINE untuk mengubah foto profil WhatsApp.' };
+  }
+
+  const client = session.socketInstance;
+  const botJid = client.user?.jid || (client.user?.id ? `${client.user.id.split(':')[0]}@s.whatsapp.net` : '');
+  if (!botJid) {
+    return { isSuccess: false, errorMessage: 'JID bot aktif tidak ditemukan.' };
+  }
+
+  if (typeof avatarBase64 !== 'string' || !avatarBase64.trim()) {
+    return { isSuccess: false, errorMessage: 'Pilih gambar avatar terlebih dahulu.' };
+  }
+
+  let nextAvatarUrl = session.profile?.avatarUrl || '';
+
+  try {
+    const rawBase64 = avatarBase64.includes(',') ? avatarBase64.split(',').pop() : avatarBase64;
+    const imageBuffer = Buffer.from(String(rawBase64 || '').trim(), 'base64');
+    if (!imageBuffer.length || imageBuffer.length > 5 * 1024 * 1024) {
+      return { isSuccess: false, errorMessage: 'Ukuran gambar avatar maksimal 5 MB.' };
+    }
+
+    await client.updateProfilePicture(botJid, imageBuffer);
+
+    try {
+      const refreshedUrl = await client.profilePictureUrl(botJid, 'image');
+      if (refreshedUrl) {
+        nextAvatarUrl = refreshedUrl;
+        if (session.profile) session.profile.avatarUrl = refreshedUrl;
+      }
+    } catch {
+      // --- abaikan jika url foto profil terbaru belum tersinkron ---
+    }
+
+    if (io) {
+      if (session.profile) {
+        io.to(`user_${googleUserId}`).emit('connection:status', {
+          status: 'CONNECTED',
+          profile: session.profile,
+          isAutoReconnect: false
+        });
+      }
+      emitTerminalLog(io, googleUserId, 'SUCCESS', 'Foto profil WhatsApp bot berhasil diperbarui.');
+    }
+
+    return { isSuccess: true, updatedAvatar: true, avatarUrl: nextAvatarUrl };
+  } catch (err) {
+    return { isSuccess: false, errorMessage: err?.message || 'Gagal memperbarui foto profil WhatsApp bot.' };
+  }
+}
+
+// --- konversi data url base64 menjadi buffer dan deteksi mimetype ---
+function parseBase64MediaInput(rawBase64) {
+  const clean = String(rawBase64 || '').trim();
+  if (!clean) return null;
+  const match = clean.match(/^data:([^;]+);base64,(.+)$/i);
+  if (match) {
+    return {
+      mimetype: match[1],
+      buffer: Buffer.from(match[2], 'base64')
+    };
+  }
+  return {
+    mimetype: 'application/octet-stream',
+    buffer: Buffer.from(clean, 'base64')
+  };
+}
+
+// --- generator jawaban ai persona yang modular dan dapat dihubungkan ke llm api ---
+export async function generateAiPersonaReply({
+  systemPrompt = '',
+  userMessage = '',
+  senderName = 'Pengguna',
+  botName = CONFIG.platformName
+} = {}) {
+  const cleanPrompt = String(systemPrompt || '').trim() ||
+    `Kamu adalah asisten WhatsApp ${botName} yang ramah, ringkas, dan membantu dalam Bahasa Indonesia.`;
+  const cleanUserMsg = String(userMessage || '').trim().slice(0, 1000);
+  if (!cleanUserMsg) return null;
+
+  const customApiUrl = String(process.env.AI_API_URL || '').trim();
+  const customApiKey = String(process.env.AI_API_KEY || '').trim();
+  const customModel = String(process.env.AI_MODEL || 'gpt-4o-mini').trim();
+
+  if (customApiUrl && customApiKey) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const response = await fetch(customApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${customApiKey}`
+        },
+        body: JSON.stringify({
+          model: customModel,
+          messages: [
+            { role: 'system', content: cleanPrompt },
+            { role: 'user', content: `[Pengirim: ${senderName}] ${cleanUserMsg}` }
+          ],
+          temperature: 0.7,
+          max_tokens: 400
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const json = await response.json();
+        const text = String(json?.choices?.[0]?.message?.content || '').trim();
+        if (text) return text;
+      }
+    } catch {
+      // --- lanjutkan ke fallback penyedia gratis jika api kustom gagal ---
+    }
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: `${cleanPrompt}\nJawab singkat dan natural untuk chat WhatsApp.` },
+          { role: 'user', content: cleanUserMsg }
+        ],
+        model: 'openai',
+        private: true
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      const replyText = String(await response.text()).trim();
+      if (replyText && !replyText.toLowerCase().startsWith('<!doctype html')) {
+        return replyText.slice(0, 1500);
+      }
+    }
+  } catch {
+    // --- lanjutkan ke fallback respons lokal jika jaringan eksternal tidak terjangkau ---
+  }
+
+  const lower = cleanUserMsg.toLowerCase();
+  if (/^(halo|hai|hi|assalamualaikum|p|permisi|selamat)/i.test(lower)) {
+    return `Halo ${senderName}! Saya asisten otomatis *${botName}*. Ada yang bisa saya bantu hari ini?`;
+  }
+  if (/(harga|price|beli|sewa|order|daftar)/i.test(lower)) {
+    return `Terima kasih sudah menghubungi *${botName}*, ${senderName}. Pesan Anda terkait informasi layanan/order telah kami terima. Silakan sebutkan detail kebutuhan Anda agar segera dibantu.`;
+  }
+  return `Halo ${senderName}, pesan Anda sudah diterima oleh asisten AI *${botName}*. Saat ini saya membantu berdasarkan panduan sistem kami—silakan jelaskan pertanyaan Anda secara singkat.`;
+}
+
+// --- kirim pesan teks atau multi-media asli baileys ke grup atau chat pribadi ---
+export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const activeSession = activeBotSessions.get(googleUserId);
+
+  if (!activeSession || activeSession.status !== 'CONNECTED' || !activeSession.socketInstance) {
+    return { isSuccess: false, errorMessage: 'Bot harus dalam status Connected untuk mengirim pesan.' };
+  }
+
+  const targetJid = resolveTargetWhatsappJid(payload.targetJid);
+  if (!targetJid) {
+    return { isSuccess: false, errorMessage: 'Nomor tujuan atau ID Grup (@g.us) tidak valid.' };
+  }
+
+  const botDatabase = readBotDatabase(googleUserId);
+  const client = activeSession.socketInstance;
+  const mediaType = String(payload.mediaType || 'text').trim().toLowerCase();
+  const formattedCaption = formatMessageTemplateVariables(payload.caption ?? payload.message ?? '', botDatabase).trim();
+
+  let mentionsList = undefined;
+  if (payload.mentionAll && targetJid.endsWith('@g.us')) {
+    try {
+      let participants = global.db?.metadata?.[targetJid]?.participants || [];
+      if (participants.length === 0) {
+        const meta = await client.groupMetadata(targetJid).catch(() => null);
+        participants = meta?.participants || [];
+      }
+      const mentionJids = participants
+        .map((p) => p?.id)
+        .filter((id) => typeof id === 'string' && /(@s\.whatsapp\.net|@lid)$/i.test(id));
+      if (mentionJids.length > 0) {
+        mentionsList = mentionJids;
+      }
+    } catch {
+      // --- lanjutkan kirim tanpa mentions jika metadata grup gagal diambil ---
+    }
+  }
+
+  let messageContent = null;
+
+  if (mediaType === 'text') {
+    if (!formattedCaption) {
+      return { isSuccess: false, errorMessage: 'Isi pesan teks tidak boleh kosong.' };
+    }
+    messageContent = { text: formattedCaption };
+  } else if (['image', 'video', 'audio', 'sticker', 'document'].includes(mediaType)) {
+    const parsedBase64 = parseBase64MediaInput(payload.mediaBase64);
+    const mediaUrl = String(payload.mediaUrl || '').trim();
+    const mediaSource = parsedBase64 ? parsedBase64.buffer : (mediaUrl ? { url: mediaUrl } : null);
+
+    if (!mediaSource) {
+      return { isSuccess: false, errorMessage: 'URL media atau file lokal wajib diisi.' };
+    }
+
+    if (mediaType === 'image') {
+      messageContent = {
+        image: mediaSource,
+        caption: formattedCaption || undefined,
+        mimetype: parsedBase64?.mimetype || payload.mimetype || 'image/jpeg'
+      };
+    } else if (mediaType === 'video') {
+      messageContent = {
+        video: mediaSource,
+        caption: formattedCaption || undefined,
+        mimetype: parsedBase64?.mimetype || payload.mimetype || 'video/mp4'
+      };
+    } else if (mediaType === 'audio') {
+      const isPtt = Boolean(payload.ptt);
+      messageContent = {
+        audio: mediaSource,
+        mimetype: isPtt ? 'audio/ogg; codecs=opus' : (parsedBase64?.mimetype || 'audio/mpeg'),
+        ptt: isPtt
+      };
+    } else if (mediaType === 'sticker') {
+      if (typeof client.sendSticker === 'function') {
+        try {
+          let stickerInput = parsedBase64 ? parsedBase64.buffer : null;
+          if (!stickerInput && mediaUrl) {
+            const fetched = await fetch(mediaUrl);
+            if (!fetched.ok) throw new Error(`Gagal mengunduh URL stiker (HTTP ${fetched.status}).`);
+            stickerInput = Buffer.from(await fetched.arrayBuffer());
+          }
+          if (stickerInput) {
+            await client.sendSticker(targetJid, stickerInput, null, {
+              packname: botDatabase?.settings?.packname || CONFIG.platformName,
+              author: botDatabase?.settings?.author || 'Xu Core'
+            });
+            recordRealtimeActivityHit('POST', payload.sourceRoute || '/api/whatsapp/direct-send');
+            if (io && io.engine.clientsCount > 0) io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
+            emitLog(googleUserId, 'SUCCESS', `Pesan [STICKER] terkirim ke [${targetJid.split('@')[0]}].`);
+            return { isSuccess: true, targetJid, messageId: null };
+          }
+        } catch (stickerErr) {
+          emitLog(googleUserId, 'WARN', `Fallback sendMessage sticker: ${stickerErr.message}`);
+        }
+      }
+      messageContent = { sticker: mediaSource };
+    } else if (mediaType === 'document') {
+      messageContent = {
+        document: mediaSource,
+        fileName: String(payload.fileName || 'document').trim(),
+        mimetype: String(payload.mimetype || parsedBase64?.mimetype || 'application/octet-stream').trim(),
+        caption: formattedCaption || undefined
+      };
+    }
+  } else if (mediaType === 'location') {
+    const loc = payload.location || {};
+    messageContent = {
+      location: {
+        degreesLatitude: Number(loc.degreesLatitude || 0),
+        degreesLongitude: Number(loc.degreesLongitude || 0),
+        name: String(loc.name || '').trim() || undefined,
+        address: String(loc.address || '').trim() || undefined
+      }
+    };
+  } else if (mediaType === 'contact') {
+    const contact = payload.contact || {};
+    const cleanPhone = String(contact.phoneNumber || '').replace(/\D/g, '');
+    const displayName = String(contact.fullName || 'Kontak').trim();
+    if (!cleanPhone) {
+      return { isSuccess: false, errorMessage: 'Nomor kontak WhatsApp tidak valid.' };
+    }
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${displayName}`,
+      `TEL;type=CELL;type=VOICE;waid=${cleanPhone}:+${cleanPhone}`,
+      'END:VCARD'
+    ].join('\n');
+    messageContent = {
+      contacts: {
+        displayName,
+        contacts: [{ vcard }]
+      }
+    };
+  } else {
+    return { isSuccess: false, errorMessage: `Tipe media [${mediaType}] tidak didukung.` };
+  }
+
+  if (mentionsList) {
+    messageContent.mentions = mentionsList;
+  }
+
+  try {
+    const sentMsg = await client.sendMessage(targetJid, messageContent);
+    recordRealtimeActivityHit('POST', payload.sourceRoute || '/api/whatsapp/direct-send');
+    if (io && io.engine.clientsCount > 0) {
+      io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
+    }
+    const shortTarget = targetJid.split('@')[0];
+    emitLog(
+      googleUserId,
+      'SUCCESS',
+      `Pesan [${mediaType.toUpperCase()}] terkirim ke [${shortTarget}]${mentionsList ? ' (Mention All)' : ''}.`
+    );
+    return { isSuccess: true, targetJid, messageId: sentMsg?.key?.id || null };
+  } catch (sendError) {
+    emitLog(googleUserId, 'ERROR', `Gagal mengirim pesan [${mediaType.toUpperCase()}] ke [${targetJid.split('@')[0]}]: ${sendError.message}`);
+    return { isSuccess: false, errorMessage: sendError.message || 'Gagal mengirim pesan.' };
+  }
+}
+
+// --- cari socket whatsapp aktif (prioritas milik user, lalu admin, lalu sesi connected mana saja) ---
+function findAvailableDeliverySocket(preferredGoogleUserId = null) {
+  if (preferredGoogleUserId) {
+    const ownSession = activeBotSessions.get(preferredGoogleUserId);
+    if (ownSession?.status === 'CONNECTED' && ownSession.socketInstance) {
+      return { senderUserId: preferredGoogleUserId, socketInstance: ownSession.socketInstance };
+    }
+  }
+
+  for (const [uid, sess] of activeBotSessions.entries()) {
+    if (sess?.status === 'CONNECTED' && sess.socketInstance && isPlatformAdminById(uid)) {
+      return { senderUserId: uid, socketInstance: sess.socketInstance };
+    }
+  }
+
+  for (const [uid, sess] of activeBotSessions.entries()) {
+    if (sess?.status === 'CONNECTED' && sess.socketInstance) {
+      return { senderUserId: uid, socketInstance: sess.socketInstance };
+    }
+  }
+
+  return null;
+}
+
+// --- kirim kode otp reset password ke nomor whatsapp owner terdaftar ---
+export async function sendSystemOtpWhatsAppMessage(io, { preferredUserId = null, targetPhone = '', email = '', otpCode = '' } = {}) {
+  const targetJid = resolveTargetWhatsappJid(targetPhone);
+  if (!targetJid) {
+    return { isSuccess: false, errorMessage: 'Nomor WhatsApp tujuan tidak valid.' };
+  }
+
+  const delivery = findAvailableDeliverySocket(preferredUserId);
+  if (!delivery) {
+    return {
+      isSuccess: false,
+      errorMessage: 'Tidak ada sesi bot WhatsApp aktif di server untuk mengirim OTP. Hubungi admin.'
+    };
+  }
+
+  const otpText =
+    `*[XU CORE — KEAMANAN AKUN]*\n\n` +
+    `Permintaan reset kata sandi untuk akun:\n` +
+    `• Email: ${email}\n` +
+    `• Kode OTP: *${otpCode}*\n\n` +
+    `Kode berlaku selama *10 menit*. Jangan bagikan kode ini kepada siapa pun.`;
+
+  try {
+    await delivery.socketInstance.sendMessage(targetJid, { text: otpText });
+    if (io) {
+      emitTerminalLog(io, delivery.senderUserId, 'INFO', `OTP reset password untuk [${email}] terkirim ke +${targetPhone}.`);
+    }
+    return { isSuccess: true, sentViaUserId: delivery.senderUserId };
+  } catch (err) {
+    return { isSuccess: false, errorMessage: `Gagal mengirim OTP ke WhatsApp: ${err.message}` };
+  }
+}
+
+// --- bersihkan file cache sesi baileys (pre-key, sender-key, session) tanpa menghapus creds.json ---
+export function clearUserSessionPreKeys(io, googleUserId) {
+  const discovered = findValidUserSession(googleUserId);
+  const userDb = readBotDatabase(googleUserId);
+  const folderPath = discovered?.folderPath || getUserSessionFolderPath(googleUserId, userDb.sessionName);
+
+  if (!folderPath || !fs.existsSync(folderPath)) {
+    return {
+      isSuccess: false,
+      deletedCount: 0,
+      freedBytes: 0,
+      freedLabel: '0 B',
+      errorMessage: 'Folder sesi WhatsApp belum ditemukan di volume.'
+    };
+  }
+
+  const targetCachePattern = /^(pre-key|sender-key|session)-.*\.json$/i;
+  let deletedCount = 0;
+  let freedBytes = 0;
+
+  try {
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const lowerName = entry.name.toLowerCase();
+      if (lowerName === 'creds.json' || lowerName === '.owner.json') continue;
+      if (!targetCachePattern.test(entry.name)) continue;
+
+      const fullFilePath = path.join(folderPath, entry.name);
+      try {
+        const size = fs.statSync(fullFilePath).size;
+        fs.unlinkSync(fullFilePath);
+        deletedCount += 1;
+        freedBytes += size;
+      } catch {
+        // --- abaikan file yang sedang terkunci ---
+      }
+    }
+
+    const freedLabel = formatBytesReadable(freedBytes);
+    if (io) {
+      emitTerminalLog(
+        io,
+        googleUserId,
+        'SUCCESS',
+        `Cache sesi dibersihkan: ${deletedCount} file (${freedLabel}) dihapus. creds.json tetap aman.`
+      );
+      emitAdminGlobalSessionsSnapshot(io);
+    }
+
+    return {
+      isSuccess: true,
+      deletedCount,
+      freedBytes,
+      freedLabel,
+      sessionFolder: folderPath
+    };
+  } catch (err) {
+    return {
+      isSuccess: false,
+      deletedCount: 0,
+      freedBytes: 0,
+      freedLabel: '0 B',
+      errorMessage: `Gagal membersihkan cache sesi: ${err.message}`
+    };
+  }
+}
+
+// --- buat arsip zip database.json dan plugins lalu kirim otomatis ke whatsapp admin ---
+export async function runScheduledAutoBackupToAdmin(io, forceNow = false) {
+  const masterDb = readMasterDatabaseFile();
+  const backupCfg = masterDb.autoBackup || { enabled: false, intervalHours: 24, lastRunAt: 0 };
+
+  if (!forceNow) {
+    if (!backupCfg.enabled) return { isSuccess: false, skipped: true };
+    const intervalMs = Math.max(1, Number(backupCfg.intervalHours || 24)) * 60 * 60 * 1000;
+    if (Date.now() - Number(backupCfg.lastRunAt || 0) < intervalMs) {
+      return { isSuccess: false, skipped: true };
+    }
+  }
+
+  const delivery = findAvailableDeliverySocket(null);
+  const adminJid = resolveTargetWhatsappJid(backupCfg.targetWaNumber || ADMIN_WA_NUMBER);
+  if (!delivery || !adminJid) {
+    return { isSuccess: false, errorMessage: 'Tidak ada sesi bot aktif atau nomor WA admin tidak valid.' };
+  }
+
+  try {
+    const { zipSync } = await import('fflate');
+    const zipEntries = {};
+
+    if (fs.existsSync(MAIN_DATABASE_FILE_PATH)) {
+      zipEntries['database.json'] = new Uint8Array(fs.readFileSync(MAIN_DATABASE_FILE_PATH));
+    }
+
+    const pluginFiles = scanPluginFilesRecursive(PLUGINS_ROOT_DIR);
+    for (const relativePath of pluginFiles) {
+      const fullPluginPath = path.join(PLUGINS_ROOT_DIR, relativePath);
+      if (fs.existsSync(fullPluginPath)) {
+        zipEntries[`plugins/${relativePath}`] = new Uint8Array(fs.readFileSync(fullPluginPath));
+      }
+    }
+
+    const archiveBuffer = Buffer.from(zipSync(zipEntries, { level: 6 }));
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const fileName = `xu-core-autobackup-${stamp}.zip`;
+
+    await delivery.socketInstance.sendMessage(adminJid, {
+      document: archiveBuffer,
+      fileName,
+      mimetype: 'application/zip',
+      caption: `*[XU CORE — AUTO BACKUP]*\nArsip database.json & ${pluginFiles.length} plugin (${formatBytesReadable(archiveBuffer.length)}).`
+    });
+
+    const latestMaster = readMasterDatabaseFile();
+    latestMaster.autoBackup = {
+      ...(latestMaster.autoBackup || {}),
+      enabled: Boolean(backupCfg.enabled),
+      intervalHours: Number(backupCfg.intervalHours || 24),
+      targetWaNumber: String(backupCfg.targetWaNumber || ADMIN_WA_NUMBER),
+      lastRunAt: Date.now(),
+      lastFileName: fileName,
+      lastSizeLabel: formatBytesReadable(archiveBuffer.length)
+    };
+    writeMasterDatabaseFileAtomic(latestMaster);
+
+    if (io) {
+      emitTerminalLog(io, delivery.senderUserId, 'SUCCESS', `Auto-Backup ZIP [${fileName}] terkirim ke WA Admin.`);
+    }
+    return { isSuccess: true, fileName, sizeLabel: formatBytesReadable(archiveBuffer.length) };
+  } catch (err) {
+    return { isSuccess: false, errorMessage: err.message };
+  }
+}
+
+// --- hitung waktu eksekusi berikutnya untuk jadwal harian berbasis zona Asia/Jakarta ---
+export function computeNextJakartaDailyTimestamp(timeHHMM, fromMs = Date.now()) {
+  const [rawHour, rawMinute] = String(timeHHMM || '08:00').split(':').map((n) => parseInt(n, 10));
+  const hour = Number.isFinite(rawHour) ? Math.max(0, Math.min(23, rawHour)) : 8;
+  const minute = Number.isFinite(rawMinute) ? Math.max(0, Math.min(59, rawMinute)) : 0;
+
+  const jakartaDateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date(fromMs));
+
+  const hh = String(hour).padStart(2, '0');
+  const mm = String(minute).padStart(2, '0');
+  let candidateMs = Date.parse(`${jakartaDateStr}T${hh}:${mm}:00+07:00`);
+
+  if (Number.isNaN(candidateMs) || candidateMs <= fromMs + 5000) {
+    candidateMs = (Number.isNaN(candidateMs) ? fromMs : candidateMs) + 24 * 60 * 60 * 1000;
+  }
+  return candidateMs;
+}
+
+// --- cek dan kirim pengingat masa aktif otomatis h-3 dan h-1 ke nomor owner terdaftar ---
+async function processSubscriptionExpiryReminders(io, nowMs) {
+  if (nowMs - lastExpiryReminderCheckMs < EXPIRY_REMINDER_CHECK_INTERVAL_MS) {
+    return;
+  }
+  lastExpiryReminderCheckMs = nowMs;
+
+  const masterDb = readMasterDatabaseFile();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const THREE_DAYS_MS = 3 * ONE_DAY_MS;
+
+  for (const googleUserId of Object.keys(masterDb.users || {})) {
+    if (isPlatformAdminById(googleUserId)) continue;
+
+    const userDb = readBotDatabase(googleUserId);
+    const sub = userDb.subscription || {};
+    const expiresAt = Number(sub.expiresAt || 0);
+    if (expiresAt <= nowMs) continue;
+
+    const remainingMs = expiresAt - nowMs;
+    const isWithinH3 = remainingMs <= THREE_DAYS_MS && remainingMs > ONE_DAY_MS;
+    const isWithinH1 = remainingMs <= ONE_DAY_MS;
+
+    let reminderStage = null;
+    if (isWithinH1 && !sub.notifiedH1) {
+      reminderStage = 'H-1';
+    } else if (isWithinH3 && !sub.notifiedH3) {
+      reminderStage = 'H-3';
+    }
+
+    if (!reminderStage) continue;
+
+    const ownerCandidates = [
+      ...(Array.isArray(userDb.settings?.owners) ? userDb.settings.owners : []),
+      userDb.phoneNumber
+    ]
+      .map((n) => String(n || '').replace(/\D/g, ''))
+      .filter((n) => n.length >= 8);
+
+    const targetOwnerNumber = ownerCandidates[0];
+    if (!targetOwnerNumber) continue;
+
+    const delivery = findAvailableDeliverySocket(googleUserId);
+    if (!delivery) continue;
+
+    const targetJid = resolveTargetWhatsappJid(targetOwnerNumber);
+    if (!targetJid) continue;
+
+    const expiryLabel = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    }).format(new Date(expiresAt));
+
+    const reminderText =
+      `*[XU CORE — PENGINGAT MASA AKTIF ${reminderStage}]*\n\n` +
+      `Halo Owner *${userDb.settings?.botName || CONFIG.platformName}*,\n` +
+      `Masa aktif langganan bot Anda (*${sub.plan || 'Starter'}*) akan berakhir pada:\n` +
+      `• *${expiryLabel} WIB*\n\n` +
+      `Segera lakukan perpanjangan melalui Dashboard Xu Core atau klaim kode voucher Anda agar koneksi bot tidak terputus otomatis.\n` +
+      `• Admin WA: https://wa.me/${ADMIN_WA_NUMBER}`;
+
+    try {
+      await delivery.socketInstance.sendMessage(targetJid, { text: reminderText });
+      userDb.subscription = {
+        ...sub,
+        notifiedH3: reminderStage === 'H-3' ? true : Boolean(sub.notifiedH3),
+        notifiedH1: reminderStage === 'H-1' ? true : Boolean(sub.notifiedH1),
+        lastNotifiedExpiresAt: expiresAt
+      };
+      writeBotDatabaseAtomic(googleUserId, userDb);
+      emitTerminalLog(
+        io,
+        googleUserId,
+        'WARN',
+        `Pengingat masa aktif [${reminderStage}] otomatis terkirim ke +${targetOwnerNumber}.`
+      );
+      emitUserStatsSnapshot(io, googleUserId, userDb);
+    } catch {
+      // --- coba lagi pada siklus pengecekan berikutnya jika pengiriman gagal ---
+    }
+  }
+}
+
+// --- worker latar belakang untuk jadwal pesan, notifikasi h-3/h-1, dan auto-backup zip ---
+export function startMessageSchedulerWorker(io) {
+  if (schedulerWorkerInterval) return;
+
+  schedulerWorkerInterval = setInterval(async () => {
+    try {
+      const nowMs = Date.now();
+      const masterDb = readMasterDatabaseFile();
+
+      for (const googleUserId of Object.keys(masterDb.users || {})) {
+        const activeSession = activeBotSessions.get(googleUserId);
+        if (!activeSession || activeSession.status !== 'CONNECTED' || !activeSession.socketInstance) {
+          continue;
+        }
+
+        const userDatabase = readBotDatabase(googleUserId);
+        if (isBotSubscriptionExpired(googleUserId, userDatabase)) continue;
+
+        const schedules = Array.isArray(userDatabase.scheduledMessages) ? userDatabase.scheduledMessages : [];
+        if (schedules.length === 0) continue;
+
+        let hasChanges = false;
+        const updatedSchedules = [];
+
+        for (const item of schedules) {
+          if (!item || !item.isActive || Number(item.nextRunAt || 0) > nowMs) {
+            updatedSchedules.push(item);
+            continue;
+          }
+
+          const sendResult = await sendDirectWhatsAppMessage(io, googleUserId, {
+            targetJid: item.targetJid,
+            message: item.message,
+            mentionAll: Boolean(item.mentionAll),
+            sourceRoute: '/api/whatsapp/scheduler'
+          });
+
+          hasChanges = true;
+          const nextItem = {
+            ...item,
+            lastRunAt: nowMs,
+            runCount: Number(item.runCount || 0) + 1,
+            lastStatus: sendResult.isSuccess ? 'SENT' : 'FAILED'
+          };
+
+          if (item.repeatType === 'daily') {
+            nextItem.nextRunAt = computeNextJakartaDailyTimestamp(item.dailyTime || '08:00', nowMs);
+          } else if (item.repeatType === 'interval') {
+            const intervalMinutes = Math.max(1, Number(item.intervalMinutes || 60));
+            nextItem.nextRunAt = nowMs + intervalMinutes * 60 * 1000;
+          } else {
+            nextItem.isActive = false;
+            nextItem.lastStatus = sendResult.isSuccess ? 'COMPLETED' : 'FAILED';
+          }
+
+          updatedSchedules.push(nextItem);
+        }
+
+        if (hasChanges) {
+          userDatabase.scheduledMessages = updatedSchedules;
+          writeBotDatabaseAtomic(googleUserId, userDatabase);
+          io.to(`user_${googleUserId}`).emit('schedule:list', updatedSchedules);
+        }
+      }
+
+      await processSubscriptionExpiryReminders(io, nowMs);
+
+      if (nowMs - lastAutoBackupCheckMs >= AUTO_BACKUP_CHECK_INTERVAL_MS) {
+        lastAutoBackupCheckMs = nowMs;
+        await runScheduledAutoBackupToAdmin(io, false);
+      }
+    } catch {
+      // --- jaga worker scheduler tetap berjalan meski ada gangguan iterasi ---
+    }
+  }, 15000);
+
+  schedulerWorkerInterval.unref();
+}
+
+// --- ambil 5 perintah paling populer dari global.db.statistic ---
+export function getTopCommandsLeaderboard(limitCount = 5) {
+  const statsMap = global.db?.statistic || {};
+  return Object.entries(statsMap)
+    .map(([cmdKey, info]) => ({
+      name: info?.name || cmdKey,
+      hit: Number(info?.hit || 0),
+      hittoday: Number(info?.hittoday || 0),
+      lastused: Number(info?.lastused || 0)
+    }))
+    .filter((item) => item.hit > 0)
+    .sort((a, b) => b.hit - a.hit)
+    .slice(0, limitCount);
+}
+
+// --- cek apakah masa aktif langganan bot sudah habis (admin bebas batas) ---
+export function isBotSubscriptionExpired(googleUserId, botDatabase) {
+  if (isPlatformAdminById(googleUserId)) return false;
+  const expiresAt = Number(botDatabase?.subscription?.expiresAt || 0);
+  if (expiresAt <= 0) return false;
+  return Date.now() > expiresAt;
+}
+
+// --- sinkronkan pengaturan dashboard dan daftar owner ke global.db.setting ---
+export function syncBotSettingsToGlobalDb(botJid, settingsObject) {
+  if (!botJid || !settingsObject) return;
+  global.db = global.db || {};
+  global.db.setting = global.db.setting || {};
+
+  const formattedOwners = (Array.isArray(settingsObject.owners) ? settingsObject.owners : [])
+    .map((num) => String(num).replace(/\D/g, ''))
+    .filter((num) => num.length >= 6)
+    .map((num) => `${num}@s.whatsapp.net`);
+
+  global.db.setting[botJid] = {
+    ...(global.db.setting[botJid] || {}),
+    botName: settingsObject.botName || CONFIG.platformName,
+    packname: settingsObject.packname || CONFIG.platformName,
+    author: settingsObject.author || 'Surya Core',
+    isNoPrefix: settingsObject.isNoPrefix ?? true,
+    allowedPc: settingsObject.allowedPc ?? true,
+    isAiEnabled: Boolean(settingsObject.isAiEnabled),
+    aiSystemPrompt: String(settingsObject.aiSystemPrompt || ''),
+    owners: formattedOwners,
+    toxic: Array.isArray(settingsObject.toxic) ? settingsObject.toxic : []
+  };
+}
+
+// --- validasi folder sesi terdaftar dan simpan metadata pemilik ---
+function isValidRegisteredSession(sessionFolderPath) {
+  const credsPath = path.join(sessionFolderPath, 'creds.json');
+  if (!fs.existsSync(credsPath)) return false;
+  try {
+    const parsedCreds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
+    return Boolean(parsedCreds && (parsedCreds.registered === true || parsedCreds.me?.id));
+  } catch {
+    return false;
+  }
+}
+
+function writeSessionOwnerMetadata(sessionFolderPath, googleUserId, sessionName, phoneNumber = null) {
+  try {
+    fs.mkdirSync(sessionFolderPath, { recursive: true });
+    const ownerFilePath = path.join(sessionFolderPath, '.owner.json');
+    const tempOwnerPath = `${ownerFilePath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(
+      tempOwnerPath,
+      JSON.stringify({ googleUserId, sessionName, phoneNumber: phoneNumber || null, updatedAt: Date.now() }, null, 2),
+      'utf-8'
+    );
+    fs.renameSync(tempOwnerPath, ownerFilePath);
+  } catch {
+    // --- abaikan error penulisan metadata pemilik ---
+  }
+}
+
+function readSessionOwnerMetadata(sessionFolderPath) {
+  const ownerFilePath = path.join(sessionFolderPath, '.owner.json');
+  if (!fs.existsSync(ownerFilePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(ownerFilePath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+// --- tutup listener dan akhiri socket lama secara bersih ---
+function cleanupSocketListenersAndEnd(socketInstance) {
+  if (!socketInstance) return;
+  try {
+    socketInstance.ev.removeAllListeners('connection.update');
+    socketInstance.ev.removeAllListeners('creds.update');
+    socketInstance.ev.removeAllListeners('messages.upsert');
+    socketInstance.ev.removeAllListeners('groups.upsert');
+    socketInstance.ev.removeAllListeners('groups.update');
+    socketInstance.ev.removeAllListeners('group-participants.update');
+    socketInstance.end(undefined);
+  } catch {
+    // --- abaikan error penutupan socket ---
+  }
+}
+
+// --- cari folder sesi terdaftar milik akun google ---
+export function findValidUserSession(googleUserId) {
+  const userDatabase = readBotDatabase(googleUserId);
+  const candidateNames = [userDatabase.sessionName, userDatabase.phoneNumber, `qr_${googleUserId}`].filter(Boolean);
+
+  for (const candidateName of candidateNames) {
+    const candidateFolder = getUserSessionFolderPath(googleUserId, candidateName);
+    if (isValidRegisteredSession(candidateFolder)) {
+      if (userDatabase.sessionName !== candidateName) {
+        userDatabase.sessionName = candidateName;
+        writeBotDatabaseAtomic(googleUserId, userDatabase);
+      }
+      writeSessionOwnerMetadata(candidateFolder, googleUserId, candidateName, userDatabase.phoneNumber);
+      return { sessionName: candidateName, folderPath: candidateFolder };
+    }
+  }
+
+  if (!fs.existsSync(SESSIONS_ROOT_FOLDER_PATH)) return null;
+
+  for (const entry of fs.readdirSync(SESSIONS_ROOT_FOLDER_PATH, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const folderName = entry.name;
+    const folderPath = path.join(SESSIONS_ROOT_FOLDER_PATH, folderName);
+    if (!isValidRegisteredSession(folderPath)) continue;
+
+    const ownerMeta = readSessionOwnerMetadata(folderPath);
+    let isMatchedByPhone = false;
+    if (userDatabase.phoneNumber) {
+      try {
+        const creds = JSON.parse(fs.readFileSync(path.join(folderPath, 'creds.json'), 'utf-8'));
+        const credsPhone = String(creds?.me?.id || '').split(':')[0].split('@')[0];
+        isMatchedByPhone = credsPhone === userDatabase.phoneNumber;
+      } catch {
+        isMatchedByPhone = false;
+      }
+    }
+
+    if (ownerMeta?.googleUserId === googleUserId || folderName.includes(googleUserId) || isMatchedByPhone) {
+      userDatabase.sessionName = folderName;
+      writeBotDatabaseAtomic(googleUserId, userDatabase);
+      writeSessionOwnerMetadata(folderPath, googleUserId, folderName, userDatabase.phoneNumber);
+      return { sessionName: folderName, folderPath };
+    }
+  }
+
+  return null;
+}
+
+function clearSessionTimers(sessionRecord) {
+  if (!sessionRecord) return;
+  if (sessionRecord.reconnectTimer) {
+    clearTimeout(sessionRecord.reconnectTimer);
+    sessionRecord.reconnectTimer = null;
+  }
+  if (sessionRecord.connectTimeoutTimer) {
+    clearTimeout(sessionRecord.connectTimeoutTimer);
+    sessionRecord.connectTimeoutTimer = null;
+  }
+}
+
+// --- kloning objek aman berbasis spread untuk menjaga Uint8Array dan mediaKey ---
+function cloneSafeObject(sourceObject) {
+  if (!sourceObject || typeof sourceObject !== 'object') return sourceObject;
+  if (sourceObject instanceof Uint8Array || Buffer.isBuffer(sourceObject)) return sourceObject;
+  return { ...sourceObject };
+}
+
+// --- serialisasi pesan menggunakan system/serialize.js atau serializer bawaan aman ---
+async function serializeIncomingMessage(coreModules, client, rawMessage) {
+  if (typeof coreModules.serialize === 'function') {
+    try {
+      const serialized = await coreModules.serialize(client, rawMessage, coreModules.store);
+      if (serialized && typeof serialized === 'object') {
+        if (!serialized.command && serialized.cmd) serialized.command = serialized.cmd;
+        if (typeof serialized.reply !== 'function') {
+          Object.defineProperty(serialized, 'reply', {
+            value: async (text) =>
+              await client.sendMessage(serialized.chat || rawMessage.key.remoteJid, { text: String(text) }, { quoted: rawMessage }),
+            configurable: true
+          });
+        }
+        return serialized;
+      }
+    } catch {
+      // --- gunakan fallback serializer jika serializer eksternal bermasalah ---
+    }
+  }
+
+  const chat = rawMessage.key.remoteJid;
+  const fromMe = Boolean(rawMessage.key.fromMe);
+  const sender = jidNormalizedUser(rawMessage.key.participant || chat);
+  const messageContent = rawMessage.message || {};
+  const messageType =
+    Object.keys(messageContent).find((key) => key !== 'messageContextInfo' && key !== 'senderKeyDistributionMessage') || '';
+
+  const body =
+    messageContent.conversation ||
+    messageContent.extendedTextMessage?.text ||
+    messageContent.imageMessage?.caption ||
+    messageContent.videoMessage?.caption ||
+    messageContent.documentWithCaptionMessage?.message?.documentMessage?.caption ||
+    '';
+
+  const trimmedBody = body.trim();
+  let matchedPrefix = '';
+  if (CONFIG.prefixes instanceof RegExp) {
+    const regexMatch = trimmedBody.match(CONFIG.prefixes);
+    matchedPrefix = regexMatch ? regexMatch[0] : '';
+  } else if (Array.isArray(CONFIG.prefixes)) {
+    matchedPrefix = CONFIG.prefixes.find((prefix) => trimmedBody.startsWith(prefix)) || '';
+  }
+
+  const withoutPrefix = matchedPrefix ? trimmedBody.slice(matchedPrefix.length).trim() : trimmedBody;
+  const parts = withoutPrefix ? withoutPrefix.split(/\s+/) : [];
+  const command = matchedPrefix && parts.length > 0 ? parts[0].toLowerCase() : '';
+  const args = matchedPrefix ? parts.slice(1) : [];
+  const text = args.join(' ');
+
+  const contextInfo = messageContent[messageType]?.contextInfo || null;
+  let quoted = null;
+  if (contextInfo?.quotedMessage) {
+    const rawQuoted = cloneSafeObject(contextInfo.quotedMessage);
+    const quotedType = Object.keys(rawQuoted)[0] || '';
+    const quotedMedia = rawQuoted[quotedType] ? cloneSafeObject(rawQuoted[quotedType]) : null;
+    quoted = {
+      id: contextInfo.stanzaId || '',
+      chat,
+      sender: jidNormalizedUser(contextInfo.participant || chat),
+      mtype: quotedType,
+      msg: quotedMedia,
+      message: rawQuoted,
+      text: rawQuoted.conversation || quotedMedia?.text || quotedMedia?.caption || ''
+    };
+  }
+
+  return {
+    key: rawMessage.key,
+    id: rawMessage.key.id,
+    chat,
+    sender,
+    fromMe,
+    isGroup: chat.endsWith('@g.us'),
+    mtype: messageType,
+    msg: cloneSafeObject(messageContent[messageType]),
+    body,
+    prefix: matchedPrefix,
+    command,
+    cmd: command,
+    args,
+    text,
+    quoted,
+    mentionedJid: Array.isArray(contextInfo?.mentionedJid) ? contextInfo.mentionedJid : [],
+    pushname: rawMessage.pushName || 'Pengguna',
+    raw: rawMessage,
+    reply: async (replyText) =>
+      await client.sendMessage(chat, { text: String(replyText) }, { quoted: rawMessage })
+  };
+}
+
+// --- mulai koneksi whatsapp baileys dengan cek masa aktif, auto-connect, dan fallback ---
+export async function startWhatsAppSession(
+  io,
+  coreModules,
+  googleUserId,
+  connectionMethod = 'qr',
+  phoneNumberInput = '',
+  attemptCount = 1,
+  forceRestart = false
+) {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const botDatabase = readBotDatabase(googleUserId);
+
+  if (isBotSubscriptionExpired(googleUserId, botDatabase)) {
+    emitLog(googleUserId, 'ERROR', 'Masa aktif langganan bot Anda telah habis. Silakan perpanjang paket untuk menyalakan bot.');
+    io.to(`user_${googleUserId}`).emit('connection:status', {
+      status: 'DISCONNECTED',
+      profile: null,
+      isAutoReconnect: false,
+      reason: 'SUBSCRIPTION_EXPIRED'
+    });
+    return;
+  }
+
+  const existingSession = activeBotSessions.get(googleUserId);
+  const isAutoReconnect = connectionMethod === 'reconnect';
+
+  if (existingSession) {
+    if (!forceRestart && existingSession.status === 'CONNECTED' && existingSession.socketInstance) {
+      io.to(`user_${googleUserId}`).emit('connection:status', {
+        status: 'CONNECTED',
+        profile: existingSession.profile,
+        isAutoReconnect: false
+      });
+      return;
+    }
+
+    if (isAutoReconnect && !forceRestart && existingSession.status === 'CONNECTING') {
+      io.to(`user_${googleUserId}`).emit('connection:status', {
+        status: 'CONNECTING',
+        profile: null,
+        isAutoReconnect: Boolean(existingSession.isAutoReconnect)
+      });
+      return;
+    }
+
+    clearSessionTimers(existingSession);
+    cleanupSocketListenersAndEnd(existingSession.socketInstance);
+  }
+
+  const cleanedPhoneInput = String(phoneNumberInput || '').replace(/[^0-9]/g, '');
+  let activeSessionName = botDatabase.sessionName;
+
+  if (connectionMethod === 'pairing' && cleanedPhoneInput) {
+    const targetFolder = getUserSessionFolderPath(googleUserId, cleanedPhoneInput);
+    const hasExistingCreds = isValidRegisteredSession(targetFolder);
+
+    if (!hasExistingCreds && activeSessionName && activeSessionName !== cleanedPhoneInput) {
+      const previousFolder = getUserSessionFolderPath(googleUserId, activeSessionName);
+      if (fs.existsSync(previousFolder)) {
+        fs.rmSync(previousFolder, { recursive: true, force: true });
+      }
+    }
+
+    activeSessionName = cleanedPhoneInput;
+    botDatabase.phoneNumber = cleanedPhoneInput;
+    botDatabase.sessionName = activeSessionName;
+    writeBotDatabaseAtomic(googleUserId, botDatabase);
+  } else if (isAutoReconnect) {
+    const discoveredSession = findValidUserSession(googleUserId);
+    if (!discoveredSession) {
+      activeBotSessions.delete(googleUserId);
+      io.to(`user_${googleUserId}`).emit('connection:status', {
+        status: 'DISCONNECTED',
+        profile: null,
+        isAutoReconnect: false
+      });
+      return;
+    }
+    activeSessionName = discoveredSession.sessionName;
+  } else if (!activeSessionName) {
+    activeSessionName = botDatabase.phoneNumber || `qr_${googleUserId}`;
+    botDatabase.sessionName = activeSessionName;
+    writeBotDatabaseAtomic(googleUserId, botDatabase);
+  }
+
+  const userSessionFolder = getUserSessionFolderPath(googleUserId, activeSessionName);
+  fs.mkdirSync(userSessionFolder, { recursive: true });
+  writeSessionOwnerMetadata(userSessionFolder, googleUserId, activeSessionName, botDatabase.phoneNumber);
+
+  const sessionRecord = {
+    socketInstance: null,
+    status: 'CONNECTING',
+    profile: null,
+    sessionName: activeSessionName,
+    isAutoReconnect,
+    wasPreviouslyConnected: Boolean(existingSession?.wasPreviouslyConnected),
+    attemptCount,
+    reconnectTimer: null,
+    connectTimeoutTimer: null,
+    isDeletingSession: false
+  };
+  activeBotSessions.set(googleUserId, sessionRecord);
+
+  io.to(`user_${googleUserId}`).emit('connection:status', {
+    status: 'CONNECTING',
+    profile: null,
+    isAutoReconnect
+  });
+  emitAdminGlobalSessionsSnapshot(io);
+  emitLog(googleUserId, 'INFO', `Menyiapkan koneksi Baileys [${connectionMethod.toUpperCase()}] sesi: ${activeSessionName}`);
+
+  if (isAutoReconnect) {
+    sessionRecord.connectTimeoutTimer = setTimeout(() => {
+      const latestRecord = activeBotSessions.get(googleUserId);
+      if (!latestRecord || latestRecord !== sessionRecord || latestRecord.status === 'CONNECTED' || latestRecord.isDeletingSession) {
+        return;
+      }
+
+      clearSessionTimers(latestRecord);
+      cleanupSocketListenersAndEnd(latestRecord.socketInstance);
+      activeBotSessions.delete(googleUserId);
+      emitLog(googleUserId, 'WARN', 'Auto-connect melebihi batas waktu. Kembali ke mode Disconnected.');
+      io.to(`user_${googleUserId}`).emit('connection:status', {
+        status: 'DISCONNECTED',
+        profile: null,
+        isAutoReconnect: false
+      });
+      emitAdminGlobalSessionsSnapshot(io);
+    }, AUTO_CONNECT_TIMEOUT_MS);
+  }
+
+  try {
+    const { state: authState, saveCreds } = await useMultiFileAuthState(userSessionFolder);
+    const { version: latestVersion } = await fetchLatestBaileysVersion();
+
+    if (activeBotSessions.get(googleUserId) !== sessionRecord || sessionRecord.isDeletingSession) {
+      return;
+    }
+
+    const client = makeWASocket({
+      version: latestVersion,
+      logger: silentLogger,
+      printQRInTerminal: false,
+      auth: {
+        creds: authState.creds,
+        keys: makeCacheableSignalKeyStore(authState.keys, silentLogger)
+      },
+      browser: Browsers.ubuntu('Chrome'),
+      markOnlineOnConnect: true,
+      generateHighQualityLinkPreview: true,
+      syncFullHistory: false
+    });
+
+    extraInstance.registerComponents(client);
+
+    // --- intercept pengiriman pesan untuk menghitung statistik, trafik, dan live velocity ---
+    const originalSendMessage = client.sendMessage.bind(client);
+    client.sendMessage = async (recipientJid, messageContent, messageOptions = {}) => {
+      const sendResult = await originalSendMessage(recipientJid, messageContent, messageOptions);
+      recordRealtimeActivityHit('POST', '/api/whatsapp/send');
+      if (io.engine.clientsCount > 0) {
+        io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
+      }
+      const latestDatabase = readBotDatabase(googleUserId);
+      latestDatabase.totalMessagesSent += 1;
+      incrementDailyTrafficRecord(latestDatabase, 'out');
+      writeBotDatabaseAtomic(googleUserId, latestDatabase);
+      emitUserStatsSnapshot(io, googleUserId, latestDatabase);
+      return sendResult;
+    };
+
+    sessionRecord.socketInstance = client;
+
+    if (connectionMethod === 'pairing' && cleanedPhoneInput && !client.authState.creds.registered) {
+      setTimeout(async () => {
+        try {
+          const currentRecord = activeBotSessions.get(googleUserId);
+          if (!currentRecord || currentRecord !== sessionRecord || currentRecord.isDeletingSession || client.authState.creds.registered) {
+            return;
+          }
+          const rawCode = await client.requestPairingCode(cleanedPhoneInput);
+          const formattedCode = rawCode?.match(/.{1,4}/g)?.join('-') || rawCode;
+          io.to(`user_${googleUserId}`).emit('pairing:code', formattedCode);
+          emitLog(googleUserId, 'SUCCESS', `Kode Pairing diterbitkan: ${formattedCode}`);
+        } catch (pairingError) {
+          emitLog(googleUserId, 'ERROR', `Gagal meminta kode pairing: ${pairingError.message}`);
+          io.to(`user_${googleUserId}`).emit('pairing:error', 'Gagal menerbitkan kode pairing. Periksa nomor Anda.');
+        }
+      }, 2500);
+    }
+
+    client.ev.on('creds.update', saveCreds);
+
+    client.ev.on('connection.update', async (connectionState) => {
+      const currentRecord = activeBotSessions.get(googleUserId);
+      if (!currentRecord || currentRecord !== sessionRecord || currentRecord.isDeletingSession) {
+        return;
+      }
+
+      const { connection, lastDisconnect, qr } = connectionState;
+
+      if (qr && isAutoReconnect) {
+        clearSessionTimers(currentRecord);
+        cleanupSocketListenersAndEnd(client);
+        activeBotSessions.delete(googleUserId);
+        emitLog(googleUserId, 'WARN', 'Sesi tersimpan membutuhkan tautan ulang. Kembali ke mode Disconnected.');
+        io.to(`user_${googleUserId}`).emit('connection:status', {
+          status: 'DISCONNECTED',
+          profile: null,
+          isAutoReconnect: false,
+          reason: 'RELINK_REQUIRED'
+        });
+        emitAdminGlobalSessionsSnapshot(io);
+        return;
+      }
+
+      if (qr && connectionMethod === 'qr' && !client.authState.creds.registered) {
+        try {
+          const qrImageDataUrl = await QRCode.toDataURL(qr, {
+            margin: 2,
+            width: 280,
+            color: { dark: '#090d16', light: '#ffffff' }
+          });
+          io.to(`user_${googleUserId}`).emit('qr:update', qrImageDataUrl);
+          emitLog(googleUserId, 'INFO', `QR Code dimuat untuk sesi: ${activeSessionName}`);
+        } catch (qrRenderError) {
+          emitLog(googleUserId, 'ERROR', `Gagal membuat QR Code: ${qrRenderError.message}`);
+        }
+      }
+
+      if (connection === 'open') {
+        clearSessionTimers(currentRecord);
+
+        const normalizedBotJid = jidNormalizedUser(client.user?.id || '');
+        const cleanPhoneNumber = normalizedBotJid.split('@')[0];
+        const whatsappName = client.user?.name || client.user?.verifiedName || CONFIG.platformName;
+
+        if (client.user) {
+          client.user.jid = normalizedBotJid;
+        }
+
+        if (coreModules.socket && typeof coreModules.socket.set === 'function') {
+          coreModules.socket.set(normalizedBotJid, client);
+        }
+
+        const latestDatabase = readBotDatabase(googleUserId);
+        latestDatabase.phoneNumber = cleanPhoneNumber;
+        latestDatabase.sessionName = activeSessionName;
+        writeBotDatabaseAtomic(googleUserId, latestDatabase);
+        writeSessionOwnerMetadata(userSessionFolder, googleUserId, activeSessionName, cleanPhoneNumber);
+        syncBotSettingsToGlobalDb(normalizedBotJid, latestDatabase.settings);
+
+        let avatarImageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(whatsappName)}&background=10b981&color=fff&size=128`;
+        try {
+          const fetchedAvatar = await Promise.race([
+            client.profilePictureUrl(normalizedBotJid, 'image'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('AvatarTimeout')), 3000))
+          ]);
+          if (fetchedAvatar) avatarImageUrl = fetchedAvatar;
+        } catch {
+          // --- gunakan avatar fallback jika gagal memuat foto profil ---
+        }
+
+        const connectedProfile = {
+          name: whatsappName,
+          number: cleanPhoneNumber,
+          avatarUrl: avatarImageUrl
+        };
+
+        currentRecord.status = 'CONNECTED';
+        currentRecord.profile = connectedProfile;
+        currentRecord.isAutoReconnect = false;
+        currentRecord.wasPreviouslyConnected = true;
+        currentRecord.attemptCount = 1;
+
+        io.to(`user_${googleUserId}`).emit('connection:status', {
+          status: 'CONNECTED',
+          profile: connectedProfile,
+          isAutoReconnect: false
+        });
+        emitUserStatsSnapshot(io, googleUserId, latestDatabase);
+        emitAdminGlobalSessionsSnapshot(io);
+        emitLog(googleUserId, 'SUCCESS', `Connected as ${whatsappName} (+${cleanPhoneNumber})`);
+      }
+
+      if (connection === 'close') {
+        const activeRecordNow = activeBotSessions.get(googleUserId);
+        if (!activeRecordNow || activeRecordNow !== sessionRecord || activeRecordNow.isDeletingSession) {
+          return;
+        }
+
+        clearSessionTimers(activeRecordNow);
+        const disconnectCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+        const disconnectLabel = DisconnectReason[disconnectCode] || `Code ${disconnectCode || 'Unknown'}`;
+
+        emitLog(googleUserId, 'WARN', `Koneksi terputus (${disconnectLabel}). Statistik tetap disimpan.`);
+
+        if (disconnectCode === DisconnectReason.loggedOut || disconnectCode === DisconnectReason.badSession) {
+          emitLog(googleUserId, 'ERROR', 'Sesi keluar (Logged Out). Membersihkan kredensial sesi...');
+          await destroyBotSession(io, coreModules, googleUserId, false, disconnectLabel);
+          return;
+        }
+
+        const isPostPairingRestart = disconnectCode === DisconnectReason.restartRequired || disconnectCode === 515;
+        const hasExceededAutoRetries =
+          isAutoReconnect &&
+          !activeRecordNow.wasPreviouslyConnected &&
+          !isPostPairingRestart &&
+          activeRecordNow.attemptCount >= AUTO_CONNECT_MAX_RETRIES;
+
+        if (hasExceededAutoRetries) {
+          activeBotSessions.delete(googleUserId);
+          emitLog(googleUserId, 'ERROR', 'Gagal auto-connect setelah beberapa percobaan. Kembali ke Disconnected.');
+          io.to(`user_${googleUserId}`).emit('connection:status', {
+            status: 'DISCONNECTED',
+            profile: null,
+            isAutoReconnect: false,
+            reason: disconnectLabel
+          });
+          emitAdminGlobalSessionsSnapshot(io);
+          return;
+        }
+
+        const persistedDatabase = readBotDatabase(googleUserId);
+        const reconnectDelayMs = isPostPairingRestart ? 800 : 3000;
+        const nextAttempt = activeRecordNow.wasPreviouslyConnected ? 1 : activeRecordNow.attemptCount + 1;
+
+        activeRecordNow.status = 'CONNECTING';
+        activeRecordNow.profile = null;
+        activeRecordNow.isAutoReconnect = true;
+
+        io.to(`user_${googleUserId}`).emit('connection:status', {
+          status: 'CONNECTING',
+          profile: null,
+          isAutoReconnect: true
+        });
+        emitAdminGlobalSessionsSnapshot(io);
+
+        activeRecordNow.reconnectTimer = setTimeout(() => {
+          startWhatsAppSession(io, coreModules, googleUserId, 'reconnect', persistedDatabase.phoneNumber || '', nextAttempt, true);
+        }, reconnectDelayMs);
+      }
+    });
+
+    // --- router pesan masuk menuju webhook, moderasi grup, auto-reply media, plugin, dan ai persona ---
+    client.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify') return;
+
+      for (const messageItem of messages) {
+        if (!messageItem.message || messageItem.key.remoteJid === 'status@broadcast') continue;
+
+        const currentDatabase = readBotDatabase(googleUserId);
+        if (isBotSubscriptionExpired(googleUserId, currentDatabase)) {
+          emitLog(googleUserId, 'WARN', 'Masa aktif bot berakhir. Memutus koneksi otomatis...');
+          cleanupSocketListenersAndEnd(client);
+          activeBotSessions.delete(googleUserId);
+          io.to(`user_${googleUserId}`).emit('connection:status', {
+            status: 'DISCONNECTED',
+            profile: null,
+            isAutoReconnect: false,
+            reason: 'SUBSCRIPTION_EXPIRED'
+          });
+          emitAdminGlobalSessionsSnapshot(io);
+          return;
+        }
+
+        if (coreModules.store && typeof coreModules.store.saveMessage === 'function') {
+          coreModules.store.saveMessage(messageItem, client.user?.id);
+        }
+
+        if (typeof coreModules.database === 'function') {
+          coreModules.database(client, messageItem);
+        }
+
+        const remoteJid = messageItem.key.remoteJid;
+        if (remoteJid?.endsWith('@g.us') && typeof coreModules.metadata === 'function') {
+          if (!global.db?.metadata?.[remoteJid]) {
+            await coreModules.metadata(client, remoteJid, false).catch(() => {});
+          } else {
+            coreModules.metadata(client, remoteJid, false).catch(() => {});
+          }
+        }
+
+        const m = await serializeIncomingMessage(coreModules, client, messageItem);
+
+        if (!m.fromMe) {
+          recordRealtimeActivityHit(m.command ? 'CMD' : 'MSG', m.command ? `/cmd/${m.command}` : '/api/whatsapp/incoming');
+          if (io.engine.clientsCount > 0) {
+            io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
+          }
+          currentDatabase.totalMessagesReceived += 1;
+          incrementDailyTrafficRecord(currentDatabase, 'in');
+          const cleanSenderNumber = m.sender.split('@')[0];
+          if (!currentDatabase.uniqueUsers.includes(cleanSenderNumber)) {
+            currentDatabase.uniqueUsers.push(cleanSenderNumber);
+          }
+          writeBotDatabaseAtomic(googleUserId, currentDatabase);
+          emitUserStatsSnapshot(io, googleUserId, currentDatabase);
+
+          if (currentDatabase.settings.autoRead) {
+            try {
+              await client.readMessages([messageItem.key]);
+            } catch {
+              // --- abaikan error read receipt ---
+            }
+          }
+        }
+
+        if (m.body) {
+          emitLog(googleUserId, 'MSG', `${m.fromMe ? '[OUT]' : '[IN]'} ${m.sender.split('@')[0]}: ${m.body.slice(0, 80)}`);
+
+          // --- teruskan pesan masuk ke webhook url user jika dikonfigurasi ---
+          if (!m.fromMe && currentDatabase.settings.webhookUrl) {
+            forwardIncomingToUserWebhook(
+              currentDatabase,
+              {
+                event: 'message.received',
+                botUserId: googleUserId,
+                chat: m.chat,
+                sender: m.sender,
+                pushName: m.pushname || '',
+                isGroup: Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us')),
+                messageType: m.mtype || 'text',
+                text: m.body,
+                timestamp: Date.now()
+              },
+              io,
+              googleUserId
+            ).catch(() => {});
+          }
+
+          // --- moderasi grup visual (anti-link & anti-toxic per grup) ---
+          const isGroupChat = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
+          const groupCfg = isGroupChat ? currentDatabase.settings.groupConfigs?.[remoteJid] : null;
+          if (!m.fromMe && groupCfg) {
+            const hasWhatsappLink = /(https?:\/\/)?(chat\.whatsapp\.com|wa\.me|t\.me|bit\.ly)\/[^\s]+/i.test(m.body);
+            if (groupCfg.antiLink && hasWhatsappLink) {
+              await client.sendMessage(remoteJid, { delete: messageItem.key }).catch(() => {});
+              await m.reply('Link tidak diizinkan di grup ini.').catch(() => {});
+              continue;
+            }
+            if (groupCfg.antiToxic && Array.isArray(currentDatabase.settings.toxic) && currentDatabase.settings.toxic.length > 0) {
+              const lowerBody = m.body.toLowerCase();
+              const hitToxic = currentDatabase.settings.toxic.some((w) => w && lowerBody.includes(String(w).toLowerCase()));
+              if (hitToxic) {
+                await client.sendMessage(remoteJid, { delete: messageItem.key }).catch(() => {});
+                await m.reply('Mohon jaga bahasa di grup ini.').catch(() => {});
+                continue;
+              }
+            }
+          }
+
+          let wasHandledByAutoReply = false;
+
+          // --- jalankan custom auto-reply teks maupun media (image, sticker, document) ---
+          if (!m.fromMe && Array.isArray(currentDatabase.settings.autoReplies) && currentDatabase.settings.autoReplies.length > 0) {
+            const rawBodyLower = m.body.trim().toLowerCase();
+            const matchedReply = currentDatabase.settings.autoReplies.find((item) => {
+              const triggerText = String(item?.trigger || '').trim().toLowerCase();
+              if (!triggerText) return false;
+              const matchMode = String(item?.matchType || 'exact').trim().toLowerCase();
+              if (matchMode === 'contains') return rawBodyLower.includes(triggerText);
+              if (matchMode === 'starts') return rawBodyLower.startsWith(triggerText);
+              return rawBodyLower === triggerText;
+            });
+
+            if (matchedReply) {
+              wasHandledByAutoReply = true;
+              const replyType = String(matchedReply.mediaType || 'text').toLowerCase();
+              const formattedReply = formatMessageTemplateVariables(matchedReply.response || '', currentDatabase);
+
+              if (replyType !== 'text' && matchedReply.mediaUrl) {
+                await sendDirectWhatsAppMessage(io, googleUserId, {
+                  targetJid: m.chat,
+                  mediaType: replyType,
+                  mediaUrl: matchedReply.mediaUrl,
+                  caption: formattedReply,
+                  fileName: matchedReply.fileName || 'file',
+                  sourceRoute: '/api/whatsapp/auto-reply'
+                }).catch(() => {});
+              } else if (formattedReply) {
+                await m.reply(formattedReply).catch(() => {});
+              }
+            }
+          }
+
+          if (!currentDatabase.settings.publicMode && !m.fromMe) continue;
+
+          // --- deteksi balasan plugin melalui selisih totalMessagesSent tanpa menimpa read-only m.reply ---
+          const sentCountBeforePlugins = Number(readBotDatabase(googleUserId).totalMessagesSent || 0);
+
+          await executeDynamicPlugins({
+            googleUserId,
+            m,
+            client,
+            botDatabase: currentDatabase,
+            coreModules,
+            io,
+            emitLog
+          });
+
+          const sentCountAfterPlugins = Number(readBotDatabase(googleUserId).totalMessagesSent || 0);
+          const wasPluginTriggered = sentCountAfterPlugins > sentCountBeforePlugins;
+
+          // --- interseptor auto-reply ai persona jika aktif dan tidak memicu plugin/auto-reply ---
+          const normalizedBotJid = jidNormalizedUser(client.user?.id || '');
+          const isBotMentionedOrQuoted =
+            (Array.isArray(m.mentionedJid) && m.mentionedJid.some((jid) => jidNormalizedUser(jid) === normalizedBotJid)) ||
+            (m.quoted?.sender && jidNormalizedUser(m.quoted.sender) === normalizedBotJid);
+
+          const shouldRunAiInChat = !isGroupChat || Boolean(currentDatabase.settings.aiGroupAutoReply) || isBotMentionedOrQuoted;
+          const looksLikePrefixCommand = Boolean(m.prefix && m.command);
+
+          if (
+            !m.fromMe &&
+            !wasHandledByAutoReply &&
+            !wasPluginTriggered &&
+            !looksLikePrefixCommand &&
+            Boolean(currentDatabase.settings.isAiEnabled) &&
+            shouldRunAiInChat
+          ) {
+            const cooldownKey = `${googleUserId}:${remoteJid}`;
+            const lastAiAt = aiReplyCooldownMap.get(cooldownKey) || 0;
+            const nowMs = Date.now();
+
+            if (nowMs - lastAiAt >= AI_REPLY_COOLDOWN_MS) {
+              aiReplyCooldownMap.set(cooldownKey, nowMs);
+              try {
+                const aiAnswer = await generateAiPersonaReply({
+                  systemPrompt: currentDatabase.settings.aiSystemPrompt,
+                  userMessage: m.body,
+                  senderName: m.pushname || m.sender.split('@')[0],
+                  botName: currentDatabase.settings.botName || CONFIG.platformName
+                });
+                if (aiAnswer) {
+                  await client.sendMessage(m.chat, { text: aiAnswer }, { quoted: messageItem });
+                  recordRealtimeActivityHit('AI', '/api/whatsapp/ai-persona');
+                  emitLog(googleUserId, 'INFO', `[AI PERSONA] Menjawab ${m.sender.split('@')[0]} secara otomatis.`);
+                }
+              } catch (aiErr) {
+                emitLog(googleUserId, 'WARN', `[AI PERSONA] Gagal memproses jawaban AI: ${aiErr.message}`);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // --- perbarui cache metadata saat bot masuk grup atau info grup berubah ---
+    client.ev.on('groups.upsert', (newGroups) => {
+      if (!Array.isArray(newGroups)) return;
+      global.db = global.db || {};
+      global.db.metadata = global.db.metadata || {};
+      for (const group of newGroups) {
+        if (!group?.id) continue;
+        global.db.metadata[group.id] = {
+          ...group,
+          participants: coreModules.lid?.formatGroupParticipants
+            ? coreModules.lid.formatGroupParticipants(group)
+            : group.participants || []
+        };
+      }
+    });
+
+    client.ev.on('groups.update', (updates) => {
+      if (!Array.isArray(updates)) return;
+      global.db = global.db || {};
+      global.db.metadata = global.db.metadata || {};
+      for (const update of updates) {
+        if (!update?.id) continue;
+        if (global.db.metadata[update.id]) {
+          Object.assign(global.db.metadata[update.id], update);
+        } else if (typeof coreModules.metadata === 'function') {
+          coreModules.metadata(client, update.id, true).catch(() => {});
+        }
+      }
+    });
+
+    // --- kirim pesan welcome / goodbye otomatis sesuai pengaturan grup visual ---
+    client.ev.on('group-participants.update', async (event) => {
+      try {
+        const groupId = event?.id;
+        if (!groupId || !Array.isArray(event.participants) || event.participants.length === 0) return;
+
+        const latestDb = readBotDatabase(googleUserId);
+        const groupCfg = latestDb.settings?.groupConfigs?.[groupId];
+        if (!groupCfg) return;
+
+        const isAdd = event.action === 'add';
+        const isRemove = event.action === 'remove';
+        if (!isAdd && !isRemove) return;
+
+        const templateText = isAdd
+          ? (groupCfg.welcomeEnabled ? String(groupCfg.welcomeMessage || '').trim() : '')
+          : (groupCfg.goodbyeEnabled ? String(groupCfg.goodbyeMessage || '').trim() : '');
+        if (!templateText) return;
+
+        const groupMeta = global.db?.metadata?.[groupId] || await client.groupMetadata(groupId).catch(() => null);
+        const groupName = groupMeta?.subject || groupId.split('@')[0];
+
+        for (const participantJid of event.participants) {
+          const cleanNumber = String(participantJid).split('@')[0];
+          const renderedText = formatMessageTemplateVariables(templateText, latestDb)
+            .replaceAll('@user', `@${cleanNumber}`)
+            .replaceAll('@group', groupName);
+
+          await client.sendMessage(groupId, {
+            text: renderedText,
+            mentions: [participantJid]
+          }).catch(() => {});
+        }
+      } catch {
+        // --- abaikan error welcome/goodbye agar sesi tetap stabil ---
+      }
+    });
+  } catch (sessionError) {
+    clearSessionTimers(sessionRecord);
+    if (activeBotSessions.get(googleUserId) === sessionRecord) {
+      activeBotSessions.delete(googleUserId);
+    }
+    emitLog(googleUserId, 'ERROR', `Kegagalan inisialisasi sesi: ${sessionError.message}`);
+    io.to(`user_${googleUserId}`).emit('connection:status', {
+      status: 'DISCONNECTED',
+      profile: null,
+      isAutoReconnect: false,
+      reason: sessionError.message
+    });
+    emitAdminGlobalSessionsSnapshot(io);
+  }
+}
+
+// --- kirim pesan broadcast ke seluruh grup bot dengan spintax & jeda anti-ban ---
+export async function broadcastToBotGroups(io, googleUserId, messageText, delaySeconds = 5) {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const activeSession = activeBotSessions.get(googleUserId);
+
+  if (!activeSession || activeSession.status !== 'CONNECTED' || !activeSession.socketInstance) {
+    return { isSuccess: false, errorMessage: 'Bot harus dalam status Connected untuk melakukan broadcast grup.' };
+  }
+
+  const botDatabase = readBotDatabase(googleUserId);
+  const cleanText = formatMessageTemplateVariables(messageText, botDatabase).trim();
+  if (!cleanText) {
+    return { isSuccess: false, errorMessage: 'Isi pesan broadcast tidak boleh kosong.' };
+  }
+
+  const safeDelayMs = Math.max(2, Math.min(30, Number(delaySeconds) || 5)) * 1000;
+  const client = activeSession.socketInstance;
+
+  let targetGroups = [];
+  try {
+    const participating = await client.groupFetchAllParticipating();
+    targetGroups = Object.values(participating || {}).filter(
+      (grp) => grp?.id && !global.db?.groups?.[grp.id]?.banned
+    );
+  } catch {
+    targetGroups = Object.values(global.db?.metadata || {}).filter(
+      (grp) => grp?.id?.endsWith('@g.us') && !global.db?.groups?.[grp.id]?.banned
+    );
+  }
+
+  if (targetGroups.length === 0) {
+    return { isSuccess: false, errorMessage: 'Tidak ada grup aktif yang ditemukan untuk broadcast.' };
+  }
+
+  emitLog(googleUserId, 'INFO', `Memulai broadcast ke ${targetGroups.length} grup (jeda ${safeDelayMs / 1000} detik/grup)...`);
+
+  let successCount = 0;
+  let failedCount = 0;
+
+  for (let idx = 0; idx < targetGroups.length; idx += 1) {
+    const groupItem = targetGroups[idx];
+    try {
+      const variedText = parseSpintaxText(cleanText);
+      await client.sendMessage(groupItem.id, { text: variedText });
+      successCount += 1;
+    } catch {
+      failedCount += 1;
+    }
+
+    io.to(`user_${googleUserId}`).emit('broadcast:progress', {
+      current: idx + 1,
+      total: targetGroups.length,
+      successCount,
+      failedCount
+    });
+
+    if (idx < targetGroups.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, safeDelayMs));
+    }
+  }
+
+  emitLog(googleUserId, 'SUCCESS', `Broadcast selesai. Berhasil: ${successCount}, Gagal: ${failedCount}.`);
+  return { isSuccess: true, total: targetGroups.length, successCount, failedCount };
+}
+
+// --- soft restart koneksi whatsapp tanpa menghapus kredensial sesi ---
+export async function restartWhatsAppSession(io, coreModules, googleUserId) {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const discoveredSession = findValidUserSession(googleUserId);
+
+  if (!discoveredSession) {
+    emitLog(googleUserId, 'WARN', 'Tidak ada sesi tersimpan untuk di-restart. Silakan tautkan QR atau Pairing terlebih dahulu.');
+    io.to(`user_${googleUserId}`).emit('connection:status', {
+      status: 'DISCONNECTED',
+      profile: null,
+      isAutoReconnect: false
+    });
+    emitAdminGlobalSessionsSnapshot(io);
+    return false;
+  }
+
+  emitLog(googleUserId, 'INFO', `Memulai soft restart koneksi sesi [${discoveredSession.sessionName}]...`);
+  const userDatabase = readBotDatabase(googleUserId);
+  await startWhatsAppSession(io, coreModules, googleUserId, 'reconnect', userDatabase.phoneNumber || '', 1, true);
+  return true;
+}
+
+// --- hapus sesi kredensial baileys secara bersih tanpa merusak statistik ---
+export async function destroyBotSession(io, coreModules, googleUserId, triggerLogout = true, reasonLabel = 'LOGGED_OUT') {
+  const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
+  const existingSession = activeBotSessions.get(googleUserId);
+  const currentDatabase = readBotDatabase(googleUserId);
+  const targetSessionName = existingSession?.sessionName || currentDatabase.sessionName;
+
+  if (existingSession) {
+    existingSession.isDeletingSession = true;
+    clearSessionTimers(existingSession);
+
+    if (existingSession.profile?.number && coreModules.socket && typeof coreModules.socket.delete === 'function') {
+      coreModules.socket.delete(existingSession.profile.number);
+    }
+
+    if (existingSession.socketInstance) {
+      try {
+        if (triggerLogout && existingSession.status === 'CONNECTED') {
+          await Promise.race([
+            existingSession.socketInstance.logout(),
+            new Promise((resolve) => setTimeout(resolve, 2000))
+          ]);
+        }
+      } catch {
+        // --- abaikan error proses logout ---
+      }
+      cleanupSocketListenersAndEnd(existingSession.socketInstance);
+    }
+
+    activeBotSessions.delete(googleUserId);
+  }
+
+  if (targetSessionName) {
+    const userSessionFolder = getUserSessionFolderPath(googleUserId, targetSessionName);
+    if (fs.existsSync(userSessionFolder)) {
+      try {
+        fs.rmSync(userSessionFolder, { recursive: true, force: true });
+      } catch (deleteError) {
+        emitLog(googleUserId, 'ERROR', `Gagal menghapus folder sesi: ${deleteError.message}`);
+      }
+    }
+  }
+
+  currentDatabase.sessionName = null;
+  currentDatabase.phoneNumber = null;
+  writeBotDatabaseAtomic(googleUserId, currentDatabase);
+
+  const globalStats = getGlobalPlatformStatistics(activeBotSessions);
+  io.to(`user_${googleUserId}`).emit('session:reset', {
+    status: 'DISCONNECTED',
+    profile: null,
+    isAutoReconnect: false,
+    reason: reasonLabel,
+    database: currentDatabase,
+    globalStats
+  });
+  io.to(`user_${googleUserId}`).emit('connection:status', {
+    status: 'DISCONNECTED',
+    profile: null,
+    isAutoReconnect: false,
+    reason: reasonLabel
+  });
+  emitUserStatsSnapshot(io, googleUserId, currentDatabase);
+  emitAdminGlobalSessionsSnapshot(io);
+  emitLog(googleUserId, 'WARN', 'Sesi kredensial WhatsApp telah dihapus dari volume.');
+}
+
+// --- pulihkan otomatis seluruh sesi akun valid saat server menyala ---
+export function restoreExistingSessionsOnBoot(io, coreModules) {
+  if (!fs.existsSync(SESSIONS_ROOT_FOLDER_PATH)) {
+    fs.mkdirSync(SESSIONS_ROOT_FOLDER_PATH, { recursive: true });
+    return;
+  }
+
+  try {
+    const masterDb = readMasterDatabaseFile();
+    const accountsToRestore = new Map();
+
+    for (const userIdKey of Object.keys(masterDb.users)) {
+      const foundSession = findValidUserSession(userIdKey);
+      if (foundSession) {
+        accountsToRestore.set(userIdKey, {
+          sessionName: foundSession.sessionName,
+          phoneNumber: masterDb.users[userIdKey]?.phoneNumber || ''
+        });
+      }
+    }
+
+    for (const entry of fs.readdirSync(SESSIONS_ROOT_FOLDER_PATH, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const folderName = entry.name;
+      const folderPath = path.join(SESSIONS_ROOT_FOLDER_PATH, folderName);
+      if (!isValidRegisteredSession(folderPath)) continue;
+
+      const ownerMeta = readSessionOwnerMetadata(folderPath);
+      let matchedGoogleId = ownerMeta?.googleUserId || null;
+
+      if (!matchedGoogleId) {
+        for (const userIdKey of Object.keys(masterDb.users)) {
+          const userRecord = masterDb.users[userIdKey];
+          if (userRecord.sessionName === folderName || userRecord.phoneNumber === folderName || folderName.includes(userIdKey)) {
+            matchedGoogleId = userIdKey;
+            break;
+          }
+        }
+      }
+
+      if (matchedGoogleId && !accountsToRestore.has(matchedGoogleId)) {
+        accountsToRestore.set(matchedGoogleId, {
+          sessionName: folderName,
+          phoneNumber: ownerMeta?.phoneNumber || masterDb.users[matchedGoogleId]?.phoneNumber || ''
+        });
+      }
+    }
+
+    let delayIndex = 0;
+    for (const [googleUserId, sessionMeta] of accountsToRestore.entries()) {
+      const staggerDelayMs = delayIndex * 400;
+      delayIndex += 1;
+
+      setTimeout(() => {
+        console.log(`[BOOT AUTO-START] Memulihkan sesi User ID: ${googleUserId} (${sessionMeta.sessionName})`);
+        startWhatsAppSession(io, coreModules, googleUserId, 'reconnect', sessionMeta.phoneNumber, 1, false);
+      }, staggerDelayMs);
+    }
+  } catch (bootScanError) {
+    console.error('[BOOT ERROR] Gagal memindai sesi tersimpan:', bootScanError.message);
+  }
+}
+
+// --- sinkronisasi state sesi, jadwal pesan, analitik, pengumuman, ai, gateway, dan live traffic ---
+export async function syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser) {
+  const googleUserId = sessionUser.googleId;
+  const isAdmin = isPlatformAdminUser(sessionUser);
+  const userDatabase = readBotDatabase(googleUserId);
+  let currentBotState = activeBotSessions.get(googleUserId);
+  const discoveredSession = findValidUserSession(googleUserId);
+
+  if (!currentBotState && discoveredSession && !isBotSubscriptionExpired(googleUserId, userDatabase)) {
+    startWhatsAppSession(io, coreModules, googleUserId, 'reconnect', userDatabase.phoneNumber || '', 1, false);
+    currentBotState = activeBotSessions.get(googleUserId);
+  }
+
+  const resolvedStatus = currentBotState ? currentBotState.status : 'DISCONNECTED';
+  const resolvedProfile = currentBotState ? currentBotState.profile : null;
+  const isAutoReconnect = Boolean(currentBotState?.isAutoReconnect);
+  const catalogList = await getFeatureCatalogList();
+
+  clientSocket.emit('session:ready', {
+    user: sessionUser,
+    isAdmin,
+    adminWaNumber: ADMIN_WA_NUMBER,
+    volumePath: discoveredSession?.folderPath || getUserSessionFolderPath(googleUserId),
+    status: resolvedStatus,
+    profile: resolvedProfile,
+    isAutoReconnect,
+    database: userDatabase,
+    apiKey: userDatabase.apiKey || null,
+    apiKeyStats: userDatabase.apiKeyStats || { createdAt: 0, lastUsedAt: 0, totalCalls: 0 },
+    schedules: userDatabase.scheduledMessages || [],
+    globalStats: getGlobalPlatformStatistics(activeBotSessions),
+    trafficSeries: buildLast7DaysTrafficSeries(userDatabase.trafficHistory),
+    trafficVelocity: isAdmin
+      ? getRealtimeTrafficSnapshot()
+      : { ...getRealtimeTrafficSnapshot(), topEndpoints: [] },
+    topCommands: getTopCommandsLeaderboard(5),
+    announcement: getGlobalAnnouncement(),
+    announcements: getGlobalAnnouncements(),
+    catalog: catalogList,
+    plugins: isAdmin ? getAvailablePluginsList() : [],
+    vouchers: isAdmin ? listVouchers() : [],
+    adminGlobalMonitor: isAdmin ? getAllUsersGlobalMonitorSnapshot(activeBotSessions) : null,
+    logs: userTerminalLogsCache.get(googleUserId) || []
+  });
+
+  clientSocket.emit('connection:status', {
+    status: resolvedStatus,
+    profile: resolvedProfile,
+    isAutoReconnect
+  });
+}
