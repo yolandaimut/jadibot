@@ -1145,6 +1145,12 @@ export function registerSocketHandlers(io, coreModules) {
       if (typeof payload?.aiSystemPrompt === 'string') {
         nextSettings.aiSystemPrompt = payload.aiSystemPrompt.trim().slice(0, 2000);
       }
+      if (typeof payload?.webhookUrl === 'string') {
+        nextSettings.webhookUrl = payload.webhookUrl.trim().slice(0, 300);
+      }
+      if (typeof payload?.webhookSecret === 'string') {
+        nextSettings.webhookSecret = payload.webhookSecret.trim().slice(0, 120);
+      }
       if (Array.isArray(payload?.toxic)) {
         nextSettings.toxic = payload.toxic
           .map((w) => String(w).trim().toLowerCase())
@@ -1171,14 +1177,18 @@ export function registerSocketHandlers(io, coreModules) {
       }
       if (Array.isArray(payload?.autoReplies)) {
         nextSettings.autoReplies = payload.autoReplies
-          .filter((item) => item && String(item.trigger || '').trim() && String(item.response || '').trim())
+          .filter((item) => item && String(item.trigger || '').trim() && (String(item.response || '').trim() || String(item.mediaUrl || '').trim()))
           .map((item) => {
             const rawMode = String(item.matchType || 'exact').trim().toLowerCase();
             const matchType = ['exact', 'contains', 'starts'].includes(rawMode) ? rawMode : 'exact';
+            const rawMedia = String(item.mediaType || 'text').trim().toLowerCase();
+            const mediaType = ['text', 'image', 'sticker', 'document'].includes(rawMedia) ? rawMedia : 'text';
             return {
               trigger: String(item.trigger).trim().slice(0, 80),
-              response: String(item.response).trim().slice(0, 500),
-              matchType
+              response: String(item.response || '').trim().slice(0, 500),
+              matchType,
+              mediaType,
+              mediaUrl: String(item.mediaUrl || '').trim().slice(0, 400)
             };
           })
           .slice(0, 30);
@@ -1693,6 +1703,61 @@ export function registerSocketHandlers(io, coreModules) {
         `Grup [${targetGroupJid.split('@')[0]}] ${existingGroup.banned ? 'dibanned' : 'diaktifkan kembali'}.`
       );
       io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+    });
+
+    // --- simpan pengaturan grup visual (welcome, goodbye, anti-link, anti-toxic) ---
+    clientSocket.on('manage:group:config', (payload) => {
+      const groupJid = String(payload?.jid || '').trim();
+      if (!groupJid.endsWith('@g.us')) return;
+
+      const currentDatabase = readBotDatabase(authenticatedGoogleId);
+      const existingCfg = currentDatabase.settings.groupConfigs?.[groupJid] || {};
+
+      currentDatabase.settings.groupConfigs[groupJid] = {
+        welcomeEnabled: Boolean(payload?.welcomeEnabled),
+        welcomeMessage: String(payload?.welcomeMessage ?? existingCfg.welcomeMessage ?? 'Selamat datang @user di grup @group!').trim().slice(0, 600),
+        goodbyeEnabled: Boolean(payload?.goodbyeEnabled),
+        goodbyeMessage: String(payload?.goodbyeMessage ?? existingCfg.goodbyeMessage ?? 'Sampai jumpa @user dari @group.').trim().slice(0, 600),
+        antiLink: Boolean(payload?.antiLink),
+        antiToxic: Boolean(payload?.antiToxic)
+      };
+
+      writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
+      emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
+      clientSocket.emit('manage:group:config:saved', { isSuccess: true, jid: groupJid });
+      emitLog(authenticatedGoogleId, 'SUCCESS', `Pengaturan visual grup [${groupJid.split('@')[0]}] diperbarui.`);
+    });
+
+    // --- uji koneksi webhook url milik user ---
+    clientSocket.on('gateway:webhook:test', async (payload) => {
+      const targetUrl = String(payload?.webhookUrl || '').trim();
+      const secret = String(payload?.webhookSecret || '').trim();
+      if (!/^https?:\/\/.+/i.test(targetUrl)) {
+        clientSocket.emit('gateway:webhook:test:result', { isSuccess: false, errorMessage: 'URL Webhook harus diawali http:// atau https://.' });
+        return;
+      }
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (secret) headers['x-webhook-secret'] = secret;
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            event: 'webhook.test',
+            botUserId: authenticatedGoogleId,
+            message: 'Koneksi Webhook Xu Core aktif.',
+            timestamp: Date.now()
+          })
+        });
+        clientSocket.emit('gateway:webhook:test:result', {
+          isSuccess: res.ok,
+          statusCode: res.status,
+          errorMessage: res.ok ? null : `Server tujuan merespons HTTP ${res.status}.`
+        });
+      } catch (err) {
+        clientSocket.emit('gateway:webhook:test:result', { isSuccess: false, errorMessage: err.message });
+      }
     });
 
     clientSocket.on('plugin:save', async (payload) => {

@@ -185,6 +185,48 @@ export function formatMessageTemplateVariables(rawMessage, botDatabase) {
     .replaceAll('{time}', timeLabel);
 }
 
+// --- proses pola spintax {opsi1|opsi2|opsi3} untuk variasi pesan anti-ban ---
+export function parseSpintaxText(rawText) {
+  let output = String(rawText || '');
+  const spintaxRegex = /\{([^{}]+)\}/g;
+  let guardCount = 0;
+
+  while (spintaxRegex.test(output) && guardCount < 10) {
+    guardCount += 1;
+    output = output.replace(spintaxRegex, (_match, groupContent) => {
+      const options = String(groupContent).split('|').map((s) => s.trim()).filter(Boolean);
+      if (options.length === 0) return '';
+      return options[Math.floor(Math.random() * options.length)];
+    });
+  }
+  return output;
+}
+
+// --- teruskan event pesan masuk ke webhook url milik user secara non-blocking ---
+export async function forwardIncomingToUserWebhook(userDatabase, payload) {
+  const targetUrl = String(userDatabase?.settings?.webhookUrl || '').trim();
+  if (!/^https?:\/\/.+/i.test(targetUrl)) return;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const headers = { 'Content-Type': 'application/json' };
+    if (userDatabase?.settings?.webhookSecret) {
+      headers['x-webhook-secret'] = userDatabase.settings.webhookSecret;
+    }
+
+    await fetch(targetUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+  } catch {
+    // --- abaikan kegagalan webhook agar tidak memblokir antrean pesan bot ---
+  }
+}
+
 // --- generator jawaban ai persona yang modular dan dapat dihubungkan ke llm api ---
 export async function generateAiPersonaReply({
   systemPrompt = '',
@@ -1435,7 +1477,43 @@ export async function startWhatsAppSession(
 
           let wasHandledByAutoReply = false;
 
-          // --- jalankan custom auto-reply dengan mode exact, contains, atau starts ---
+          // --- teruskan pesan masuk ke webhook url user jika dikonfigurasi ---
+          if (!m.fromMe && currentDatabase.settings.webhookUrl) {
+            forwardIncomingToUserWebhook(currentDatabase, {
+              event: 'message.received',
+              botUserId: googleUserId,
+              chat: m.chat,
+              sender: m.sender,
+              pushName: m.pushname || '',
+              isGroup: Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us')),
+              messageType: m.mtype || 'text',
+              text: m.body,
+              timestamp: Date.now()
+            }).catch(() => {});
+          }
+
+          // --- moderasi grup visual (anti-link & anti-toxic per grup) ---
+          const isGroupMsg = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
+          const groupCfg = isGroupMsg ? currentDatabase.settings.groupConfigs?.[remoteJid] : null;
+          if (!m.fromMe && groupCfg) {
+            const hasWhatsappLink = /(https?:\/\/)?(chat\.whatsapp\.com|wa\.me|t\.me|bit\.ly)\/[^\s]+/i.test(m.body);
+            if (groupCfg.antiLink && hasWhatsappLink) {
+              await client.sendMessage(remoteJid, { delete: messageItem.key }).catch(() => {});
+              await m.reply('Link tidak diizinkan di grup ini.').catch(() => {});
+              continue;
+            }
+            if (groupCfg.antiToxic && Array.isArray(currentDatabase.settings.toxic) && currentDatabase.settings.toxic.length > 0) {
+              const lowerBody = m.body.toLowerCase();
+              const hitToxic = currentDatabase.settings.toxic.some((w) => w && lowerBody.includes(String(w).toLowerCase()));
+              if (hitToxic) {
+                await client.sendMessage(remoteJid, { delete: messageItem.key }).catch(() => {});
+                await m.reply('Mohon jaga bahasa di grup ini.').catch(() => {});
+                continue;
+              }
+            }
+          }
+
+          // --- jalankan custom auto-reply teks maupun media (image, sticker, document) ---
           if (!m.fromMe && Array.isArray(currentDatabase.settings.autoReplies) && currentDatabase.settings.autoReplies.length > 0) {
             const rawBodyLower = m.body.trim().toLowerCase();
             const matchedReply = currentDatabase.settings.autoReplies.find((item) => {
@@ -1446,10 +1524,24 @@ export async function startWhatsAppSession(
               if (matchMode === 'starts') return rawBodyLower.startsWith(triggerText);
               return rawBodyLower === triggerText;
             });
-            if (matchedReply?.response) {
+
+            if (matchedReply) {
               wasHandledByAutoReply = true;
-              const formattedReply = formatMessageTemplateVariables(matchedReply.response, currentDatabase);
-              await m.reply(formattedReply).catch(() => {});
+              const replyType = String(matchedReply.mediaType || 'text').toLowerCase();
+              const formattedReply = formatMessageTemplateVariables(matchedReply.response || '', currentDatabase);
+
+              if (replyType !== 'text' && matchedReply.mediaUrl) {
+                await sendDirectWhatsAppMessage(io, googleUserId, {
+                  targetJid: m.chat,
+                  mediaType: replyType,
+                  mediaUrl: matchedReply.mediaUrl,
+                  caption: formattedReply,
+                  fileName: matchedReply.fileName || 'file',
+                  sourceRoute: '/api/whatsapp/auto-reply'
+                }).catch(() => {});
+              } else if (formattedReply) {
+                await m.reply(formattedReply).catch(() => {});
+              }
             }
           }
 
@@ -1553,6 +1645,44 @@ export async function startWhatsAppSession(
         }
       }
     });
+
+    // --- kirim pesan welcome / goodbye otomatis sesuai pengaturan grup visual ---
+    client.ev.on('group-participants.update', async (event) => {
+      try {
+        const groupId = event?.id;
+        if (!groupId || !Array.isArray(event.participants) || event.participants.length === 0) return;
+
+        const latestDb = readBotDatabase(googleUserId);
+        const groupCfg = latestDb.settings?.groupConfigs?.[groupId];
+        if (!groupCfg) return;
+
+        const isAdd = event.action === 'add';
+        const isRemove = event.action === 'remove';
+        if (!isAdd && !isRemove) return;
+
+        const templateText = isAdd
+          ? (groupCfg.welcomeEnabled ? String(groupCfg.welcomeMessage || '').trim() : '')
+          : (groupCfg.goodbyeEnabled ? String(groupCfg.goodbyeMessage || '').trim() : '');
+        if (!templateText) return;
+
+        const groupMeta = global.db?.metadata?.[groupId] || await client.groupMetadata(groupId).catch(() => null);
+        const groupName = groupMeta?.subject || groupId.split('@')[0];
+
+        for (const participantJid of event.participants) {
+          const cleanNumber = String(participantJid).split('@')[0];
+          const renderedText = formatMessageTemplateVariables(templateText, latestDb)
+            .replaceAll('@user', `@${cleanNumber}`)
+            .replaceAll('@group', groupName);
+
+          await client.sendMessage(groupId, {
+            text: renderedText,
+            mentions: [participantJid]
+          }).catch(() => {});
+        }
+      } catch {
+        // --- abaikan error welcome/goodbye agar sesi tetap stabil ---
+      }
+    });
   } catch (sessionError) {
     clearSessionTimers(sessionRecord);
     if (activeBotSessions.get(googleUserId) === sessionRecord) {
@@ -1611,7 +1741,8 @@ export async function broadcastToBotGroups(io, googleUserId, messageText, delayS
   for (let idx = 0; idx < targetGroups.length; idx += 1) {
     const groupItem = targetGroups[idx];
     try {
-      await client.sendMessage(groupItem.id, { text: cleanText });
+      const variedText = parseSpintaxText(cleanText);
+      await client.sendMessage(groupItem.id, { text: variedText });
       successCount += 1;
     } catch {
       failedCount += 1;
