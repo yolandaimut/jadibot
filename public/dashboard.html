@@ -155,7 +155,7 @@
     .accent-soft-bg { background-color: var(--accent-soft); }
     .accent-shadow { box-shadow: 0 0 18px -4px var(--accent-glow); }
 
-    /* --- pengaturan layout header agar judul xu core tetap ukuran asli dan ikon navigasi tidak menimpa lonceng --- */
+    /* --- pengaturan layout header agar judul xu core tetap ukuran asli dan ikon navigasi rapi --- */
     .header-nav-pill {
       display: inline-flex;
       align-items: center;
@@ -349,63 +349,6 @@
     </div>
   </header>
 
-  <!-- --- modal pusat pemberitahuan & notifikasi berlatar gelap --- -->
-  <div id="announcementCenterModal" onclick="if (event.target === this) closeAnnouncementCenterModal()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4">
-    <div class="w-full max-w-[360px] sm:max-w-md rounded-2xl bg-[#0d111a] border border-slate-800/90 shadow-2xl overflow-hidden flex flex-col max-h-[82vh]">
-      <div class="relative px-4 pt-4 pb-2.5 text-center border-b border-slate-800/70">
-        <button type="button" onclick="closeAnnouncementCenterModal()" aria-label="Tutup" class="absolute right-3.5 top-3.5 text-slate-400 hover:text-white text-sm leading-none p-1 transition-colors">✕</button>
-        <h3 class="font-heading-modern text-base sm:text-lg font-extrabold tracking-wide text-white uppercase pr-5">
-          PEMBERITAHUAN &amp; NOTIFIKASI
-        </h3>
-        <p class="mt-1 text-[10px] font-mono-code text-slate-400 leading-snug">
-          pemberitahuan sistem, peringatan masa aktif, dan pengumuman resmi.
-        </p>
-      </div>
-
-      <div class="flex-1 overflow-y-auto max-h-[54vh] px-3.5 py-3 space-y-2.5">
-        <!-- --- kartu izin notifikasi chrome --- -->
-        <div class="rounded-xl bg-[#11192b] border border-sky-500/25 px-3 py-2.5 flex items-center justify-between gap-2.5">
-          <div class="min-w-0">
-            <p class="text-[11px] font-bold text-sky-400 leading-tight">Izinkan Notifikasi Chrome</p>
-            <p class="text-[10px] text-slate-400 mt-0.5 leading-tight">terima berita &amp; info langsung di layar HP/PC</p>
-          </div>
-          <button id="modalEnableNotifBtn" type="button" onclick="requestBrowserNotificationPermission()" class="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] shrink-0 transition-all active:scale-95">
-            Aktifkan
-          </button>
-        </div>
-
-        <!-- --- daftar kartu pengumuman berlatar gelap (diisi dinamis oleh renderAnnouncementsCenterUI) --- -->
-        <div id="announcementModalList" class="space-y-2.5"></div>
-      </div>
-
-      <div class="px-3.5 py-3 border-t border-slate-800/80 bg-[#090c14] grid grid-cols-2 gap-2.5">
-        <button type="button" onclick="markAllAnnouncementsAsRead()" class="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-100 transition-all active:scale-95">
-          Tandai Dibaca
-        </button>
-        <button type="button" onclick="closeAnnouncementCenterModal()" class="py-2 px-3 rounded-xl bg-white hover:bg-slate-200 text-[11px] font-extrabold text-slate-950 transition-all active:scale-95">
-          Tutup
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- --- modal konfirmasi hapus semua pengumuman admin tanpa native confirm --- -->
-  <div id="clearAnnouncementsConfirmModal" onclick="if (event.target === this) toggleModalVisibility('clearAnnouncementsConfirmModal', false)" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-md p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 border border-rose-500/30 p-5 space-y-4 shadow-2xl">
-      <h3 class="text-sm font-bold text-white">Hapus Semua Pengumuman?</h3>
-      <p class="text-xs text-slate-400 leading-relaxed">
-        Seluruh riwayat pengumuman di <span class="font-mono-code text-rose-300">database.json</span> akan dihapus permanen agar penyimpanan tetap bersih.
-      </p>
-      <div class="flex items-center justify-end gap-2 pt-1">
-        <button type="button" onclick="toggleModalVisibility('clearAnnouncementsConfirmModal', false)" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-all">
-          Batal
-        </button>
-        <button type="button" onclick="confirmClearGlobalAnnouncements()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all active:scale-95">
-          Ya, Bersihkan
-        </button>
-      </div>
-    </div>
-  </div>
   <!-- --- area konten utama tanpa whitespace berlebih --- -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-2.5 sm:pt-3 pb-6 space-y-4">
 
@@ -514,6 +457,7 @@
           <p id="statSessionSizeSub" class="mt-1 text-[10px] sm:text-[11px] text-slate-500 font-mono-code truncate">durasi sesi berjalan</p>
         </div>
       </section>
+
       <!-- --- tampilan tab dashboard utama --- -->
       <section id="workspaceDashboardView" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <div class="lg:col-span-5 space-y-5">
@@ -683,10 +627,11 @@
           </div>
 
         </div>
+
         <!-- --- kolom kanan: grafik velocity beramplitudo tinggi, sistem real-time, 7-day traffic & cli terminal --- -->
         <div class="lg:col-span-7 flex flex-col gap-5">
 
-          <!-- --- kartu live api & bot traffic velocity dengan kanvas tinggi untuk lonjakan tajam --- -->
+          <!-- --- kartu live api & bot traffic velocity dengan kanvas tinggi --- -->
           <div class="bg-[#0a0d14]/95 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-[0_12px_36px_rgba(0,0,0,0.55)]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-mono-code text-xs font-semibold leading-snug">
@@ -710,7 +655,6 @@
                 </div>
               </div>
 
-              <!-- --- tinggi kanvas diperbesar agar denyut dan amplitudo lonjakan terlihat tajam --- -->
               <div class="relative w-full h-64 sm:h-72">
                 <canvas id="trafficVelocityChart"></canvas>
               </div>
@@ -734,7 +678,7 @@
             </div>
           </div>
 
-          <!-- --- metrik cpu heartbeat & deret waktu trafik 7 hari (buildLast7DaysTrafficSeries) --- -->
+          <!-- --- metrik cpu heartbeat & deret waktu trafik 7 hari --- -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="saas-glass-card border border-slate-800/90 rounded-2xl p-4 relative overflow-hidden">
               <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -810,7 +754,8 @@
           </div>
         </div>
       </section>
-      <!-- --- tampilan tab kelola bot dengan konfigurasi gui, ai persona, broadcast, scheduler, katalog & entitas --- -->
+
+      <!-- --- tampilan tab kelola bot dengan konfigurasi gui, ai persona, broadcast spintax, scheduler, katalog & entitas --- -->
       <section id="workspaceManageView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
 
         <!-- --- kartu konfigurasi bot gui & ai persona per bot --- -->
@@ -821,7 +766,7 @@
                 <span class="w-2 h-2 rounded-full accent-bg"></span>
                 Konfigurasi Bot &amp; AI Persona (GUI)
               </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5">pengaturan otomatis tersinkron ke plugin, metadata stiker, auto-reply, dan persona AI</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">pengaturan otomatis tersinkron ke plugin, metadata stiker, auto-reply teks/media, dan persona AI</p>
             </div>
           </div>
 
@@ -853,8 +798,8 @@
               </div>
 
               <div class="space-y-1.5">
-                <label for="cfgAutoReplyInput" class="block text-[11px] text-slate-300 font-semibold">Auto-Reply (mode|kata=balasan)</label>
-                <textarea id="cfgAutoReplyInput" rows="3" placeholder="exact|harga=Ketik .pricelist&#10;contains|admin=Hubungi 628xxx&#10;starts|halo=Halo {date}!" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-300 font-mono-code focus:outline-none transition-colors resize-none"></textarea>
+                <label for="cfgAutoReplyInput" class="block text-[11px] text-slate-300 font-semibold">Auto-Reply Teks / Media (mode|kata=balasan|tipe|url)</label>
+                <textarea id="cfgAutoReplyInput" rows="3" placeholder="exact|harga=Ketik .pricelist&#10;exact|katalog=Ini katalog kami|image|https://domain.com/katalog.jpg&#10;starts|halo=Halo {date}!" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-300 font-mono-code focus:outline-none transition-colors resize-none"></textarea>
               </div>
             </div>
 
@@ -922,20 +867,20 @@
           </div>
         </div>
 
-        <!-- --- kartu broadcast grup anti-spam beserta live preview --- -->
+        <!-- --- kartu broadcast grup anti-spam dengan spintax & preset kecepatan --- -->
         <div class="lg:col-span-5 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 flex flex-col justify-between space-y-4">
           <div class="space-y-4">
             <div class="border-b border-slate-800/80 pb-3.5">
               <h2 class="text-sm font-bold text-white flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-sky-400"></span>
-                Broadcast Grup (Anti-Spam)
+                Broadcast Grup (Anti-Ban)
               </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5">kirim pengumuman ke seluruh grup aktif dengan jeda aman otomatis</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">kirim pengumuman ke seluruh grup aktif dengan variasi spintax &amp; jeda aman</p>
             </div>
 
             <div class="space-y-1.5">
-              <label for="broadcastGroupMessageInput" class="block text-[11px] text-slate-300 font-semibold">Pesan Broadcast ({botName}, {date}, {time})</label>
-              <textarea id="broadcastGroupMessageInput" rows="5" placeholder="Tulis pesan broadcast ke seluruh grup..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none transition-colors"></textarea>
+              <label for="broadcastGroupMessageInput" class="block text-[11px] text-slate-300 font-semibold">Pesan Broadcast ({botName}, {date}, {time}, {Halo|Hai})</label>
+              <textarea id="broadcastGroupMessageInput" rows="5" placeholder="{Halo|Hai|Permisi} semua! Info update dari {botName} pada {date}..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none transition-colors"></textarea>
 
               <div id="broadcastLivePreviewWrapper" class="rounded-xl bg-slate-950/75 border border-slate-800/90 px-3 py-2.5 space-y-1.5">
                 <div class="flex items-center justify-between gap-2">
@@ -946,12 +891,21 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-slate-950/65 border border-slate-800/80 text-xs">
-              <div>
-                <label for="broadcastDelayInput" class="font-semibold text-slate-200 block">Jeda Pengiriman</label>
-                <span class="text-[10px] text-slate-500">interval aman per grup (2–15 detik)</span>
+            <!-- --- preset kecepatan anti-ban & jeda pengiriman broadcast --- -->
+            <div class="rounded-xl bg-slate-950/65 border border-slate-800/80 p-3 space-y-2.5 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <label for="broadcastDelayInput" class="font-semibold text-slate-200 block">Preset Anti-Ban &amp; Jeda (detik)</label>
+                  <span class="text-[10px] text-slate-500">dukung spintax: <span class="font-mono-code text-sky-300">{Halo|Hai|Permisi}</span></span>
+                </div>
+                <input id="broadcastDelayInput" type="number" min="2" max="30" value="6" class="w-16 bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2 py-1 text-xs text-slate-200 font-mono-code text-center focus:outline-none" />
               </div>
-              <input id="broadcastDelayInput" type="number" min="2" max="15" value="4" class="w-20 bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono-code text-center focus:outline-none" />
+
+              <div class="grid grid-cols-3 gap-1.5 font-mono-code text-[10px]">
+                <button type="button" onclick="setBroadcastSpeedPreset(10)" class="py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-semibold transition-colors">Aman (10s)</button>
+                <button type="button" onclick="setBroadcastSpeedPreset(5)" class="py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-semibold transition-colors">Sedang (5s)</button>
+                <button type="button" onclick="setBroadcastSpeedPreset(3)" class="py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-semibold transition-colors">Cepat (3s)</button>
+              </div>
             </div>
 
             <div id="broadcastProgressWrapper" class="hidden rounded-xl bg-slate-950/80 border border-slate-800 p-3 space-y-1.5 text-[11px] font-mono-code">
@@ -1146,12 +1100,12 @@
           <div id="managedUsersCardGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1"></div>
         </div>
 
-        <!-- --- kartu manajemen grup aktif --- -->
+        <!-- --- kartu manajemen grup aktif dengan pengaturan grup visual --- -->
         <div class="lg:col-span-5 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
             <div>
               <h2 class="text-sm font-bold text-white">Manajemen Grup Aktif</h2>
-              <p class="text-[11px] text-slate-400 mt-0.5">kontrol saklar akses bot pada setiap grup terdaftar</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">kontrol akses bot, welcome/goodbye, anti-link, dan anti-toxic</p>
             </div>
             <div class="flex items-center gap-2 w-full sm:w-auto">
               <input id="manageGroupSearchInput" oninput="renderManagedGroupsTable()" type="text" placeholder="Cari grup..." class="flex-1 sm:w-36 bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none transition-colors" />
@@ -1166,10 +1120,11 @@
         </div>
 
       </section>
-      <!-- --- tampilan tab api gateway multi-media --- -->
+
+      <!-- --- tampilan tab api gateway multi-media & webhook forwarder --- -->
       <section id="workspaceGatewayView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
 
-        <!-- --- kartu manajemen api key gateway per user --- -->
+        <!-- --- kolom kiri: manajemen api key & webhook url --- -->
         <div class="lg:col-span-5 space-y-5">
           <div class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
             <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-3.5">
@@ -1183,21 +1138,21 @@
               <span id="gwApiKeyStatusBadge" class="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-400 shrink-0">BELUM ADA</span>
             </div>
 
-            <!-- --- input api key dengan tombol ikon mata dan ikon copy --- -->
+            <!-- --- input api key dengan tombol ikon mata dan copy polosan --- -->
             <div class="space-y-2">
               <label for="gwApiKeyInput" class="block text-[11px] font-semibold text-slate-300">API Key Aktif (Header: x-api-key)</label>
-              <div class="flex items-center gap-1.5">
-                <input id="gwApiKeyInput" type="password" readonly value="" placeholder="Klik Generate API Key untuk membuat kunci..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
+              <div class="flex items-center gap-2">
+                <input id="gwApiKeyInput" type="password" readonly value="" placeholder="Klik Generate Key untuk membuat kunci..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
 
-                <button id="gwToggleKeyVisibilityBtn" type="button" onclick="toggleGatewayKeyVisibility()" title="Tampilkan API Key" aria-label="Tampilkan API Key" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[var(--accent-main)] text-slate-300 hover:text-white transition-all active:scale-95 shrink-0">
+                <button id="gwToggleKeyVisibilityBtn" type="button" onclick="toggleGatewayKeyVisibility()" title="Tampilkan API Key" aria-label="Tampilkan API Key" class="p-1 text-slate-400 hover:text-white transition-all active:scale-90 shrink-0">
                   <svg id="gwToggleKeyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 </button>
 
-                <button type="button" onclick="copyGatewayApiKey()" title="Salin API Key" aria-label="Salin API Key" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[var(--accent-main)] accent-text transition-all active:scale-95 shrink-0">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="gwCopyKeyBtn" type="button" onclick="copyGatewayApiKey()" title="Salin API Key" aria-label="Salin API Key" class="p-1 text-slate-400 hover:text-[var(--accent-main)] transition-all active:scale-90 shrink-0">
+                  <svg id="gwCopyKeyIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
@@ -1224,9 +1179,41 @@
               </button>
             </div>
           </div>
+
+          <!-- --- kartu konfigurasi webhook url pesan masuk per user --- -->
+          <div class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
+            <div class="border-b border-slate-800/80 pb-3.5">
+              <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+                Webhook Forwarder
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">teruskan setiap pesan masuk WhatsApp ke server Anda (POST JSON)</p>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div class="space-y-1">
+                <label for="gwWebhookUrlInput" class="block text-[11px] font-semibold text-slate-300">Webhook URL</label>
+                <input id="gwWebhookUrlInput" type="url" placeholder="https://server-anda.com/webhook/wa" class="w-full bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
+              </div>
+
+              <div class="space-y-1">
+                <label for="gwWebhookSecretInput" class="block text-[11px] font-semibold text-slate-300">Webhook Secret (Header: x-webhook-secret, opsional)</label>
+                <input id="gwWebhookSecretInput" type="text" placeholder="rahasia-webhook-anda" class="w-full bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5 pt-1">
+                <button type="button" onclick="saveGatewayWebhookSettings()" class="py-2 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95">
+                  Simpan Webhook
+                </button>
+                <button type="button" onclick="testGatewayWebhookUrl()" class="py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-xs transition-all active:scale-95">
+                  Tes Webhook
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- --- kartu form kirim pesan multi-media via whatsapp api gateway --- -->
+        <!-- --- kolom kanan: form kirim pesan multi-media via whatsapp api gateway --- -->
         <div class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4 flex flex-col justify-between">
           <div class="space-y-4">
             <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800/80 pb-3.5">
@@ -1235,7 +1222,7 @@
                   <span class="w-2 h-2 rounded-full bg-sky-400"></span>
                   Gateway Multi-Media Tester (/api/v1/gateway/send)
                 </h2>
-                <p class="text-[11px] text-slate-400 mt-0.5">uji kirim teks, video, audio/voice note, sticker, dokumen, lokasi, dan kontak</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">uji kirim teks, gambar, video, audio/voice note, sticker, dokumen, lokasi, dan kontak</p>
               </div>
               <span class="px-2.5 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30 font-mono-code text-[10px] text-sky-300 font-bold">POST JSON</span>
             </div>
@@ -1267,9 +1254,13 @@
               <textarea id="gwMessageTextarea" oninput="updateGatewayPayloadPreview()" rows="3" placeholder="Tulis isi pesan atau caption media... Mendukung {botName}, {date}, {time}" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none"></textarea>
             </div>
 
-            <!-- --- input media url atau unggah file lokal (untuk video, audio, sticker, document) --- -->
+            <!-- --- input media url atau unggah file lokal kompak --- -->
             <div id="gwMediaSourceGroup" class="hidden rounded-xl bg-slate-950/75 border border-slate-800 p-3.5 space-y-3">
-              <!-- --- custom file picker kompak pengganti input file bawaan browser --- -->
+              <div class="space-y-1.5">
+                <label for="gwMediaUrlInput" class="block text-[11px] text-slate-300 font-semibold">URL Media Langsung (HTTP/HTTPS)</label>
+                <input id="gwMediaUrlInput" oninput="updateGatewayPayloadPreview()" type="url" placeholder="https://domain.com/foto.jpg" class="w-full bg-slate-900/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono-code focus:outline-none" />
+              </div>
+
               <div class="space-y-1.5">
                 <label class="block text-[11px] text-slate-300 font-semibold">Atau Pilih File Lokal (Otomatis Base64)</label>
                 <input id="gwMediaFileInput" onchange="handleGatewayLocalFileSelect(event)" type="file" class="hidden" />
@@ -1349,20 +1340,20 @@
               <input id="gwMentionAllCheck" onchange="updateGatewayPayloadPreview()" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" />
             </label>
 
-            <!-- --- pratinjau payload default json dengan dropdown javascript/curl dan ikon copy di kanan atas --- -->
+            <!-- --- pratinjau payload default json dengan dropdown javascript/curl dan ikon copy polosan --- -->
             <div class="rounded-xl bg-black/80 border border-slate-800 p-3 space-y-2">
               <div class="flex items-center justify-between gap-2">
                 <span class="text-[10px] font-mono-code text-slate-400 uppercase truncate">pratinjau payload</span>
 
-                <div class="flex items-center gap-1.5 shrink-0">
+                <div class="flex items-center gap-2 shrink-0">
                   <select id="gwSnippetFormatSelect" onchange="handleGatewayFormatChange()" aria-label="Pilih Format Kode" class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono-code text-slate-200 focus:outline-none focus:border-[var(--accent-main)]">
                     <option value="json" selected>JSON</option>
                     <option value="javascript">JavaScript</option>
                     <option value="curl">cURL</option>
                   </select>
 
-                  <button type="button" onclick="copyGatewayPreviewSnippet()" title="Salin Kode" aria-label="Salin Kode" class="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[var(--accent-main)] text-slate-300 hover:text-white transition-all active:scale-95 shrink-0">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button id="gwCopySnippetBtn" type="button" onclick="copyGatewayPreviewSnippet()" title="Salin Kode" aria-label="Salin Kode" class="p-1 text-slate-400 hover:text-[var(--accent-main)] transition-all active:scale-90 shrink-0">
+                    <svg id="gwCopySnippetIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                   </button>
@@ -1371,6 +1362,7 @@
 
               <pre id="gwPayloadPreviewCode" class="text-[10px] sm:text-[11px] font-mono-code text-emerald-300/90 overflow-x-auto max-h-44 leading-relaxed"></pre>
             </div>
+          </div>
 
           <button id="gwSendSubmitBtn" type="button" onclick="submitGatewayTestMessage()" class="w-full py-2.5 px-4 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 accent-shadow disabled:opacity-60">
             Kirim via WhatsApp API Gateway
@@ -1378,6 +1370,7 @@
         </div>
 
       </section>
+
       <!-- --- tampilan tab plugin ide khusus admin --- -->
       <section id="workspaceDeveloperView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
         <div class="lg:col-span-4 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-5 flex flex-col justify-between space-y-4">
@@ -1475,6 +1468,7 @@
           </div>
         </div>
       </section>
+
     </div>
 
   </main>
@@ -1521,7 +1515,61 @@
     </div>
   </footer>
 
-  <!-- --- letakkan blok 1c (#announcementCenterModal & #clearAnnouncementsConfirmModal) tepat di sini --- -->
+  <!-- --- modal pusat pemberitahuan & notifikasi berlatar gelap --- -->
+  <div id="announcementCenterModal" onclick="if (event.target === this) closeAnnouncementCenterModal()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4">
+    <div class="w-full max-w-[360px] sm:max-w-md rounded-2xl bg-[#0d111a] border border-slate-800/90 shadow-2xl overflow-hidden flex flex-col max-h-[82vh]">
+      <div class="relative px-4 pt-4 pb-2.5 text-center border-b border-slate-800/70">
+        <button type="button" onclick="closeAnnouncementCenterModal()" aria-label="Tutup" class="absolute right-3.5 top-3.5 text-slate-400 hover:text-white text-sm leading-none p-1 transition-colors">✕</button>
+        <h3 class="font-heading-modern text-base sm:text-lg font-extrabold tracking-wide text-white uppercase pr-5">
+          PEMBERITAHUAN &amp; NOTIFIKASI
+        </h3>
+        <p class="mt-1 text-[10px] font-mono-code text-slate-400 leading-snug">
+          pemberitahuan sistem, peringatan masa aktif, dan pengumuman resmi.
+        </p>
+      </div>
+
+      <div class="flex-1 overflow-y-auto max-h-[54vh] px-3.5 py-3 space-y-2.5">
+        <div class="rounded-xl bg-[#11192b] border border-sky-500/25 px-3 py-2.5 flex items-center justify-between gap-2.5">
+          <div class="min-w-0">
+            <p class="text-[11px] font-bold text-sky-400 leading-tight">Izinkan Notifikasi Chrome</p>
+            <p class="text-[10px] text-slate-400 mt-0.5 leading-tight">terima berita &amp; info langsung di layar HP/PC</p>
+          </div>
+          <button id="modalEnableNotifBtn" type="button" onclick="requestBrowserNotificationPermission()" class="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] shrink-0 transition-all active:scale-95">
+            Aktifkan
+          </button>
+        </div>
+
+        <div id="announcementModalList" class="space-y-2.5"></div>
+      </div>
+
+      <div class="px-3.5 py-3 border-t border-slate-800/80 bg-[#090c14] grid grid-cols-2 gap-2.5">
+        <button type="button" onclick="markAllAnnouncementsAsRead()" class="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-100 transition-all active:scale-95">
+          Tandai Dibaca
+        </button>
+        <button type="button" onclick="closeAnnouncementCenterModal()" class="py-2 px-3 rounded-xl bg-white hover:bg-slate-200 text-[11px] font-extrabold text-slate-950 transition-all active:scale-95">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- modal konfirmasi hapus semua pengumuman admin tanpa native confirm --- -->
+  <div id="clearAnnouncementsConfirmModal" onclick="if (event.target === this) toggleModalVisibility('clearAnnouncementsConfirmModal', false)" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-md p-4">
+    <div class="w-full max-w-sm rounded-2xl bg-slate-900/95 border border-rose-500/30 p-5 space-y-4 shadow-2xl">
+      <h3 class="text-sm font-bold text-white">Hapus Semua Pengumuman?</h3>
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Seluruh riwayat pengumuman di <span class="font-mono-code text-rose-300">database.json</span> akan dihapus permanen agar penyimpanan tetap bersih.
+      </p>
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button type="button" onclick="toggleModalVisibility('clearAnnouncementsConfirmModal', false)" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-all">
+          Batal
+        </button>
+        <button type="button" onclick="confirmClearGlobalAnnouncements()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition-all active:scale-95">
+          Ya, Bersihkan
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- --- modal redeem kode voucher trial / perpanjangan --- -->
   <div id="voucherRedeemModal" onclick="if (event.target === this) closeVoucherRedeemModal()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-md p-4">
@@ -1557,7 +1605,6 @@
         <button id="secTabOtpBtn" type="button" onclick="switchSecurityModalTab('otp')" class="py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">Reset via OTP WA</button>
       </div>
 
-      <!-- --- form ganti kata sandi akun lokal --- -->
       <div id="secChangePasswordPanel" class="space-y-3">
         <div class="space-y-1">
           <label for="secCurrentPasswordInput" class="block text-[11px] font-semibold text-slate-300">Kata Sandi Lama</label>
@@ -1572,7 +1619,6 @@
         </button>
       </div>
 
-      <!-- --- form reset kata sandi via otp whatsapp owner terdaftar --- -->
       <div id="secOtpResetPanel" class="hidden space-y-3">
         <div class="space-y-1">
           <label for="secOtpEmailInput" class="block text-[11px] font-semibold text-slate-300">Email Akun Lokal</label>
@@ -1594,6 +1640,53 @@
         <button id="secVerifyOtpBtn" type="button" onclick="submitVerifyPasswordOtp()" class="w-full py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 disabled:opacity-60">
           Verifikasi OTP &amp; Reset Sandi
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- modal pengaturan grup visual (welcome, goodbye, anti-link, anti-toxic) --- -->
+  <div id="groupVisualConfigModal" onclick="if (event.target === this) toggleModalVisibility('groupVisualConfigModal', false)" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-md p-4">
+    <div class="w-full max-w-md rounded-2xl bg-slate-900/95 border border-slate-800 p-5 space-y-4 shadow-2xl text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="min-w-0">
+          <h3 class="text-sm font-bold text-white truncate">Pengaturan Grup Visual</h3>
+          <p id="groupCfgModalSubtitle" class="text-[10px] font-mono-code text-slate-400 truncate mt-0.5">-</p>
+        </div>
+        <button type="button" onclick="toggleModalVisibility('groupVisualConfigModal', false)" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <input id="groupCfgTargetJid" type="hidden" value="" />
+
+      <div class="grid grid-cols-2 gap-2.5">
+        <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer">
+          <span class="font-semibold text-slate-200">Anti-Link</span>
+          <input id="groupCfgAntiLinkCheck" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded" />
+        </label>
+        <label class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer">
+          <span class="font-semibold text-slate-200">Anti-Toxic</span>
+          <input id="groupCfgAntiToxicCheck" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded" />
+        </label>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="font-semibold text-slate-200">Pesan Welcome (@user, @group)</span>
+          <input id="groupCfgWelcomeCheck" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded" />
+        </label>
+        <textarea id="groupCfgWelcomeText" rows="2" placeholder="Selamat datang @user di @group!" class="w-full bg-slate-950 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none"></textarea>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="font-semibold text-slate-200">Pesan Goodbye (@user, @group)</span>
+          <input id="groupCfgGoodbyeCheck" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded" />
+        </label>
+        <textarea id="groupCfgGoodbyeText" rows="2" placeholder="Sampai jumpa @user dari @group." class="w-full bg-slate-950 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-1">
+        <button type="button" onclick="toggleModalVisibility('groupVisualConfigModal', false)" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold">Batal</button>
+        <button type="button" onclick="saveGroupVisualConfig()" class="px-4 py-2 rounded-xl accent-bg text-slate-950 font-bold active:scale-95">Simpan Grup</button>
       </div>
     </div>
   </div>
@@ -1687,10 +1780,11 @@
     let loadedPluginsCache = [];
     let featureCatalogCache = [];
     let currentDisabledCategories = [];
+    let currentGroupConfigsMap = {};
     let isCurrentUserAdmin = false;
     let currentGoogleUserId = '';
     let currentUserEmail = '';
-    let adminWhatsAppNumber = '6285126904781';
+    let adminWhatsAppNumber = '6285700408187';
 
     let announcementsCache = [];
     let terminalLogsBuffer = [];
@@ -1709,6 +1803,8 @@
     let currentGatewayApiKey = '';
     let isGatewayKeyVisible = false;
     let gatewayLocalFilePayload = null;
+    let gwCopyIconResetTimer = null;
+    let gwCopySnippetResetTimer = null;
 
     let pendingDeleteUserJid = null;
     let latestTrafficSeries = null;
@@ -2300,7 +2396,6 @@
         const maxVal = Math.max(...numericSeries);
         const spread = maxVal - minVal;
 
-        // --- auto-scale sumbu y ketat agar lonjakan amplitudo tampak tinggi & berdenyut ---
         const dynamicMin = minVal > 1 && spread > 0 ? Math.max(0, Math.floor(minVal - Math.max(1, spread * 0.15))) : 0;
         const dynamicMax = maxVal === 0 ? 2 : Math.max(dynamicMin + 2, Math.ceil(maxVal + Math.max(1, spread * 0.12)));
 
@@ -2585,7 +2680,6 @@
       window.location.replace('/login');
     }
 
-    // --- ganti tab workspace dengan menjaga ukuran presisi tombol navigasi mobile ---
     function switchWorkspaceTab(targetTab) {
       if (targetTab === 'developer' && !isCurrentUserAdmin) {
         showTopToast('Tab IDE khusus admin platform', true);
@@ -2720,7 +2814,7 @@
       }
     }
 
-    // --- modal perpanjang, voucher redeem, dan keamanan sandi/otp ---
+    // --- modal perpanjang, voucher redeem, keamanan sandi/otp, dan pengaturan grup visual ---
     function openRenewModal() { toggleModalVisibility('renewSubscriptionModal', true); }
     function closeRenewModal() { toggleModalVisibility('renewSubscriptionModal', false); }
 
@@ -2869,7 +2963,34 @@
       }
     }
 
-    // --- manajemen api key, form multi-media gateway, dan jadibot v2 ---
+    function openGroupVisualConfigModal(jid, subject) {
+      const cfg = currentGroupConfigsMap[jid] || {};
+      if (getEl('groupCfgTargetJid')) getEl('groupCfgTargetJid').value = jid;
+      if (getEl('groupCfgModalSubtitle')) getEl('groupCfgModalSubtitle').textContent = `${subject} (${jid})`;
+      if (getEl('groupCfgAntiLinkCheck')) getEl('groupCfgAntiLinkCheck').checked = Boolean(cfg.antiLink);
+      if (getEl('groupCfgAntiToxicCheck')) getEl('groupCfgAntiToxicCheck').checked = Boolean(cfg.antiToxic);
+      if (getEl('groupCfgWelcomeCheck')) getEl('groupCfgWelcomeCheck').checked = Boolean(cfg.welcomeEnabled);
+      if (getEl('groupCfgWelcomeText')) getEl('groupCfgWelcomeText').value = cfg.welcomeMessage || 'Selamat datang @user di grup @group!';
+      if (getEl('groupCfgGoodbyeCheck')) getEl('groupCfgGoodbyeCheck').checked = Boolean(cfg.goodbyeEnabled);
+      if (getEl('groupCfgGoodbyeText')) getEl('groupCfgGoodbyeText').value = cfg.goodbyeMessage || 'Sampai jumpa @user dari @group.';
+      toggleModalVisibility('groupVisualConfigModal', true);
+    }
+
+    function saveGroupVisualConfig() {
+      const jid = String(getEl('groupCfgTargetJid')?.value || '').trim();
+      if (!jid) return;
+      socketClient.emit('manage:group:config', {
+        jid,
+        antiLink: Boolean(getEl('groupCfgAntiLinkCheck')?.checked),
+        antiToxic: Boolean(getEl('groupCfgAntiToxicCheck')?.checked),
+        welcomeEnabled: Boolean(getEl('groupCfgWelcomeCheck')?.checked),
+        welcomeMessage: String(getEl('groupCfgWelcomeText')?.value || '').trim(),
+        goodbyeEnabled: Boolean(getEl('groupCfgGoodbyeCheck')?.checked),
+        goodbyeMessage: String(getEl('groupCfgGoodbyeText')?.value || '').trim()
+      });
+    }
+
+    // --- manajemen api key, webhook, dan form multi-media gateway ---
     function renderGatewayKeyUI(apiKey, apiKeyStats) {
       currentGatewayApiKey = String(apiKey || '');
       const inputEl = getEl('gwApiKeyInput');
@@ -2894,7 +3015,6 @@
       updateGatewayPayloadPreview();
     }
 
-    // --- toggle visibilitas api key dengan ikon mata terbuka dan tertutup ---
     function toggleGatewayKeyVisibility() {
       isGatewayKeyVisible = !isGatewayKeyVisible;
       const inputEl = getEl('gwApiKeyInput');
@@ -2914,19 +3034,61 @@
       }
     }
 
-    function copyGatewayApiKey() {
-      copyTextToClipboard(currentGatewayApiKey, 'API Key Disalin', 'Belum ada API Key aktif. Klik Generate Key terlebih dahulu.');
+    function flashCopyButtonCheckmark(btnId, iconId, defaultTitle, timerSetter, existingTimer) {
+      const btn = getEl(btnId);
+      const icon = getEl(iconId);
+      if (!icon) return;
+
+      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M5 13l4 4L19 7" />';
+      if (btn) {
+        btn.classList.remove('text-slate-400');
+        btn.classList.add('text-emerald-400');
+        btn.title = 'Copied!';
+      }
+
+      if (existingTimer) clearTimeout(existingTimer);
+      timerSetter(setTimeout(() => {
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />';
+        if (btn) {
+          btn.classList.remove('text-emerald-400');
+          btn.classList.add('text-slate-400');
+          btn.title = defaultTitle;
+        }
+        timerSetter(null);
+      }, 2000));
     }
 
-    function generateGatewayApiKey() {
-      socketClient.emit('gateway:key:generate');
+    async function copyGatewayApiKey() {
+      const isCopied = await copyTextToClipboard(
+        currentGatewayApiKey,
+        'API Key Disalin',
+        'Belum ada API Key aktif. Klik Generate Key terlebih dahulu.'
+      );
+      if (isCopied) {
+        flashCopyButtonCheckmark('gwCopyKeyBtn', 'gwCopyKeyIcon', 'Salin API Key', (t) => { gwCopyIconResetTimer = t; }, gwCopyIconResetTimer);
+      }
     }
 
-    function revokeGatewayApiKey() {
-      socketClient.emit('gateway:key:revoke');
+    function generateGatewayApiKey() { socketClient.emit('gateway:key:generate'); }
+    function revokeGatewayApiKey() { socketClient.emit('gateway:key:revoke'); }
+
+    function saveGatewayWebhookSettings() {
+      const webhookUrl = String(getEl('gwWebhookUrlInput')?.value || '').trim();
+      const webhookSecret = String(getEl('gwWebhookSecretInput')?.value || '').trim();
+      socketClient.emit('settings:update', { webhookUrl, webhookSecret });
     }
 
-    // --- tampilkan input form gateway sesuai tipe media yang dipilih ---
+    function testGatewayWebhookUrl() {
+      const webhookUrl = String(getEl('gwWebhookUrlInput')?.value || '').trim();
+      const webhookSecret = String(getEl('gwWebhookSecretInput')?.value || '').trim();
+      if (!webhookUrl) {
+        showCyberToast('URL Kosong', 'Masukkan URL Webhook terlebih dahulu.', 'danger');
+        return;
+      }
+      socketClient.emit('gateway:webhook:test', { webhookUrl, webhookSecret });
+      showCyberToast('Menguji Webhook', 'Mengirim payload uji ke server tujuan...', 'info');
+    }
+
     function switchGatewayMediaFields() {
       const type = getEl('gwMediaTypeSelect')?.value || 'text';
       const isMedia = ['image', 'video', 'audio', 'sticker', 'document'].includes(type);
@@ -2988,10 +3150,64 @@
       updateGatewayPayloadPreview();
     }
 
-    // --- susun objek payload asli untuk pengiriman gateway multi-media ---
+    function clearGatewayLocalFile() {
+      gatewayLocalFilePayload = null;
+      const fileInput = getEl('gwMediaFileInput');
+      const infoEl = getEl('gwMediaFileInfo');
+      const clearBtn = getEl('gwClearMediaFileBtn');
+
+      if (fileInput) fileInput.value = '';
+      if (infoEl) {
+        infoEl.textContent = 'belum ada file';
+        infoEl.className = 'flex-1 min-w-0 text-[11px] font-mono-code text-slate-400 truncate px-1';
+      }
+      if (clearBtn) clearBtn.classList.add('hidden');
+      updateGatewayPayloadPreview();
+    }
+
+    function handleGatewayLocalFileSelect(event) {
+      const file = event?.target?.files?.[0];
+      const infoEl = getEl('gwMediaFileInfo');
+      const clearBtn = getEl('gwClearMediaFileBtn');
+
+      if (!file) {
+        clearGatewayLocalFile();
+        return;
+      }
+
+      if (file.size > 12 * 1024 * 1024) {
+        showCyberToast('File Terlalu Besar', 'Maksimal ukuran unggah lokal 12 MB. Gunakan URL untuk file besar.', 'danger');
+        clearGatewayLocalFile();
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        gatewayLocalFilePayload = {
+          fileName: file.name,
+          mimetype: file.type || 'application/octet-stream',
+          size: file.size,
+          base64: String(reader.result || '')
+        };
+        if (infoEl) {
+          infoEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+          infoEl.className = 'flex-1 min-w-0 text-[11px] font-mono-code text-slate-200 truncate px-1';
+        }
+        if (clearBtn) clearBtn.classList.remove('hidden');
+        if (getEl('gwDocFileNameInput') && !getEl('gwDocFileNameInput').value) {
+          getEl('gwDocFileNameInput').value = file.name;
+        }
+        if (getEl('gwDocMimeInput') && !getEl('gwDocMimeInput').value) {
+          getEl('gwDocMimeInput').value = file.type || 'application/octet-stream';
+        }
+        updateGatewayPayloadPreview();
+      };
+      reader.readAsDataURL(file);
+    }
+
     function buildGatewayPayloadObject(forPreview = false) {
       const targetJid = String(getEl('gwTargetJidInput')?.value || '').trim();
-      const mediaType = getEl('gwMediaTypeSelect')?.value || 'text';
+      const mediaType = String(getEl('gwMediaTypeSelect')?.value || 'text').trim().toLowerCase();
       const rawMessage = String(getEl('gwMessageTextarea')?.value || '').trim();
       const mentionAll = Boolean(getEl('gwMentionAllCheck')?.checked);
 
@@ -3036,116 +3252,6 @@
       return payload;
     }
 
-    // --- hapus file lokal yang dipilih pada gateway multi-media ---
-    function clearGatewayLocalFile() {
-      gatewayLocalFilePayload = null;
-      const fileInput = getEl('gwMediaFileInput');
-      const infoEl = getEl('gwMediaFileInfo');
-      const clearBtn = getEl('gwClearMediaFileBtn');
-
-      if (fileInput) fileInput.value = '';
-      if (infoEl) {
-        infoEl.textContent = 'belum ada file';
-        infoEl.className = 'flex-1 min-w-0 text-[11px] font-mono-code text-slate-400 truncate px-1';
-      }
-      if (clearBtn) clearBtn.classList.add('hidden');
-      updateGatewayPayloadPreview();
-    }
-
-    // --- proses file lokal yang dipilih menjadi base64 ---
-    function handleGatewayLocalFileSelect(event) {
-      const file = event?.target?.files?.[0];
-      const infoEl = getEl('gwMediaFileInfo');
-      const clearBtn = getEl('gwClearMediaFileBtn');
-
-      if (!file) {
-        clearGatewayLocalFile();
-        return;
-      }
-
-      if (file.size > 12 * 1024 * 1024) {
-        showCyberToast('File Terlalu Besar', 'Maksimal ukuran unggah lokal 12 MB. Gunakan URL untuk file besar.', 'danger');
-        clearGatewayLocalFile();
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        gatewayLocalFilePayload = {
-          fileName: file.name,
-          mimetype: file.type || 'application/octet-stream',
-          size: file.size,
-          base64: String(reader.result || '')
-        };
-        if (infoEl) {
-          infoEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-          infoEl.className = 'flex-1 min-w-0 text-[11px] font-mono-code text-slate-200 truncate px-1';
-        }
-        if (clearBtn) clearBtn.classList.remove('hidden');
-        if (getEl('gwDocFileNameInput') && !getEl('gwDocFileNameInput').value) {
-          getEl('gwDocFileNameInput').value = file.name;
-        }
-        if (getEl('gwDocMimeInput') && !getEl('gwDocMimeInput').value) {
-          getEl('gwDocMimeInput').value = file.type || 'application/octet-stream';
-        }
-        updateGatewayPayloadPreview();
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function buildGatewayPayloadObject(forPreview = false) {
-      const targetJid = String(getEl('gwTargetJidInput')?.value || '').trim();
-      const mediaType = getEl('gwMediaTypeSelect')?.value || 'text';
-      const rawMessage = String(getEl('gwMessageTextarea')?.value || '').trim();
-      const mentionAll = Boolean(getEl('gwMentionAllCheck')?.checked);
-
-      const payload = {
-        targetJid: targetJid || '6281234567890',
-        mediaType,
-        mentionAll
-      };
-
-      if (mediaType === 'text') {
-        payload.message = rawMessage || 'Halo dari Xu Core API Gateway';
-      } else if (['video', 'audio', 'sticker', 'document'].includes(mediaType)) {
-        const mediaUrl = String(getEl('gwMediaUrlInput')?.value || '').trim();
-        payload.mediaUrl = mediaUrl || undefined;
-        if (gatewayLocalFilePayload?.base64) {
-          payload.mediaBase64 = forPreview
-            ? `[BASE64:${gatewayLocalFilePayload.fileName} (${(gatewayLocalFilePayload.size / 1024).toFixed(1)} KB)]`
-            : gatewayLocalFilePayload.base64;
-        }
-        if (mediaType === 'video' || mediaType === 'document') {
-          payload.caption = rawMessage;
-        }
-        if (mediaType === 'audio') {
-          payload.ptt = Boolean(getEl('gwAudioPttCheck')?.checked);
-        }
-        if (mediaType === 'document') {
-          payload.fileName = String(getEl('gwDocFileNameInput')?.value || gatewayLocalFilePayload?.fileName || 'document.pdf').trim();
-          payload.mimetype = String(getEl('gwDocMimeInput')?.value || gatewayLocalFilePayload?.mimetype || 'application/pdf').trim();
-        }
-        payload.message = rawMessage || `[${mediaType.toUpperCase()}] ${mediaUrl || gatewayLocalFilePayload?.fileName || 'media'}`;
-      } else if (mediaType === 'location') {
-        const lat = Number(getEl('gwLocLatInput')?.value || -6.9932);
-        const lng = Number(getEl('gwLocLngInput')?.value || 110.4203);
-        const locName = String(getEl('gwLocNameInput')?.value || '').trim();
-        const locAddress = String(getEl('gwLocAddressInput')?.value || '').trim();
-        payload.location = { degreesLatitude: lat, degreesLongitude: lng, name: locName, address: locAddress };
-        payload.message = locName
-          ? `Lokasi: ${locName} (${lat}, ${lng})${locAddress ? `\n${locAddress}` : ''}`
-          : `Lokasi: https://maps.google.com/?q=${lat},${lng}`;
-      } else if (mediaType === 'contact') {
-        const contactName = String(getEl('gwContactNameInput')?.value || 'Admin Xu Core').trim();
-        const contactPhone = String(getEl('gwContactPhoneInput')?.value || '').replace(/\D/g, '');
-        payload.contact = { fullName: contactName, phoneNumber: contactPhone };
-        payload.message = `Kontak: ${contactName} (+${contactPhone})`;
-      }
-
-      return payload;
-    }
-
-    // --- bangun objek payload bersih untuk pratinjau kode gateway ---
     function getSanitizedGatewaySnippetPayload() {
       const rawPayload = buildGatewayPayloadObject(true);
       const cleanPayload = {};
@@ -3158,7 +3264,6 @@
       return cleanPayload;
     }
 
-    // --- format teks pratinjau sesuai pilihan dropdown (default json, javascript fetch, atau curl) ---
     function buildGatewayFormattedSnippet(formatType = 'json') {
       const origin = window.location.origin;
       const endpointUrl = `${origin}/api/v1/gateway/send`;
@@ -3199,11 +3304,9 @@
       return JSON.stringify(cleanPayload, null, 2);
     }
 
-    // --- perbarui isi kotak pratinjau saat pilihan dropdown atau input form berubah ---
     function updateGatewayPayloadPreview() {
       const previewEl = getEl('gwPayloadPreviewCode');
       if (!previewEl) return;
-
       safeExecute(() => {
         const selectedFormat = getEl('gwSnippetFormatSelect')?.value || 'json';
         previewEl.textContent = buildGatewayFormattedSnippet(selectedFormat);
@@ -3214,18 +3317,18 @@
       updateGatewayPayloadPreview();
     }
 
-    // --- salin konten aktif di kotak pratinjau menggunakan tombol ikon copy ---
-    function copyGatewayPreviewSnippet() {
-      safeExecute(() => {
-        const selectedFormat = getEl('gwSnippetFormatSelect')?.value || 'json';
-        const snippetText = buildGatewayFormattedSnippet(selectedFormat);
-        const labelMap = {
-          json: 'Payload JSON Disalin',
-          javascript: 'Kode JavaScript Disalin',
-          curl: 'Perintah cURL Disalin'
-        };
-        copyTextToClipboard(snippetText, labelMap[selectedFormat] || 'Kode Disalin', 'Tidak ada konten untuk disalin.');
-      }, 'copyGatewayPreviewSnippet');
+    async function copyGatewayPreviewSnippet() {
+      const selectedFormat = getEl('gwSnippetFormatSelect')?.value || 'json';
+      const snippetText = buildGatewayFormattedSnippet(selectedFormat);
+      const labelMap = {
+        json: 'Payload JSON Disalin',
+        javascript: 'Kode JavaScript Disalin',
+        curl: 'Perintah cURL Disalin'
+      };
+      const isCopied = await copyTextToClipboard(snippetText, labelMap[selectedFormat] || 'Kode Disalin', 'Tidak ada konten untuk disalin.');
+      if (isCopied) {
+        flashCopyButtonCheckmark('gwCopySnippetBtn', 'gwCopySnippetIcon', 'Salin Kode', (t) => { gwCopySnippetResetTimer = t; }, gwCopySnippetResetTimer);
+      }
     }
 
     async function submitGatewayTestMessage() {
@@ -3344,6 +3447,15 @@
     function populateSettingsForm(settingsObj) {
       if (!settingsObj) return;
       currentDisabledCategories = Array.isArray(settingsObj.disabledCategories) ? settingsObj.disabledCategories : [];
+      currentGroupConfigsMap = settingsObj.groupConfigs && typeof settingsObj.groupConfigs === 'object' ? settingsObj.groupConfigs : {};
+
+      const formatAutoReplyLine = (r) => {
+        const base = `${r.matchType || 'exact'}|${r.trigger}=${r.response || ''}`;
+        if (r.mediaType && r.mediaType !== 'text' && r.mediaUrl) {
+          return `${base}|${r.mediaType}|${r.mediaUrl}`;
+        }
+        return base;
+      };
 
       const fieldPairs = [
         ['cfgBotNameInput', settingsObj.botName || ''],
@@ -3352,12 +3464,9 @@
         ['cfgOwnersInput', Array.isArray(settingsObj.owners) ? settingsObj.owners.join(', ') : ''],
         ['cfgToxicInput', Array.isArray(settingsObj.toxic) ? settingsObj.toxic.join(', ') : ''],
         ['cfgAiSystemPromptInput', settingsObj.aiSystemPrompt || ''],
-        [
-          'cfgAutoReplyInput',
-          Array.isArray(settingsObj.autoReplies)
-            ? settingsObj.autoReplies.map((r) => `${r.matchType || 'exact'}|${r.trigger}=${r.response}`).join('\n')
-            : ''
-        ]
+        ['gwWebhookUrlInput', settingsObj.webhookUrl || ''],
+        ['gwWebhookSecretInput', settingsObj.webhookSecret || ''],
+        ['cfgAutoReplyInput', Array.isArray(settingsObj.autoReplies) ? settingsObj.autoReplies.map(formatAutoReplyLine).join('\n') : '']
       ];
 
       fieldPairs.forEach(([id, val]) => {
@@ -3385,17 +3494,34 @@
           const idx = line.indexOf('=');
           if (idx === -1) return null;
           const leftPart = line.slice(0, idx).trim();
-          const response = line.slice(idx + 1).trim();
+          const rightPart = line.slice(idx + 1).trim();
+
+          let matchType = 'exact';
+          let trigger = leftPart;
           const pipeIdx = leftPart.indexOf('|');
           if (pipeIdx !== -1) {
             const modeCandidate = leftPart.slice(0, pipeIdx).trim().toLowerCase();
-            const trigger = leftPart.slice(pipeIdx + 1).trim();
-            const matchType = ['exact', 'contains', 'starts'].includes(modeCandidate) ? modeCandidate : 'exact';
-            return { matchType, trigger, response };
+            trigger = leftPart.slice(pipeIdx + 1).trim();
+            matchType = ['exact', 'contains', 'starts'].includes(modeCandidate) ? modeCandidate : 'exact';
           }
-          return { matchType: 'exact', trigger: leftPart, response };
+
+          let response = rightPart;
+          let mediaType = 'text';
+          let mediaUrl = '';
+          const mediaParts = rightPart.split('|');
+          if (mediaParts.length >= 3) {
+            const possibleType = mediaParts[mediaParts.length - 2].trim().toLowerCase();
+            const possibleUrl = mediaParts[mediaParts.length - 1].trim();
+            if (['image', 'sticker', 'document'].includes(possibleType) && /^https?:\/\//i.test(possibleUrl)) {
+              mediaType = possibleType;
+              mediaUrl = possibleUrl;
+              response = mediaParts.slice(0, -2).join('|').trim();
+            }
+          }
+
+          return { matchType, trigger, response, mediaType, mediaUrl };
         })
-        .filter((item) => item && item.trigger && item.response);
+        .filter((item) => item && item.trigger && (item.response || item.mediaUrl));
 
       socketClient.emit('settings:update', {
         botName: getEl('cfgBotNameInput').value.trim(),
@@ -3557,10 +3683,7 @@
       showCyberToast('Pemeliharaan Sesi', 'Membersihkan pre-key/sender-key tanpa menghapus creds.json...', 'info');
     }
 
-    function toggleBotSetting(settingKey) {
-      socketClient.emit('settings:toggle', { key: settingKey });
-    }
-
+    function toggleBotSetting(settingKey) { socketClient.emit('settings:toggle', { key: settingKey }); }
     function openLogoutConfirmationModal() { toggleModalVisibility('logoutConfirmModal', true); }
     function closeLogoutConfirmationModal() { toggleModalVisibility('logoutConfirmModal', false); }
 
@@ -3663,10 +3786,16 @@
       showTopToast('Tampilan terminal dibersihkan');
     }
 
-    // --- broadcast, direct message, scheduler, katalog, dan manajemen user/grup ---
+    // --- broadcast anti-ban, direct message, scheduler, katalog, dan manajemen user/grup ---
+    function setBroadcastSpeedPreset(delaySec) {
+      const input = getEl('broadcastDelayInput');
+      if (input) input.value = String(delaySec);
+      showCyberToast('Preset Broadcast', `Jeda pengiriman diatur ke ${delaySec} detik/grup.`, 'info');
+    }
+
     function sendGroupBroadcast() {
       const message = getEl('broadcastGroupMessageInput')?.value.trim() || '';
-      const delaySeconds = Number(getEl('broadcastDelayInput')?.value || 4);
+      const delaySeconds = Number(getEl('broadcastDelayInput')?.value || 6);
       if (!message) {
         showCyberToast('Pesan Kosong', 'Isi pesan broadcast terlebih dahulu.', 'danger');
         return;
@@ -3700,14 +3829,8 @@
       const message = (getEl('directMessageTextarea')?.value || '').trim();
       const mentionAll = Boolean(getEl('directMentionAllCheck')?.checked);
 
-      if (!targetJid) {
-        showCyberToast('Tujuan Kosong', 'Pilih grup atau masukkan nomor/ID tujuan.', 'danger');
-        return;
-      }
-      if (!message) {
-        showCyberToast('Pesan Kosong', 'Tulis pesan yang ingin dikirim.', 'danger');
-        return;
-      }
+      if (!targetJid) return showCyberToast('Tujuan Kosong', 'Pilih grup atau masukkan nomor/ID tujuan.', 'danger');
+      if (!message) return showCyberToast('Pesan Kosong', 'Tulis pesan yang ingin dikirim.', 'danger');
 
       if (getEl('directSendSubmitBtn')) getEl('directSendSubmitBtn').disabled = true;
       socketClient.emit('direct:send', { targetJid, message, mentionAll });
@@ -4116,9 +4239,14 @@
                 <span class="w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]'}"></span>
                 ${isActive ? 'Akses Bot Aktif' : 'Grup Dibanned'}
               </span>
-              <button type="button" data-jid="${escapeHtmlString(g.jid)}" onclick="updateManagedGroup(this.dataset.jid, { banned: ${!g.banned} })" title="${isActive ? 'Matikan Akses Grup (Ban)' : 'Aktifkan Kembali Akses Grup'}" class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-all active:scale-95 ${isActive ? 'bg-emerald-500/20 border-emerald-500/40' : 'bg-rose-500/15 border-rose-500/40'}">
-                <span class="inline-block h-3.5 w-3.5 transform rounded-full transition-transform ${isActive ? 'translate-x-4 bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.75)]' : 'translate-x-0.5 bg-rose-400'}"></span>
-              </button>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" data-jid="${escapeHtmlString(g.jid)}" data-subject="${escapeHtmlString(g.subject || g.jid)}" onclick="openGroupVisualConfigModal(this.dataset.jid, this.dataset.subject)" class="px-2 py-0.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[10px] font-semibold text-slate-200 transition-colors">
+                  Atur
+                </button>
+                <button type="button" data-jid="${escapeHtmlString(g.jid)}" onclick="updateManagedGroup(this.dataset.jid, { banned: ${!g.banned} })" title="${isActive ? 'Matikan Akses Grup (Ban)' : 'Aktifkan Kembali Akses Grup'}" class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-all active:scale-95 ${isActive ? 'bg-emerald-500/20 border-emerald-500/40' : 'bg-rose-500/15 border-rose-500/40'}">
+                  <span class="inline-block h-3.5 w-3.5 transform rounded-full transition-transform ${isActive ? 'translate-x-4 bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.75)]' : 'translate-x-0.5 bg-rose-400'}"></span>
+                </button>
+              </div>
             </div>
           </div>
         `;
@@ -4337,7 +4465,6 @@ export default {
     // --- inisialisasi dom & event listeners socket.io ---
     window.addEventListener('DOMContentLoaded', () => {
       safeExecute(() => {
-        // --- skala kanvas logo presisi agar grup 4 ikon tetap terpisah bersih dari lonceng di mobile ---
         const brandCanvas = getEl('headerBrandTextCanvas');
         const responsiveScale = window.innerWidth < 440 ? 0.62 : 0.7;
         initHeaderBrandTextCanvas(brandCanvas, {
@@ -4505,6 +4632,21 @@ export default {
       }
     });
 
+    socketClient.on('gateway:webhook:test:result', (res) => {
+      if (res?.isSuccess) {
+        showCyberToast('Webhook Aktif', `Server tujuan merespons HTTP ${res.statusCode || 200}.`, 'success');
+      } else {
+        showCyberToast('Webhook Gagal', res?.errorMessage || 'Tidak dapat menghubungi URL Webhook.', 'danger');
+      }
+    });
+
+    socketClient.on('manage:group:config:saved', (res) => {
+      if (res?.isSuccess) {
+        toggleModalVisibility('groupVisualConfigModal', false);
+        showCyberToast('Grup Diperbarui', 'Pengaturan Welcome, Goodbye, dan moderasi grup disimpan.', 'success');
+      }
+    });
+
     socketClient.on('voucher:redeem:result', (res) => {
       const btn = getEl('voucherRedeemSubmitBtn');
       if (btn) btn.disabled = false;
@@ -4634,7 +4776,7 @@ export default {
     });
 
     socketClient.on('settings:saved', () => {
-      showCyberToast('Pengaturan Disimpan', 'Konfigurasi bot & AI Persona berhasil diperbarui.', 'success');
+      showCyberToast('Pengaturan Disimpan', 'Konfigurasi bot, Webhook & AI Persona berhasil diperbarui.', 'success');
     });
 
     socketClient.on('manage:data', (payload) => {
@@ -4674,3 +4816,80 @@ export default {
       updateCodeInspectorReport(`[Runtime Error - ${payload.fileName || 'Plugin'}]\n${payload.errorMessage || ''}`, true);
     });
   </script>
+  <script>
+    // --- proteksi anti-devtools dan pemblokiran inspeksi kode front-end ---
+    (function initAntiInspectGuard() {
+      'use strict';
+
+      const REDIRECT_TARGET_URL = '/login';
+      const DIMENSION_THRESHOLD_PX = 160;
+      const DEBUGGER_DELAY_THRESHOLD_MS = 120;
+      let isGuardTriggered = false;
+
+      function triggerPreventiveAction() {
+        if (isGuardTriggered) return;
+        isGuardTriggered = true;
+
+        for (let i = 0; i < 20; i += 1) {
+          try { console.clear(); } catch {}
+        }
+        try { document.documentElement.innerHTML = ''; } catch {}
+        window.location.replace(REDIRECT_TARGET_URL);
+      }
+
+      document.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        return false;
+      });
+
+      document.addEventListener('keydown', (event) => {
+        const key = String(event.key || '').toUpperCase();
+        const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+        const isShift = event.shiftKey;
+        const isAlt = event.altKey;
+
+        const isF12 = key === 'F12' || event.keyCode === 123;
+        const isInspectShortcut = isCtrlOrMeta && isShift && ['I', 'J', 'C'].includes(key);
+        const isMacInspectShortcut = event.metaKey && isAlt && ['I', 'J', 'C'].includes(key);
+        const isViewSourceShortcut = isCtrlOrMeta && key === 'U';
+
+        if (isF12 || isInspectShortcut || isMacInspectShortcut || isViewSourceShortcut) {
+          event.preventDefault();
+          event.stopPropagation();
+          try { console.clear(); } catch {}
+          return false;
+        }
+        return true;
+      });
+
+      function detectDevToolsByViewport() {
+        const widthDiff = Math.abs(window.outerWidth - window.innerWidth);
+        const heightDiff = Math.abs(window.outerHeight - window.innerHeight);
+        const isLikelyDesktop = window.matchMedia('(pointer: fine)').matches;
+
+        if (isLikelyDesktop && (widthDiff > DIMENSION_THRESHOLD_PX || heightDiff > DIMENSION_THRESHOLD_PX)) {
+          triggerPreventiveAction();
+        }
+      }
+
+      function detectDevToolsByDebugger() {
+        const startTimeMs = performance.now();
+        (function () {}).constructor('debugger')();
+        const elapsedMs = performance.now() - startTimeMs;
+
+        if (elapsedMs > DEBUGGER_DELAY_THRESHOLD_MS) {
+          triggerPreventiveAction();
+        }
+      }
+
+      window.addEventListener('resize', detectDevToolsByViewport);
+
+      setInterval(() => {
+        try { console.clear(); } catch {}
+        detectDevToolsByViewport();
+        detectDevToolsByDebugger();
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>
