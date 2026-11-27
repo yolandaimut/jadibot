@@ -1270,17 +1270,92 @@ function cloneSafeObject(sourceObject) {
   return { ...sourceObject };
 }
 
-// --- serialisasi pesan menggunakan system/serialize.js atau serializer bawaan aman dengan prefix kustom ---
+// --- cache pemetaan lid ke phone jid agar chat masuk & keluar tidak terpecah ---
+const lidToPhoneJidCache = new Map();
+
+// --- ekstrak jid nomor telepon valid (@s.whatsapp.net) dari key baileys ---
+function resolvePhoneJidFromBaileysKey(messageKey = {}, coreModules = {}) {
+  const rawRemoteJid = String(messageKey?.remoteJid || '').trim();
+  const isGroup = rawRemoteJid.endsWith('@g.us');
+
+  // --- simpan pemetaan lid -> pn setiap kali baileys menyertakan senderPn / participantPn ---
+  if (!isGroup && rawRemoteJid.endsWith('@lid') && typeof messageKey?.senderPn === 'string' && messageKey.senderPn.includes('@s.whatsapp.net')) {
+    const normalizedPn = jidNormalizedUser(messageKey.senderPn);
+    lidToPhoneJidCache.set(rawRemoteJid, normalizedPn);
+    if (coreModules?.lid && typeof coreModules.lid.set === 'function') {
+      try { coreModules.lid.set(rawRemoteJid, normalizedPn); } catch {}
+    }
+  }
+
+  if (isGroup && typeof messageKey?.participant === 'string' && messageKey.participant.endsWith('@lid') && typeof messageKey?.participantPn === 'string' && messageKey.participantPn.includes('@s.whatsapp.net')) {
+    const normalizedPartPn = jidNormalizedUser(messageKey.participantPn);
+    lidToPhoneJidCache.set(messageKey.participant, normalizedPartPn);
+    if (coreModules?.lid && typeof coreModules.lid.set === 'function') {
+      try { coreModules.lid.set(messageKey.participant, normalizedPartPn); } catch {}
+    }
+  }
+
+  const lookupLidToPn = (rawJid) => {
+    const clean = String(rawJid || '').trim();
+    if (!clean) return '';
+    if (!clean.endsWith('@lid')) return jidNormalizedUser(clean);
+    if (lidToPhoneJidCache.has(clean)) return lidToPhoneJidCache.get(clean);
+    const fromModule = coreModules?.lid && typeof coreModules.lid.get === 'function' ? coreModules.lid.get(clean) : null;
+    if (fromModule && String(fromModule).includes('@s.whatsapp.net')) {
+      const normalized = jidNormalizedUser(fromModule);
+      lidToPhoneJidCache.set(clean, normalized);
+      return normalized;
+    }
+    return clean;
+  };
+
+  if (isGroup) {
+    const resolvedSender =
+      (typeof messageKey?.participantPn === 'string' && messageKey.participantPn.includes('@s.whatsapp.net'))
+        ? jidNormalizedUser(messageKey.participantPn)
+        : lookupLidToPn(messageKey?.participant || rawRemoteJid);
+    return {
+      isGroup: true,
+      chatJid: rawRemoteJid,
+      senderJid: resolvedSender,
+      phoneNumber: resolvedSender.split('@')[0].split(':')[0].replace(/\D/g, '')
+    };
+  }
+
+  const resolvedPrivateJid =
+    (typeof messageKey?.senderPn === 'string' && messageKey.senderPn.includes('@s.whatsapp.net'))
+      ? jidNormalizedUser(messageKey.senderPn)
+      : (typeof messageKey?.remoteJidAlt === 'string' && messageKey.remoteJidAlt.includes('@s.whatsapp.net'))
+        ? jidNormalizedUser(messageKey.remoteJidAlt)
+        : lookupLidToPn(rawRemoteJid);
+
+  return {
+    isGroup: false,
+    chatJid: resolvedPrivateJid,
+    senderJid: resolvedPrivateJid,
+    phoneNumber: resolvedPrivateJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+  };
+}
+
+// --- serialisasi pesan menggunakan system/serialize.js atau serializer bawaan dengan resolusi senderPn/participantPn ---
 async function serializeIncomingMessage(coreModules, client, rawMessage, customPrefixesStr = '') {
+  const resolvedIdentity = resolvePhoneJidFromBaileysKey(rawMessage?.key, coreModules);
+
   if (typeof coreModules.serialize === 'function') {
     try {
       const serialized = await coreModules.serialize(client, rawMessage, coreModules.store);
       if (serialized && typeof serialized === 'object') {
         if (!serialized.command && serialized.cmd) serialized.command = serialized.cmd;
+        if (!resolvedIdentity.isGroup && resolvedIdentity.chatJid.endsWith('@s.whatsapp.net')) {
+          serialized.chat = resolvedIdentity.chatJid;
+        }
+        if (resolvedIdentity.senderJid.endsWith('@s.whatsapp.net')) {
+          serialized.sender = resolvedIdentity.senderJid;
+        }
         if (typeof serialized.reply !== 'function') {
           Object.defineProperty(serialized, 'reply', {
             value: async (text) =>
-              await client.sendMessage(serialized.chat || rawMessage.key.remoteJid, { text: String(text) }, { quoted: rawMessage }),
+              await client.sendMessage(serialized.chat || resolvedIdentity.chatJid, { text: String(text) }, { quoted: rawMessage }),
             configurable: true
           });
         }
@@ -1291,9 +1366,9 @@ async function serializeIncomingMessage(coreModules, client, rawMessage, customP
     }
   }
 
-  const chat = rawMessage.key.remoteJid;
+  const chat = resolvedIdentity.chatJid || rawMessage.key.remoteJid;
   const fromMe = Boolean(rawMessage.key.fromMe);
-  const sender = jidNormalizedUser(rawMessage.key.participant || chat);
+  const sender = resolvedIdentity.senderJid || jidNormalizedUser(rawMessage.key.participant || chat);
   const messageContent = rawMessage.message || {};
   const messageType =
     Object.keys(messageContent).find((key) => key !== 'messageContextInfo' && key !== 'senderKeyDistributionMessage') || '';
@@ -1348,7 +1423,7 @@ async function serializeIncomingMessage(coreModules, client, rawMessage, customP
     chat,
     sender,
     fromMe,
-    isGroup: chat.endsWith('@g.us'),
+    isGroup: resolvedIdentity.isGroup,
     mtype: messageType,
     msg: cloneSafeObject(messageContent[messageType]),
     body,
@@ -1708,7 +1783,7 @@ export async function startWhatsAppSession(
       }
     });
 
-    // --- router pesan masuk menuju wa live inbox, webhook, moderasi grup, auto-reply media, plugin, dan ai persona ---
+    // --- router pesan masuk menuju wa live inbox (berbasis phoneNumber), webhook, moderasi grup, auto-reply, plugin, dan ai persona ---
     client.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
 
@@ -1738,8 +1813,9 @@ export async function startWhatsAppSession(
           coreModules.database(client, messageItem);
         }
 
-        const remoteJid = messageItem.key.remoteJid;
-        if (remoteJid?.endsWith('@g.us') && typeof coreModules.metadata === 'function') {
+        const resolvedIdentity = resolvePhoneJidFromBaileysKey(messageItem.key, coreModules);
+        const remoteJid = resolvedIdentity.chatJid;
+        if (resolvedIdentity.isGroup && typeof coreModules.metadata === 'function') {
           if (!global.db?.metadata?.[remoteJid]) {
             await coreModules.metadata(client, remoteJid, false).catch(() => {});
           } else {
@@ -1754,13 +1830,15 @@ export async function startWhatsAppSession(
           currentDatabase.settings?.prefixConfig?.prefixes || ''
         );
 
+        const resolvedSenderJid = resolvedIdentity.senderJid || m.sender;
+        const resolvedSenderNumber = resolvedIdentity.phoneNumber || resolvedSenderJid.split('@')[0];
+
         if (!m.fromMe) {
           recordRealtimeActivityHit(m.command ? 'CMD' : 'MSG', m.command ? `/cmd/${m.command}` : '/api/whatsapp/incoming');
           currentDatabase.totalMessagesReceived += 1;
           incrementDailyTrafficRecord(currentDatabase, 'in');
-          const cleanSenderNumber = m.sender.split('@')[0];
-          if (!currentDatabase.uniqueUsers.includes(cleanSenderNumber)) {
-            currentDatabase.uniqueUsers.push(cleanSenderNumber);
+          if (resolvedSenderNumber && !currentDatabase.uniqueUsers.includes(resolvedSenderNumber)) {
+            currentDatabase.uniqueUsers.push(resolvedSenderNumber);
           }
           writeBotDatabaseAtomic(googleUserId, currentDatabase);
           emitUserStatsSnapshot(io, googleUserId, currentDatabase);
@@ -1775,18 +1853,20 @@ export async function startWhatsAppSession(
         }
 
         if (m.body) {
-          emitLog(googleUserId, 'MSG', `${m.fromMe ? '[OUT]' : '[IN]'} ${m.sender.split('@')[0]}: ${m.body.slice(0, 80)}`);
+          emitLog(googleUserId, 'MSG', `${m.fromMe ? '[OUT]' : '[IN]'} ${resolvedSenderNumber}: ${m.body.slice(0, 80)}`);
 
-          const isGroupChat = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
+          const isGroupChat = resolvedIdentity.isGroup;
           const resolvedChatName = isGroupChat
             ? (global.db?.metadata?.[remoteJid]?.subject || remoteJid.split('@')[0])
-            : (m.pushname || m.sender.split('@')[0]);
+            : (m.pushname || resolvedSenderNumber);
 
-          // --- rekam pesan ke wa live chat inbox real-time ---
+          // --- rekam pesan ke wa live chat inbox menggunakan phoneNumber (@s.whatsapp.net) atau @g.us ---
           recordLiveInboxMessage(io, googleUserId, {
             chatJid: remoteJid,
             chatName: resolvedChatName,
-            senderName: m.fromMe ? (currentDatabase.settings?.botName || 'Bot') : (m.pushname || m.sender.split('@')[0]),
+            senderName: m.fromMe
+              ? (currentDatabase.settings?.botName || 'Bot')
+              : (m.pushname || resolvedSenderNumber),
             fromMe: Boolean(m.fromMe),
             text: m.body,
             timestamp: Date.now()
@@ -1799,8 +1879,9 @@ export async function startWhatsAppSession(
               {
                 event: 'message.received',
                 botUserId: googleUserId,
-                chat: m.chat,
-                sender: m.sender,
+                chat: remoteJid,
+                sender: resolvedSenderJid,
+                phoneNumber: resolvedSenderNumber,
                 pushName: m.pushname || '',
                 isGroup: isGroupChat,
                 messageType: m.mtype || 'text',
@@ -1853,7 +1934,7 @@ export async function startWhatsAppSession(
 
               if (replyType !== 'text' && matchedReply.mediaUrl) {
                 await sendDirectWhatsAppMessage(io, googleUserId, {
-                  targetJid: m.chat,
+                  targetJid: remoteJid,
                   mediaType: replyType,
                   mediaUrl: matchedReply.mediaUrl,
                   caption: formattedReply,
@@ -1911,13 +1992,13 @@ export async function startWhatsAppSession(
                 const aiAnswer = await generateAiPersonaReply({
                   systemPrompt: currentDatabase.settings.aiSystemPrompt,
                   userMessage: m.body,
-                  senderName: m.pushname || m.sender.split('@')[0],
+                  senderName: m.pushname || resolvedSenderNumber,
                   botName: currentDatabase.settings.botName || CONFIG.platformName
                 });
                 if (aiAnswer) {
-                  await client.sendMessage(m.chat, { text: aiAnswer }, { quoted: messageItem });
+                  await client.sendMessage(remoteJid, { text: aiAnswer }, { quoted: messageItem });
                   recordRealtimeActivityHit('AI', '/api/whatsapp/ai-persona');
-                  emitLog(googleUserId, 'INFO', `[AI PERSONA] Menjawab ${m.sender.split('@')[0]} secara otomatis.`);
+                  emitLog(googleUserId, 'INFO', `[AI PERSONA] Menjawab ${resolvedSenderNumber} secara otomatis.`);
                 }
               } catch (aiErr) {
                 emitLog(googleUserId, 'WARN', `[AI PERSONA] Gagal memproses jawaban AI: ${aiErr.message}`);
