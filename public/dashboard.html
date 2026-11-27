@@ -182,7 +182,7 @@
       color: #94a3b8;
     }
 
-    /* --- pengaturan layout header agar judul xu core tetap proporsional di mobile & desktop --- */
+    /* --- pengaturan layout header agar judul xu core dan tab navigasi tetap rapi di mobile & desktop --- */
     .header-nav-pill {
       display: inline-flex;
       align-items: center;
@@ -199,8 +199,8 @@
     }
 
     .header-nav-btn {
-      width: 26px;
-      height: 26px;
+      width: 24px;
+      height: 24px;
       padding: 0;
     }
 
@@ -208,7 +208,7 @@
       .header-nav-btn {
         width: auto;
         height: auto;
-        padding: 4px 12px;
+        padding: 4px 11px;
       }
     }
 
@@ -220,9 +220,9 @@
 </head>
 <body class="bg-animated-cyber-grid min-h-screen flex flex-col selection:bg-slate-700 selection:text-white antialiased">
 
-  <!-- --- navbar utama sticky dengan pemicu command palette ctrl+k dan anti-overlap mobile --- -->
+  <!-- --- navbar utama sticky tanpa ikon pencarian agar rapi di mobile --- -->
   <header class="sticky top-0 z-40 flex items-center justify-between gap-1.5 sm:gap-3 w-full overflow-visible px-2 py-2 sm:px-6 sm:py-2.5 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80 shadow-[0_4px_24px_rgba(0,0,0,0.45)]">
-    <!-- --- grup kiri: logo orbital, teks xu core, dan 4 ikon navigasi workspace --- -->
+    <!-- --- grup kiri: logo orbital, teks xu core, dan navigasi tab workspace --- -->
     <div class="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
       <a href="/dashboard" class="flex items-center gap-1 sm:gap-2 shrink-0 select-none" aria-label="Xu Core">
         <!-- --- wadah ikon skener orbital svg bawaan dashboard --- -->
@@ -244,16 +244,22 @@
         <canvas id="headerBrandTextCanvas" class="brand-canvas" aria-hidden="true"></canvas>
       </a>
 
-      <!-- --- grup 4 ikon navigasi terpisah rapi di sebelah kanan logo --- -->
+      <!-- --- grup ikon navigasi workspace termasuk tab live chat --- -->
       <nav aria-label="Navigasi Workspace" class="header-nav-pill bg-slate-900/90 border border-slate-800/90 rounded-xl shadow-inner">
         <button id="navTabDashboard" type="button" onclick="switchWorkspaceTab('dashboard')" title="Dashboard" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
           <span class="hidden sm:inline">dash</span>
         </button>
 
-        <button id="navTabManage" type="button" onclick="switchWorkspaceTab('manage')" title="Kelola Bot & AI" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
+        <button id="navTabManage" type="button" onclick="switchWorkspaceTab('manage')" title="Kelola Bot & Config" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
           <span class="hidden sm:inline">kelola</span>
+        </button>
+
+        <button id="navTabChat" type="button" onclick="switchWorkspaceTab('chat')" title="Live Chat & WA Inbox" class="header-nav-btn relative flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          <span class="hidden sm:inline">chat</span>
+          <span id="navChatUnreadDot" class="hidden absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.9)]"></span>
         </button>
 
         <button id="navTabGateway" type="button" onclick="switchWorkspaceTab('gateway')" title="WA API Gateway" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
@@ -446,7 +452,7 @@
         </div>
       </div>
 
-      <!-- --- kartu panduan onboarding 3 langkah khusus user baru (hilang otomatis jika selesai atau ditutup) --- -->
+      <!-- --- kartu panduan onboarding 3 langkah khusus user baru --- -->
       <section id="onboardingProgressCard" class="hidden saas-glass-card rounded-2xl border accent-border p-4 sm:p-5 space-y-3.5 relative overflow-hidden">
         <div class="flex items-start justify-between gap-3">
           <div class="space-y-0.5 min-w-0">
@@ -690,11 +696,11 @@
         <!-- --- kolom kanan: grafik velocity beramplitudo tinggi, sistem real-time, 7-day traffic & cli terminal --- -->
         <div class="lg:col-span-7 flex flex-col gap-5">
 
-          <!-- --- kartu live api & bot traffic velocity dengan kanvas tinggi --- -->
+          <!-- --- kartu live api & bot traffic velocity (top active endpoints khusus admin) --- -->
           <div class="bg-[#0a0d14]/95 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-4 sm:p-5 space-y-4 shadow-[0_12px_36px_rgba(0,0,0,0.55)]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 font-mono-code text-xs font-semibold leading-snug">
-                Live Bot Traffic &amp; Endpoints Activity
+                Live Bot Traffic Activity
               </div>
               <div class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-950/90 border border-slate-800 font-mono-code">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -727,7 +733,7 @@
                 </div>
                 <div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-mono-code text-slate-300">
                   <span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                  <span>most hit APIs</span>
+                  <span>admin only</span>
                 </div>
               </div>
 
@@ -814,18 +820,24 @@
         </div>
       </section>
 
-      <!-- --- tampilan tab kelola bot: gui, visual auto-reply builder, preset ai, custom branding, broadcast, scheduler, katalog & export csv --- -->
+      <!-- --- tampilan tab kelola bot: gui, auto-reply builder, ai persona, config lanjutan, export/import json, foto profil, broadcast, scheduler, katalog & user/grup --- -->
       <section id="workspaceManageView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
 
         <!-- --- kartu konfigurasi bot gui, visual auto-reply builder & ai persona --- -->
         <div class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-5">
-          <div class="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-3.5">
+          <div class="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800/80 pb-3.5">
             <div>
               <h2 class="text-sm font-bold text-white flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full accent-bg"></span>
                 Konfigurasi Bot, Auto-Reply &amp; AI Persona
               </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5">kelola identitas bot, builder auto-reply visual tanpa ngoding, dan karakter AI</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">kelola identitas bot, builder auto-reply visual, dan karakter AI</p>
+            </div>
+            <!-- --- tombol backup & restore konfigurasi json --- -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <input id="configImportJsonInput" onchange="handleImportBotConfigFile(event)" type="file" accept="application/json,.json" class="hidden" />
+              <button type="button" onclick="exportBotConfigJson()" title="Export Pengaturan Bot (.json)" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code font-semibold text-slate-200 transition-all active:scale-95">Export JSON</button>
+              <button type="button" onclick="getEl('configImportJsonInput')?.click()" title="Restore Pengaturan Bot (.json)" class="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-[10px] font-mono-code font-semibold text-sky-300 transition-all active:scale-95">Import JSON</button>
             </div>
           </div>
 
@@ -874,7 +886,6 @@
                 </button>
               </div>
 
-              <!-- --- panel visual builder --- -->
               <div id="arVisualBuilderPanel" class="space-y-3">
                 <input id="arEditIndexInput" type="hidden" value="-1" />
 
@@ -923,13 +934,11 @@
                   </button>
                 </div>
 
-                <!-- --- daftar kartu aturan auto-reply aktif --- -->
                 <div id="arVisualRulesList" class="space-y-2 max-h-48 overflow-y-auto pr-1 pt-1 border-t border-slate-800/70">
                   <p class="text-[11px] font-mono-code text-slate-500 text-center py-2">Belum ada aturan Auto-Reply.</p>
                 </div>
               </div>
 
-              <!-- --- panel mode teks mentah (tersinkron dua arah dengan visual builder) --- -->
               <div id="arRawTextareaPanel" class="hidden space-y-1.5">
                 <label for="cfgAutoReplyInput" class="block text-[10px] font-mono-code text-slate-400">format: mode|kata=balasan atau mode|kata=caption|tipe|url</label>
                 <textarea id="cfgAutoReplyInput" oninput="syncVisualRulesFromRawTextarea()" rows="4" placeholder="exact|harga=Ketik .pricelist&#10;exact|katalog=Ini katalog kami|image|https://domain.com/katalog.jpg" class="w-full bg-slate-900/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-300 font-mono-code focus:outline-none transition-colors resize-none"></textarea>
@@ -1004,7 +1013,7 @@
           </div>
         </div>
 
-        <!-- --- kolom kanan kelola: broadcast anti-ban & custom branding profil whatsapp bot --- -->
+        <!-- --- kolom kanan kelola: broadcast anti-ban & foto profil whatsapp bot --- -->
         <div class="lg:col-span-5 flex flex-col gap-5">
 
           <!-- --- kartu broadcast grup anti-spam dengan spintax & preset kecepatan --- -->
@@ -1031,7 +1040,6 @@
                 </div>
               </div>
 
-              <!-- --- preset kecepatan anti-ban & jeda pengiriman broadcast --- -->
               <div class="rounded-xl bg-slate-950/65 border border-slate-800/80 p-3 space-y-2.5 text-xs">
                 <div class="flex items-center justify-between gap-2">
                   <div>
@@ -1064,7 +1072,7 @@
             </button>
           </div>
 
-          <!-- --- kartu custom branding per bot: ganti foto profil whatsapp dari web --- -->
+          <!-- --- kartu foto profil whatsapp bot --- -->
           <div class="saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-5 space-y-3.5">
             <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-3">
               <div>
@@ -1099,6 +1107,123 @@
             </button>
           </div>
 
+        </div>
+
+        <!-- --- kartu baru: editor pesan sistem bot (custom respon bawaan) --- -->
+        <div class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
+          <div class="flex items-start justify-between gap-2 border-b border-slate-800/80 pb-3.5">
+            <div>
+              <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                Editor Pesan Sistem Bot
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">sesuaikan gaya bahasa respon bawaan bot (formal bisnis atau santai komunitas)</p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 font-mono-code text-[9px] text-slate-400 shrink-0">cfg.mess</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="space-y-1">
+              <label for="cfgMsgWaitInput" class="block text-[10px] font-mono-code text-slate-400">pesan proses (wait)</label>
+              <input id="cfgMsgWaitInput" type="text" placeholder="Sedang diproses..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="cfgMsgLimitInput" class="block text-[10px] font-mono-code text-slate-400">limit habis (limit)</label>
+              <input id="cfgMsgLimitInput" type="text" placeholder="Limit harianmu habis..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="cfgMsgPremiumInput" class="block text-[10px] font-mono-code text-slate-400">khusus premium (premium)</label>
+              <input id="cfgMsgPremiumInput" type="text" placeholder="Khusus member premium..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="cfgMsgOwnerInput" class="block text-[10px] font-mono-code text-slate-400">khusus owner (owner)</label>
+              <input id="cfgMsgOwnerInput" type="text" placeholder="Khusus owner bot..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="cfgMsgGroupInput" class="block text-[10px] font-mono-code text-slate-400">khusus grup (group)</label>
+              <input id="cfgMsgGroupInput" type="text" placeholder="Hanya bisa dipakai di grup..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label for="cfgMsgPrivateInput" class="block text-[10px] font-mono-code text-slate-400">khusus chat pribadi (private)</label>
+              <input id="cfgMsgPrivateInput" type="text" placeholder="Hanya di chat pribadi..." class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            </div>
+          </div>
+
+          <button type="button" onclick="saveAdvancedBotSettings()" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border accent-border accent-text font-bold text-xs transition-all active:scale-95">
+            Simpan Pesan Sistem, Prefix, Menu &amp; Limit
+          </button>
+        </div>
+
+        <!-- --- kartu baru: pengaturan prefix, cooldown, anti-spam, tampilan .menu & limit harian --- -->
+        <div class="lg:col-span-5 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-6 space-y-4">
+          <div class="border-b border-slate-800/80 pb-3.5">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              Prefix, Cooldown, .menu &amp; Limit Harian
+            </h2>
+            <p class="text-[11px] text-slate-400 mt-0.5">kontrol proteksi spam, branding tampilan .menu, dan kuota limit otomatis</p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="space-y-1">
+                <label for="cfgPrefixesInput" class="block text-[10px] font-mono-code text-slate-400">simbol prefix</label>
+                <input id="cfgPrefixesInput" type="text" placeholder=".!/#" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="cfgCooldownSecInput" class="block text-[10px] font-mono-code text-slate-400">cooldown (detik)</label>
+                <input id="cfgCooldownSecInput" type="number" min="0" max="60" value="3" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="cfgSpamLimitInput" class="block text-[10px] font-mono-code text-slate-400">batas spam (per 10s)</label>
+                <input id="cfgSpamLimitInput" type="number" min="2" max="30" value="5" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+              </div>
+              <div class="space-y-1">
+                <label for="cfgSpamCooldownInput" class="block text-[10px] font-mono-code text-slate-400">jeda blokir spam (s)</label>
+                <input id="cfgSpamCooldownInput" type="number" min="5" max="300" value="15" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800/70 space-y-2">
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="space-y-1">
+                  <label for="cfgMenuHeaderInput" class="block text-[10px] font-mono-code text-slate-400">header .menu</label>
+                  <input id="cfgMenuHeaderInput" type="text" placeholder="© Xu Core Bot" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none" />
+                </div>
+                <div class="space-y-1">
+                  <label for="cfgMenuFooterInput" class="block text-[10px] font-mono-code text-slate-400">footer .menu</label>
+                  <input id="cfgMenuFooterInput" type="text" placeholder="Powered by Xu Core" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none" />
+                </div>
+              </div>
+              <div class="space-y-1">
+                <label for="cfgMenuThumbInput" class="block text-[10px] font-mono-code text-slate-400">url thumbnail .menu (opsional)</label>
+                <input id="cfgMenuThumbInput" type="url" placeholder="https://domain.com/banner-menu.jpg" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800/70 space-y-2.5">
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="space-y-1">
+                  <label for="cfgDefaultLimitInput" class="block text-[10px] font-mono-code text-slate-400">limit awal harian</label>
+                  <input id="cfgDefaultLimitInput" type="number" min="1" max="10000" value="25" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+                </div>
+                <div class="space-y-1">
+                  <label for="cfgResetHourInput" class="block text-[10px] font-mono-code text-slate-400">jam reset (0-23 WIB)</label>
+                  <input id="cfgResetHourInput" type="number" min="0" max="23" value="0" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-2.5 py-1.5 text-xs font-mono-code text-slate-200 focus:outline-none" />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between gap-2">
+                <label class="inline-flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
+                  <input id="cfgAutoResetLimitCheck" type="checkbox" checked class="w-3.5 h-3.5 accent-emerald-500 rounded" />
+                  <span>Auto-Reset Harian</span>
+                </label>
+                <button type="button" onclick="triggerResetAllUsersLimitNow()" class="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-[11px] transition-all active:scale-95">
+                  Reset Limit Semua User
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- --- kartu kirim pesan langsung instan --- -->
@@ -1302,6 +1427,81 @@
 
       </section>
 
+      <!-- --- tampilan tab baru: live chat (public live chat komunitas & wa live chat inbox) --- -->
+      <section id="workspaceChatView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- --- kolom kiri: public live chat antar seluruh user xu core --- -->
+        <div class="lg:col-span-5 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-5 flex flex-col h-[560px]">
+          <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+            <div class="min-w-0">
+              <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Public Live Chat
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5 truncate">obrolan publik real-time seluruh pengguna Xu Core</p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span id="publicChatCountBadge" class="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-300">0</span>
+              <button id="publicChatClearAdminBtn" type="button" onclick="clearPublicChatAdmin()" title="Bersihkan Public Chat (Admin)" class="hidden p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="publicChatMessagesList" class="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
+            <p class="text-xs font-mono-code text-slate-500 text-center py-6">Memuat obrolan publik...</p>
+          </div>
+
+          <form onsubmit="submitPublicChatMessage(event)" class="pt-3 border-t border-slate-800/80 flex items-center gap-2">
+            <input id="publicChatInput" type="text" maxlength="600" autocomplete="off" placeholder="Tulis pesan ke seluruh user Xu Core..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+            <button type="submit" class="px-3.5 py-2 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0">Kirim</button>
+          </form>
+        </div>
+
+        <!-- --- kolom kanan: wa live chat inbox (balas chat whatsapp masuk dari browser) --- -->
+        <div class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-5 flex flex-col h-[560px]">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                WhatsApp Live Chat Inbox
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">pantau chat masuk ke bot Anda dan balas langsung dari dashboard</p>
+            </div>
+            <span id="waInboxChatCountBadge" class="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-300">0 chat</span>
+          </div>
+
+          <div class="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3 min-h-0">
+            <!-- --- daftar kontak/grup masuk --- -->
+            <div class="sm:col-span-5 flex flex-col min-h-0 border-b sm:border-b-0 sm:border-r border-slate-800/80 pb-2 sm:pb-0 sm:pr-3">
+              <div id="waInboxChatList" class="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-36 sm:max-h-none">
+                <p class="text-[11px] font-mono-code text-slate-500 text-center py-6">Menunggu pesan WhatsApp masuk...</p>
+              </div>
+            </div>
+
+            <!-- --- ruang percakapan aktif & form balas --- -->
+            <div class="sm:col-span-7 flex flex-col min-h-0">
+              <div class="pb-2 mb-2 border-b border-slate-800/70 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <p id="waInboxActiveTitle" class="text-xs font-bold text-white truncate">Pilih percakapan</p>
+                  <p id="waInboxActiveJid" class="text-[10px] font-mono-code text-slate-500 truncate">-</p>
+                </div>
+              </div>
+
+              <div id="waInboxMessagesViewport" class="flex-1 overflow-y-auto space-y-2 pr-1">
+                <p class="text-[11px] font-mono-code text-slate-500 text-center py-8">Pilih chat di sebelah kiri untuk membaca dan membalas pesan.</p>
+              </div>
+
+              <form onsubmit="submitWaInboxReply(event)" class="pt-2.5 mt-2 border-t border-slate-800/80 flex items-center gap-2">
+                <input id="waInboxReplyInput" type="text" autocomplete="off" placeholder="Ketik balasan WhatsApp..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none" />
+                <button id="waInboxReplyBtn" type="submit" class="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0 disabled:opacity-60">Balas</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
       <!-- --- tampilan tab api gateway multi-media, webhook forwarder & webhook delivery logs --- -->
       <section id="workspaceGatewayView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
 
@@ -1319,7 +1519,6 @@
               <span id="gwApiKeyStatusBadge" class="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-400 shrink-0">BELUM ADA</span>
             </div>
 
-            <!-- --- input api key dengan tombol ikon mata dan copy polosan --- -->
             <div class="space-y-2">
               <label for="gwApiKeyInput" class="block text-[11px] font-semibold text-slate-300">API Key Aktif (Header: x-api-key)</label>
               <div class="flex items-center gap-2">
@@ -1454,13 +1653,11 @@
               </div>
             </div>
 
-            <!-- --- input teks / caption utama --- -->
             <div id="gwTextGroup" class="space-y-1.5">
               <label id="gwMessageLabel" for="gwMessageTextarea" class="block text-[11px] text-slate-300 font-semibold">Isi Pesan Teks</label>
               <textarea id="gwMessageTextarea" oninput="updateGatewayPayloadPreview()" rows="3" placeholder="Tulis isi pesan atau caption media... Mendukung {botName}, {date}, {time}" class="w-full bg-slate-950/80 border border-slate-800 focus:border-[var(--accent-main)] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none"></textarea>
             </div>
 
-            <!-- --- input media url atau unggah file lokal kompak --- -->
             <div id="gwMediaSourceGroup" class="hidden rounded-xl bg-slate-950/75 border border-slate-800 p-3.5 space-y-3">
               <div class="space-y-1.5">
                 <label for="gwMediaUrlInput" class="block text-[11px] text-slate-300 font-semibold">URL Media Langsung (HTTP/HTTPS)</label>
@@ -1489,7 +1686,6 @@
                 </div>
               </div>
 
-              <!-- --- opsi ptt khusus tipe audio / voice note --- -->
               <label id="gwAudioPttWrap" for="gwAudioPttCheck" class="hidden items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800 cursor-pointer">
                 <div>
                   <p class="text-[11px] font-semibold text-slate-200">Kirim sebagai Voice Note (PTT)</p>
@@ -1498,7 +1694,6 @@
                 <input id="gwAudioPttCheck" onchange="updateGatewayPayloadPreview()" type="checkbox" checked class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" />
               </label>
 
-              <!-- --- opsi nama file & mimetype khusus tipe document --- -->
               <div id="gwDocumentMetaWrap" class="hidden grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div class="space-y-1">
                   <label for="gwDocFileNameInput" class="block text-[10px] font-mono-code text-slate-400">nama file dokumen</label>
@@ -1511,7 +1706,6 @@
               </div>
             </div>
 
-            <!-- --- input koordinat lokasi khusus tipe location --- -->
             <div id="gwLocationGroup" class="hidden rounded-xl bg-slate-950/75 border border-slate-800 p-3.5 space-y-2.5">
               <div class="grid grid-cols-2 gap-2.5">
                 <div class="space-y-1">
@@ -1529,7 +1723,6 @@
               </div>
             </div>
 
-            <!-- --- input vcard kontak khusus tipe contact --- -->
             <div id="gwContactGroup" class="hidden rounded-xl bg-slate-950/75 border border-slate-800 p-3.5 grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div class="space-y-1">
                 <label for="gwContactNameInput" class="block text-[10px] font-mono-code text-slate-400">nama kontak</label>
@@ -1546,7 +1739,6 @@
               <input id="gwMentionAllCheck" onchange="updateGatewayPayloadPreview()" type="checkbox" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer" />
             </label>
 
-            <!-- --- pratinjau payload default json dengan dropdown javascript/curl dan ikon copy polosan --- -->
             <div class="rounded-xl bg-black/80 border border-slate-800 p-3 space-y-2">
               <div class="flex items-center justify-between gap-2">
                 <span class="text-[10px] font-mono-code text-slate-400 uppercase truncate">pratinjau payload</span>
@@ -1689,7 +1881,7 @@
             <span class="font-heading-modern text-sm font-extrabold tracking-wide text-white">Xu Core</span>
           </div>
           <p class="text-xs text-slate-400 leading-relaxed max-w-sm">
-            Platform panel automasi bot WhatsApp modern dengan isolasi sesi kontainer server, AI persona, API gateway, dan pemantauan trafik real-time.
+            Platform panel automasi bot WhatsApp modern dengan isolasi sesi kontainer server, AI persona, API gateway, live chat, dan pemantauan trafik real-time.
           </p>
         </div>
 
@@ -2023,11 +2215,15 @@
     let gwCopySnippetResetTimer = null;
     let pairingCopyResetTimer = null;
 
-    // --- state 7 fitur upgrade: auto-reply visual, branding, webhook logs & command palette ---
+    // --- state fitur upgrade: auto-reply visual, branding avatar, webhook logs, live chat & command palette ---
     let visualAutoReplyRules = [];
     let isAutoReplyRawMode = false;
     let brandingAvatarBase64Payload = '';
     let webhookDeliveryLogsCache = [];
+    let publicChatMessagesCache = [];
+    let waLiveInboxCache = [];
+    let activeWaInboxJid = '';
+    let activeWorkspaceTab = 'dashboard';
     let isCommandPaletteOpen = false;
     let cmdPaletteSelectedIndex = 0;
     let cmdPaletteFilteredActions = [];
@@ -2071,7 +2267,7 @@
       }
       try {
         await navigator.clipboard.writeText(cleanText);
-        // showCyberToast(successTitle, 'Teks berhasil disalin ke clipboard.', 'info');
+        showCyberToast(successTitle, 'Teks berhasil disalin ke clipboard.', 'info');
         return true;
       } catch {
         showCyberToast('Gagal Menyalin', 'Izin clipboard ditolak browser.', 'danger');
@@ -2095,6 +2291,17 @@
         hour12: false
       }).format(new Date(parsedMs)).replace('.', ':');
       return `${datePart}, ${timePart} WIB`;
+    }
+
+    function formatWibTimeOnly(timestampMs) {
+      const parsedMs = Number(timestampMs || 0);
+      if (!parsedMs) return '--:--';
+      return new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(new Date(parsedMs)).replace('.', ':');
     }
 
     function updateButtonGroupState(selector, dataAttr, activeValue, activeClass, inactiveClass) {
@@ -2344,7 +2551,7 @@
       showCyberToast(isError ? 'Peringatan' : 'Sistem', messageText, isError ? 'danger' : 'success');
     }
 
-    // --- fitur upgrade 1: onboarding progress card khusus user baru ---
+    // --- kartu panduan onboarding 3 langkah khusus user baru ---
     function isOnboardingDismissed() {
       try {
         return localStorage.getItem(ONBOARDING_DISMISSED_STORAGE_KEY) === '1';
@@ -2414,7 +2621,234 @@
       updateOnboardingStepBadge('onboardStep3Icon', 3, step3Done);
     }
 
-    // --- fitur upgrade 2: visual auto-reply builder (sinkron dua arah dengan textarea) ---
+    // --- public live chat antar seluruh user xu core ---
+    function renderPublicChatMessages() {
+      const container = getEl('publicChatMessagesList');
+      const badge = getEl('publicChatCountBadge');
+      if (badge) badge.textContent = String(publicChatMessagesCache.length);
+      if (!container) return;
+
+      if (publicChatMessagesCache.length === 0) {
+        container.innerHTML = '<p class="text-xs font-mono-code text-slate-500 text-center py-8">Belum ada pesan di ruang obrolan publik. Mulai sapa pengguna lain!</p>';
+        return;
+      }
+
+      container.innerHTML = publicChatMessagesCache.map((msg) => {
+        const isMine = msg.userId === currentGoogleUserId;
+        const avatar = msg.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.name || 'U')}&background=0f172a&color=10b981`;
+        const adminBadge = msg.isAdmin
+          ? '<span class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/35 text-amber-300 font-mono-code text-[8px] font-bold">ADMIN</span>'
+          : '';
+        const deleteBtn = isCurrentUserAdmin
+          ? `<button type="button" data-id="${escapeHtmlString(msg.id)}" onclick="deletePublicChatMessageAdmin(this.dataset.id)" title="Hapus Pesan" class="text-[9px] text-rose-400 hover:text-rose-300 ml-1">✕</button>`
+          : '';
+
+        return `
+          <div class="flex items-start gap-2 ${isMine ? 'flex-row-reverse' : ''}">
+            <img src="${escapeHtmlString(avatar)}" alt="U" class="w-7 h-7 rounded-full object-cover border border-slate-700 shrink-0 mt-0.5" />
+            <div class="max-w-[82%] rounded-xl px-3 py-2 text-xs ${isMine ? 'bg-emerald-500/15 border border-emerald-500/30 text-slate-100' : 'bg-slate-950/90 border border-slate-800 text-slate-200'}">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="font-bold text-[11px] ${isMine ? 'text-emerald-300' : 'text-white'} truncate">${escapeHtmlString(msg.name || 'User')}</span>
+                  ${adminBadge}
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <span class="text-[9px] font-mono-code text-slate-500">${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</span>
+                  ${deleteBtn}
+                </div>
+              </div>
+              <p class="text-[11px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text)}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function submitPublicChatMessage(event) {
+      if (event) event.preventDefault();
+      const input = getEl('publicChatInput');
+      const text = String(input?.value || '').trim();
+      if (!text) return;
+      socketClient.emit('public:chat:send', { text });
+      if (input) input.value = '';
+    }
+
+    function deletePublicChatMessageAdmin(messageId) {
+      if (!isCurrentUserAdmin || !messageId) return;
+      socketClient.emit('public:chat:delete', { id: messageId });
+    }
+
+    function clearPublicChatAdmin() {
+      if (!isCurrentUserAdmin) return;
+      socketClient.emit('public:chat:clear');
+      showCyberToast('Public Chat', 'Seluruh pesan ruang obrolan publik dibersihkan.', 'info');
+    }
+
+    // --- wa live chat inbox (balas chat whatsapp langsung dari browser) ---
+    function syncChatUnreadIndicator() {
+      const dot = getEl('navChatUnreadDot');
+      if (!dot) return;
+      const totalUnread = waLiveInboxCache.reduce((sum, chat) => sum + Number(chat.unreadCount || 0), 0);
+      dot.classList.toggle('hidden', totalUnread <= 0 || activeWorkspaceTab === 'chat');
+    }
+
+    function renderWaLiveInboxUI() {
+      const listEl = getEl('waInboxChatList');
+      const countBadge = getEl('waInboxChatCountBadge');
+      if (countBadge) countBadge.textContent = `${waLiveInboxCache.length} chat`;
+      syncChatUnreadIndicator();
+
+      if (!listEl) return;
+      if (waLiveInboxCache.length === 0) {
+        listEl.innerHTML = '<p class="text-[11px] font-mono-code text-slate-500 text-center py-6">Menunggu pesan WhatsApp masuk...</p>';
+        return;
+      }
+
+      if (!activeWaInboxJid || !waLiveInboxCache.some((c) => c.jid === activeWaInboxJid)) {
+        activeWaInboxJid = waLiveInboxCache[0].jid;
+      }
+
+      listEl.innerHTML = waLiveInboxCache.map((chat) => {
+        const isSelected = chat.jid === activeWaInboxJid;
+        const unreadBadge = chat.unreadCount > 0
+          ? `<span class="px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-mono-code text-[9px] font-bold shrink-0">${chat.unreadCount}</span>`
+          : '';
+        return `
+          <button type="button" data-jid="${escapeHtmlString(chat.jid)}" onclick="selectWaInboxChat(this.dataset.jid)" class="w-full text-left rounded-xl px-3 py-2 border transition-all ${isSelected ? 'bg-slate-800/90 accent-border' : 'bg-slate-950/75 border-slate-800/80 hover:bg-slate-900'}">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs font-bold text-white truncate">${escapeHtmlString(chat.name || chat.jid.split('@')[0])}</p>
+              <span class="text-[9px] font-mono-code text-slate-500 shrink-0">${escapeHtmlString(formatWibTimeOnly(chat.lastTimestamp))}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 mt-0.5">
+              <p class="text-[10px] text-slate-400 truncate">${escapeHtmlString(chat.lastMessage || '-')}</p>
+              ${unreadBadge}
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      renderActiveWaInboxMessages();
+    }
+
+    function selectWaInboxChat(chatJid) {
+      activeWaInboxJid = chatJid;
+      socketClient.emit('inbox:read', { chatJid });
+      renderWaLiveInboxUI();
+    }
+
+    function renderActiveWaInboxMessages() {
+      const titleEl = getEl('waInboxActiveTitle');
+      const jidEl = getEl('waInboxActiveJid');
+      const viewport = getEl('waInboxMessagesViewport');
+      if (!viewport) return;
+
+      const activeChat = waLiveInboxCache.find((c) => c.jid === activeWaInboxJid);
+      if (!activeChat) {
+        if (titleEl) titleEl.textContent = 'Pilih percakapan';
+        if (jidEl) jidEl.textContent = '-';
+        viewport.innerHTML = '<p class="text-[11px] font-mono-code text-slate-500 text-center py-8">Pilih chat di sebelah kiri untuk membaca dan membalas pesan.</p>';
+        return;
+      }
+
+      if (titleEl) titleEl.textContent = activeChat.name || activeChat.jid.split('@')[0];
+      if (jidEl) jidEl.textContent = activeChat.jid;
+
+      const msgs = Array.isArray(activeChat.messages) ? activeChat.messages : [];
+      if (msgs.length === 0) {
+        viewport.innerHTML = '<p class="text-[11px] font-mono-code text-slate-500 text-center py-8">Belum ada pesan di percakapan ini.</p>';
+        return;
+      }
+
+      viewport.innerHTML = msgs.map((m) => `
+        <div class="flex ${m.fromMe ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-[85%] rounded-xl px-3 py-2 text-xs ${m.fromMe ? 'bg-sky-500/20 border border-sky-500/35 text-slate-100' : 'bg-slate-950/90 border border-slate-800 text-slate-200'}">
+            <div class="flex items-center justify-between gap-2 mb-0.5">
+              <span class="text-[10px] font-bold ${m.fromMe ? 'text-sky-300' : 'text-emerald-300'}">${escapeHtmlString(m.senderName || (m.fromMe ? 'Bot' : 'User'))}</span>
+              <span class="text-[9px] font-mono-code text-slate-500">${escapeHtmlString(formatWibTimeOnly(m.timestamp))}</span>
+            </div>
+            <p class="text-[11px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(m.text)}</p>
+          </div>
+        </div>
+      `).join('');
+
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    function submitWaInboxReply(event) {
+      if (event) event.preventDefault();
+      if (!activeWaInboxJid) {
+        showCyberToast('Pilih Chat', 'Pilih salah satu percakapan di daftar kiri terlebih dahulu.', 'danger');
+        return;
+      }
+      const input = getEl('waInboxReplyInput');
+      const btn = getEl('waInboxReplyBtn');
+      const message = String(input?.value || '').trim();
+      if (!message) return;
+
+      if (btn) btn.disabled = true;
+      socketClient.emit('inbox:reply', { chatJid: activeWaInboxJid, message });
+      if (input) input.value = '';
+    }
+
+    // --- backup & restore konfigurasi bot (.json) & reset limit 1-klik ---
+    function exportBotConfigJson() {
+      socketClient.emit('config:export');
+    }
+
+    function handleImportBotConfigFile(event) {
+      const file = event?.target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || '{}'));
+          socketClient.emit('config:import', { config: parsed });
+        } catch {
+          showCyberToast('File Tidak Valid', 'Pastikan file yang dipilih berformat JSON yang benar.', 'danger');
+        }
+        if (event.target) event.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    function triggerResetAllUsersLimitNow() {
+      const defaultLimit = parseInt(getEl('cfgDefaultLimitInput')?.value || '25', 10) || 25;
+      socketClient.emit('manage:users:resetLimit', { defaultLimit });
+    }
+
+    function saveAdvancedBotSettings() {
+      socketClient.emit('settings:update', {
+        customMessages: {
+          wait: String(getEl('cfgMsgWaitInput')?.value || '').trim(),
+          limit: String(getEl('cfgMsgLimitInput')?.value || '').trim(),
+          premium: String(getEl('cfgMsgPremiumInput')?.value || '').trim(),
+          owner: String(getEl('cfgMsgOwnerInput')?.value || '').trim(),
+          group: String(getEl('cfgMsgGroupInput')?.value || '').trim(),
+          private: String(getEl('cfgMsgPrivateInput')?.value || '').trim()
+        },
+        prefixConfig: {
+          prefixes: String(getEl('cfgPrefixesInput')?.value || '.!/#').trim(),
+          cooldownSeconds: Number(getEl('cfgCooldownSecInput')?.value || 3),
+          spamLimit: Number(getEl('cfgSpamLimitInput')?.value || 5),
+          spamCooldownSeconds: Number(getEl('cfgSpamCooldownInput')?.value || 15)
+        },
+        menuConfig: {
+          header: String(getEl('cfgMenuHeaderInput')?.value || '').trim(),
+          footer: String(getEl('cfgMenuFooterInput')?.value || '').trim(),
+          thumbnailUrl: String(getEl('cfgMenuThumbInput')?.value || '').trim()
+        },
+        limitConfig: {
+          defaultLimit: parseInt(getEl('cfgDefaultLimitInput')?.value || '25', 10) || 25,
+          resetHourWib: parseInt(getEl('cfgResetHourInput')?.value || '0', 10) || 0,
+          autoResetEnabled: Boolean(getEl('cfgAutoResetLimitCheck')?.checked)
+        }
+      });
+    }
+
+    // --- visual auto-reply builder (sinkron dua arah dengan textarea) ---
     function parseAutoReplyLinesToArray(rawText) {
       return String(rawText || '')
         .split('\n')
@@ -2619,7 +3053,7 @@
       showCyberToast('Rule Dihapus', `Aturan "${removed?.trigger || '-'}" dihapus dari daftar.`, 'info');
     }
 
-    // --- fitur upgrade 3: preset template 1-klik untuk ai persona & welcome grup ---
+    // --- preset template 1-klik untuk ai persona & welcome grup ---
     function applyAiPersonaPreset(presetKey) {
       const presets = {
         cs: 'Kamu adalah Customer Service ramah dari toko kami. Jawab pertanyaan pelanggan dengan singkat, sopan, informatif, dan selalu akhiri dengan menawarkan bantuan terkait produk, harga, atau cara pemesanan. Jam operasional: 08:00 - 22:00 WIB.',
@@ -2652,23 +3086,25 @@
       showCyberToast('Preset Welcome', 'Template pesan selamat datang diterapkan.', 'info');
     }
 
-    // --- fitur upgrade 4: command palette (ctrl + k) & keyboard navigation ---
+    // --- command palette (ctrl + k) & keyboard navigation ---
     function getCommandPaletteActions() {
       const actions = [
         { id: 'tab-dash', group: 'Navigasi', title: 'Buka Tab Dashboard', desc: 'Lihat metrik, koneksi WA, grafik & terminal CLI', run: () => switchWorkspaceTab('dashboard') },
-        { id: 'tab-manage', group: 'Navigasi', title: 'Buka Tab Kelola Bot & AI', desc: 'Visual Auto-Reply Builder, AI Persona, Branding & User', run: () => switchWorkspaceTab('manage') },
+        { id: 'tab-manage', group: 'Navigasi', title: 'Buka Tab Kelola Bot & Config', desc: 'Auto-Reply, Pesan Sistem, Prefix, Menu, Limit & User', run: () => switchWorkspaceTab('manage') },
+        { id: 'tab-chat', group: 'Navigasi', title: 'Buka Tab Live Chat & WA Inbox', desc: 'Public Live Chat komunitas & balas WA dari browser', run: () => switchWorkspaceTab('chat') },
         { id: 'tab-api', group: 'Navigasi', title: 'Buka Tab API Gateway & Webhook', desc: 'Kelola API Key, Webhook Forwarder & Delivery Logs', run: () => switchWorkspaceTab('gateway') }
       ];
 
       if (isCurrentUserAdmin) {
         actions.push(
           { id: 'tab-ide', group: 'Admin', title: 'Buka Plugin IDE', desc: 'Edit, validasi, dan hot-reload plugin JavaScript', run: () => switchWorkspaceTab('developer') },
-          { id: 'open-admin', group: 'Admin', title: 'Buka Panel Admin Eksklusif', desc: 'Monitor sesi global, voucher & perpanjangan', run: () => { window.location.href = '/admin'; } },
+          { id: 'open-admin', group: 'Admin', title: 'Buka Panel Admin Eksklusif', desc: 'Monitor sesi global, pengumuman, voucher & perpanjangan', run: () => { window.location.href = '/admin'; } },
           { id: 'backup-zip', group: 'Admin', title: 'Unduh Backup ZIP Platform', desc: 'Ekspor arsip database.json & folder plugins', run: () => downloadPlatformBackupZip() }
         );
       }
 
       actions.push(
+        { id: 'export-cfg', group: 'Aksi Cepat', title: 'Export Konfigurasi Bot (.json)', desc: 'Unduh backup seluruh pengaturan bot Anda', run: () => exportBotConfigJson() },
         { id: 'copy-uid', group: 'Aksi Cepat', title: 'Salin User ID Akun', desc: 'Salin ID akun Xu Core ke clipboard', run: () => copyCurrentGoogleId() },
         { id: 'sync-session', group: 'Aksi Cepat', title: 'Sinkronisasi Sesi & Statistik', desc: 'Muat ulang data real-time dari server', run: () => triggerManualSessionSync() },
         { id: 'redeem-voucher', group: 'Aksi Cepat', title: 'Redeem Kode Voucher', desc: 'Klaim kode trial atau bonus masa aktif', run: () => openVoucherRedeemModal() },
@@ -2793,7 +3229,7 @@
       });
     }
 
-    // --- fitur upgrade 5: webhook delivery logs real-time ---
+    // --- webhook delivery logs real-time ---
     function renderWebhookDeliveryLogs(logsInput) {
       if (Array.isArray(logsInput)) webhookDeliveryLogsCache = logsInput;
 
@@ -2841,7 +3277,7 @@
       socketClient.emit('webhook:logs:clear');
     }
 
-    // --- fitur upgrade 6: export daftar user & statistik ke csv ---
+    // --- export daftar user & statistik ke csv ---
     function escapeCsvCell(rawValue) {
       const str = String(rawValue ?? '');
       if (/[",\n\r]/.test(str)) {
@@ -2890,7 +3326,7 @@
       showCyberToast('Export CSV Berhasil', `${targetList.length} data user berhasil diunduh.`, 'success');
     }
 
-    // --- fitur upgrade 7: custom branding per bot (avatar & bio whatsapp dari web) ---
+    // --- foto profil whatsapp bot dari web ---
     function handleBrandingAvatarSelect(event) {
       const file = event?.target?.files?.[0];
       const infoEl = getEl('brandingAvatarFileInfo');
@@ -2927,12 +3363,11 @@
       const previewImg = getEl('brandingAvatarPreviewImg');
 
       if (fileInput) fileInput.value = '';
-      if (infoEl) infoEl.textContent = 'JPG/PNG/WebP maks 5 MB (opsional)';
+      if (infoEl) infoEl.textContent = 'JPG/PNG/WebP maks 5 MB';
       clearBtn?.classList.add('hidden');
       if (previewImg && botAvatar?.src) previewImg.src = botAvatar.src;
     }
 
-    // --- kirim pembaruan foto profil whatsapp bot ke server ---
     function submitBotWhatsappBranding() {
       if (!brandingAvatarBase64Payload) {
         showCyberToast('Foto Belum Dipilih', 'Pilih gambar foto profil terlebih dahulu.', 'danger');
@@ -3001,10 +3436,6 @@
           modalListEl.innerHTML = announcementsCache.map((item) => {
             const badge = getCategoryBadgeStyle(item.category);
             const isUnread = !readSet.has(item.id);
-            const deleteBtnHtml = isCurrentUserAdmin
-              ? `<button type="button" data-id="${escapeHtmlString(item.id)}" onclick="deleteSingleAnnouncement(this.dataset.id)" title="Hapus Pengumuman" class="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 font-mono-code transition-colors">Hapus</button>`
-              : '';
-
             return `
               <article class="rounded-xl bg-[#111726] border ${isUnread ? 'border-sky-500/35' : 'border-slate-800/90 opacity-85'} p-3 space-y-1.5 transition-all">
                 <div class="flex items-center justify-between gap-2">
@@ -3012,7 +3443,6 @@
                     <span class="px-2 py-0.5 rounded font-mono-code text-[9px] font-bold uppercase tracking-wider ${badge.cls}">${badge.label}</span>
                     ${isUnread ? '<span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>' : ''}
                   </div>
-                  ${deleteBtnHtml}
                 </div>
                 <p class="text-[10px] font-mono-code text-slate-400 leading-none pt-0.5">${escapeHtmlString(formatWibDateTime(item.createdAt))}</p>
                 <h4 class="text-xs font-bold text-white leading-snug">${escapeHtmlString(item.title || 'Pengumuman / Update Panel')}</h4>
@@ -3067,11 +3497,6 @@
       saveReadAnnouncementIdsSet(readSet);
       renderAnnouncementsCenterUI(announcementsCache);
       showCyberToast('Notifikasi', 'Semua pemberitahuan ditandai sudah dibaca.', 'info');
-    }
-
-    function deleteSingleAnnouncement(announcementId) {
-      if (!announcementId) return;
-      socketClient.emit('announcement:delete', { id: announcementId });
     }
 
     // --- grafik high-amplitude: traffic velocity, cpu heartbeat, dan 7-day traffic series ---
@@ -3469,9 +3894,12 @@
         return;
       }
 
+      activeWorkspaceTab = targetTab;
+
       const views = {
         dashboard: getEl('workspaceDashboardView'),
         manage: getEl('workspaceManageView'),
+        chat: getEl('workspaceChatView'),
         gateway: getEl('workspaceGatewayView'),
         developer: getEl('workspaceDeveloperView')
       };
@@ -3479,12 +3907,13 @@
       const buttons = {
         dashboard: getEl('navTabDashboard'),
         manage: getEl('navTabManage'),
+        chat: getEl('navTabChat'),
         gateway: getEl('navTabGateway'),
         developer: getEl('navTabDeveloper')
       };
 
-      const activeTabClasses = 'header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm';
-      const inactiveTabClasses = 'header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap';
+      const activeTabClasses = 'header-nav-btn relative flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm';
+      const inactiveTabClasses = 'header-nav-btn relative flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap';
 
       for (const [key, sectionEl] of Object.entries(views)) {
         if (!sectionEl) continue;
@@ -3509,10 +3938,18 @@
         renderFeatureCatalogUI();
         renderVisualAutoReplyRules();
       }
+      if (targetTab === 'chat') {
+        socketClient.emit('public:chat:list');
+        socketClient.emit('inbox:list');
+        renderPublicChatMessages();
+        renderWaLiveInboxUI();
+      }
       if (targetTab === 'gateway') {
         updateGatewayPayloadPreview();
         renderWebhookDeliveryLogs(webhookDeliveryLogsCache);
       }
+
+      syncChatUnreadIndicator();
     }
 
     function switchAuthMode(mode) {
@@ -4235,6 +4672,10 @@
       currentGroupConfigsMap = settingsObj.groupConfigs && typeof settingsObj.groupConfigs === 'object' ? settingsObj.groupConfigs : {};
 
       const serializedAutoReplies = serializeAutoReplyArrayToLines(settingsObj.autoReplies || []);
+      const customMsgs = settingsObj.customMessages || {};
+      const prefixCfg = settingsObj.prefixConfig || {};
+      const menuCfg = settingsObj.menuConfig || {};
+      const limitCfg = settingsObj.limitConfig || {};
 
       const fieldPairs = [
         ['cfgBotNameInput', settingsObj.botName || ''],
@@ -4245,7 +4686,22 @@
         ['cfgAiSystemPromptInput', settingsObj.aiSystemPrompt || ''],
         ['gwWebhookUrlInput', settingsObj.webhookUrl || ''],
         ['gwWebhookSecretInput', settingsObj.webhookSecret || ''],
-        ['cfgAutoReplyInput', serializedAutoReplies]
+        ['cfgAutoReplyInput', serializedAutoReplies],
+        ['cfgMsgWaitInput', customMsgs.wait || ''],
+        ['cfgMsgLimitInput', customMsgs.limit || ''],
+        ['cfgMsgPremiumInput', customMsgs.premium || ''],
+        ['cfgMsgOwnerInput', customMsgs.owner || ''],
+        ['cfgMsgGroupInput', customMsgs.group || ''],
+        ['cfgMsgPrivateInput', customMsgs.private || ''],
+        ['cfgPrefixesInput', prefixCfg.prefixes || '.!/#'],
+        ['cfgCooldownSecInput', String(prefixCfg.cooldownSeconds ?? 3)],
+        ['cfgSpamLimitInput', String(prefixCfg.spamLimit ?? 5)],
+        ['cfgSpamCooldownInput', String(prefixCfg.spamCooldownSeconds ?? 15)],
+        ['cfgMenuHeaderInput', menuCfg.header || ''],
+        ['cfgMenuFooterInput', menuCfg.footer || ''],
+        ['cfgMenuThumbInput', menuCfg.thumbnailUrl || ''],
+        ['cfgDefaultLimitInput', String(limitCfg.defaultLimit ?? 25)],
+        ['cfgResetHourInput', String(limitCfg.resetHourWib ?? 0)]
       ];
 
       fieldPairs.forEach(([id, val]) => {
@@ -4271,6 +4727,7 @@
       if (getEl('cfgAllowedPcCheck')) getEl('cfgAllowedPcCheck').checked = settingsObj.allowedPc ?? true;
       if (getEl('cfgAiEnabledCheck')) getEl('cfgAiEnabledCheck').checked = Boolean(settingsObj.isAiEnabled);
       if (getEl('cfgAiGroupReplyCheck')) getEl('cfgAiGroupReplyCheck').checked = Boolean(settingsObj.aiGroupAutoReply);
+      if (getEl('cfgAutoResetLimitCheck')) getEl('cfgAutoResetLimitCheck').checked = limitCfg.autoResetEnabled ?? true;
 
       updateAiPersonaBadgesUI(Boolean(settingsObj.isAiEnabled));
       renderFeatureCatalogUI();
@@ -5180,13 +5637,13 @@
       updateEditorLineNumbers();
     }
 
-    function selectPluginForEditing(fileName) {
+    function selectPluginForEditing(fileName, showToast = true) {
       const found = loadedPluginsCache.find((item) => item.fileName === fileName);
       if (!found) return;
       getEl('pluginFileNameInput').value = found.fileName;
       getEl('pluginCodeEditorTextarea').value = found.codeContent ?? '';
       updateEditorLineNumbers();
-      showTopToast(`Membuka ${found.fileName}`);
+      if (showToast) showTopToast(`Membuka ${found.fileName}`);
     }
 
     function prepareNewPluginTemplate() {
@@ -5307,6 +5764,65 @@ export default {
     socketClient.on('admin:sessions:data', (snapshot) => safeExecute(() => syncFromGlobalMonitorSnapshot(snapshot), 'admin:sessions:data'));
     socketClient.on('webhook:logs:update', (logs) => safeExecute(() => renderWebhookDeliveryLogs(logs), 'webhook:logs:update'));
 
+    // --- listener public live chat & wa live chat inbox ---
+    socketClient.on('public:chat:history', (list) => {
+      publicChatMessagesCache = Array.isArray(list) ? list : [];
+      renderPublicChatMessages();
+    });
+
+    socketClient.on('public:chat:message', (msg) => {
+      if (!msg?.id) return;
+      publicChatMessagesCache = [...publicChatMessagesCache, msg].slice(-80);
+      renderPublicChatMessages();
+    });
+
+    socketClient.on('inbox:update', (list) => {
+      waLiveInboxCache = Array.isArray(list) ? list : [];
+      renderWaLiveInboxUI();
+    });
+
+    socketClient.on('inbox:reply:result', (res) => {
+      const btn = getEl('waInboxReplyBtn');
+      if (btn) btn.disabled = false;
+      if (!res?.isSuccess) {
+        showCyberToast('Balasan Gagal', res?.errorMessage || 'Pastikan bot sedang ONLINE.', 'danger');
+      }
+    });
+
+    // --- listener export/import config json & reset limit 1-klik ---
+    socketClient.on('config:export:result', (res) => {
+      if (!res?.isSuccess || !res.data) {
+        showCyberToast('Export Gagal', 'Gagal mengekspor konfigurasi bot.', 'danger');
+        return;
+      }
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `xu-core-config-${stamp}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      showCyberToast('Export Berhasil', 'File konfigurasi JSON berhasil diunduh.', 'success');
+    });
+
+    socketClient.on('config:import:result', (res) => {
+      if (res?.isSuccess) {
+        if (res.settings) populateSettingsForm(res.settings);
+        showCyberToast('Import Berhasil', 'Seluruh konfigurasi bot berhasil dipulihkan dari JSON.', 'success');
+      } else {
+        showCyberToast('Import Gagal', res?.errorMessage || 'File JSON tidak valid.', 'danger');
+      }
+    });
+
+    socketClient.on('manage:users:resetLimit:result', (res) => {
+      if (res?.isSuccess) {
+        showCyberToast('Limit Direset', `Limit ${res.affectedCount} user berhasil direset ke ${res.defaultLimit}.`, 'success');
+      }
+    });
+
     socketClient.on('bot:branding:result', (res) => {
       const btn = getEl('brandingSubmitBtn');
       if (btn) btn.disabled = false;
@@ -5340,6 +5856,7 @@ export default {
       const roleBadge = getEl('navRoleBadge');
       const backupMenuBtn = getEl('navBackupZipMenuBtn');
       const topEndpointsSection = getEl('topActiveEndpointsSection');
+      const publicChatClearBtn = getEl('publicChatClearAdminBtn');
       const devView = getEl('workspaceDeveloperView');
       const adminPanelLink = getEl('navAdminPanelLink');
 
@@ -5347,10 +5864,12 @@ export default {
         if (ideBtn) { ideBtn.classList.remove('hidden'); ideBtn.classList.add('flex'); }
         if (backupMenuBtn) { backupMenuBtn.classList.remove('hidden'); backupMenuBtn.classList.add('flex'); }
         if (topEndpointsSection) topEndpointsSection.classList.remove('hidden');
+        if (publicChatClearBtn) publicChatClearBtn.classList.remove('hidden');
       } else {
         if (ideBtn) ideBtn.remove();
         if (backupMenuBtn) backupMenuBtn.remove();
         if (topEndpointsSection) topEndpointsSection.remove();
+        if (publicChatClearBtn) publicChatClearBtn.remove();
         if (devView) devView.remove();
         if (adminPanelLink) adminPanelLink.remove();
       }
@@ -5383,7 +5902,12 @@ export default {
 
       featureCatalogCache = payload.catalog || [];
       scheduledMessagesCache = Array.isArray(payload.schedules) ? payload.schedules : [];
+      publicChatMessagesCache = Array.isArray(payload.publicChatMessages) ? payload.publicChatMessages : [];
+      waLiveInboxCache = Array.isArray(payload.liveInbox) ? payload.liveInbox : [];
+
       renderScheduledMessagesGrid();
+      renderPublicChatMessages();
+      renderWaLiveInboxUI();
       renderDatabaseStatistics(payload.database, payload.globalStats, payload.trafficSeries);
       renderGatewayKeyUI(payload.apiKey ?? payload.database?.apiKey, payload.apiKeyStats ?? payload.database?.apiKeyStats);
       renderTopCommandsLeaderboard(payload.topCommands || []);
@@ -5524,23 +6048,6 @@ export default {
       safeExecute(() => renderGlobalAnnouncementBanner(payload), 'announcement:update');
     });
 
-    socketClient.on('announcement:result', (res) => {
-      if (res?.isSuccess) {
-        if (Array.isArray(res.announcements)) renderAnnouncementsCenterUI(res.announcements);
-        if (res.action === 'created') {
-          if (getEl('adminAnnouncementTitleInput')) getEl('adminAnnouncementTitleInput').value = '';
-          if (getEl('adminAnnouncementInput')) getEl('adminAnnouncementInput').value = '';
-          showCyberToast('Pengumuman', 'Pengumuman global berhasil diterbitkan.', 'success');
-        } else if (res.action === 'deleted') {
-          showCyberToast('Pengumuman', 'Pengumuman berhasil dihapus.', 'info');
-        } else if (res.action === 'cleared') {
-          showCyberToast('Pengumuman', 'Seluruh pengumuman global berhasil dibersihkan.', 'info');
-        }
-      } else {
-        showCyberToast('Akses Ditolak', res?.errorMessage || 'Gagal memperbarui pengumuman global.', 'danger');
-      }
-    });
-
     socketClient.on('direct:result', (res) => {
       const btn = getEl('directSendSubmitBtn');
       if (btn) btn.disabled = false;
@@ -5604,7 +6111,7 @@ export default {
     });
 
     socketClient.on('settings:saved', () => {
-      showCyberToast('Pengaturan Disimpan', 'Konfigurasi bot, Auto-Reply, Webhook & AI Persona berhasil diperbarui.', 'success');
+      showCyberToast('Pengaturan Disimpan', 'Konfigurasi bot berhasil diperbarui.', 'success');
     });
 
     socketClient.on('manage:data', (payload) => {
