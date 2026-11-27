@@ -5862,7 +5862,7 @@ function closeExtendedEmojiPicker() {
   toggleModalVisibility('extendedEmojiPickerSheet', false);
 }
 
-// --- buka top action bar dinamis & pill emoji cepat ramping ala whatsapp ---
+// --- buka top action bar dinamis dengan ikon pin/unpin & pill emoji cepat ala whatsapp ---
 function openMessageActionPopup(messageId, anchorEl, triggerEvent) {
   if (triggerEvent) {
     if (typeof triggerEvent.preventDefault === 'function') triggerEvent.preventDefault();
@@ -5898,7 +5898,7 @@ function openMessageActionPopup(messageId, anchorEl, triggerEvent) {
       pinBtn.className = 'h-8 px-2.5 rounded-full bg-amber-500/25 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90';
       if (pinLabel) pinLabel.textContent = 'Lepas Sematan';
       if (pinIcon) {
-        pinIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4l16 16"/>';
+        pinIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m2 2 20 20"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/>';
       }
     } else {
       pinBtn.title = 'Sematkan Pesan';
@@ -5906,7 +5906,7 @@ function openMessageActionPopup(messageId, anchorEl, triggerEvent) {
       pinBtn.className = 'h-8 px-2.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90';
       if (pinLabel) pinLabel.textContent = 'Sematkan';
       if (pinIcon) {
-        pinIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>';
+        pinIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>';
       }
     }
   }

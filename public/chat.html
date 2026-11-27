@@ -392,7 +392,7 @@
 
     <!-- --- tampilan 2: ruang percakapan aktif (xu core community, dm sesama user, atau chat bot/grup wa) --- -->
     <div id="chatRoomView" class="hidden flex-1 flex-col min-h-0 overflow-hidden">
-      <!-- --- floating header pill melayang ala referensi --- -->
+      <!-- --- floating header pill melayang tanpa tombol pin di kanan official --- -->
       <header class="shrink-0 z-30 px-3 sm:px-4 pt-3 pb-1.5 space-y-2">
         <div class="chat-glass-bar rounded-full border border-slate-800/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2 shadow-[0_8px_28px_rgba(0,0,0,0.5)]">
           <div class="flex items-center gap-2 min-w-0 flex-1">
@@ -406,7 +406,7 @@
 
             <img id="roomHeaderAvatarImg" src="" alt="Avatar" class="hidden w-8 h-8 rounded-full object-cover border border-slate-700 shrink-0" />
 
-            <div class="min-w-0 flex-1 pl-0.5">
+            <div class="min-w-0 flex-1 pl-0.5 pr-2">
               <div class="flex items-center gap-1.5">
                 <h1 id="roomHeaderTitle" class="font-heading-modern text-sm sm:text-base font-extrabold tracking-wide text-white truncate">Xu Core Community</h1>
                 <span id="roomSourceBadge" class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-full accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0">Official</span>
@@ -416,19 +416,13 @@
               </p>
             </div>
           </div>
-
-          <div class="flex items-center gap-1.5 shrink-0 pr-0.5">
-            <button id="roomPinnedHeaderBtn" type="button" onclick="openPinnedMessagesModal()" title="Pesan Disematkan" aria-label="Pesan Disematkan" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
-            </button>
-          </div>
         </div>
 
-        <!-- --- bar pesan disematkan melayang dengan lompatan instan ke pesan asli --- -->
+        <!-- --- bar pesan disematkan melayang dengan ikon pin --- -->
         <div id="communityPinnedBar" onclick="navigateToActivePinnedMessage(event)" role="button" tabindex="0" class="hidden chat-glass-bar rounded-2xl border border-amber-500/30 hover:border-amber-400/50 px-3 py-2 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.99]">
           <div class="flex items-center gap-2.5 min-w-0 flex-1">
             <div class="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
             </div>
             <div class="min-w-0 flex-1">
               <p id="communityPinnedCounter" class="text-[10px] font-mono-code font-bold text-amber-300 leading-tight">Pesan disematkan (1/1)</p>
@@ -660,7 +654,7 @@
 
   <!-- --- overlay mode seleksi pesan: top action bar dinamis & pill emoji ramping ala whatsapp --- -->
   <div id="floatingMessageActionOverlay" onclick="if (event.target === this) closeMessageActionPopup()" class="fixed inset-0 z-50 hidden bg-black/45 backdrop-blur-[2px]">
-    <!-- --- top action bar dinamis saat pesan ditahan lama --- -->
+    <!-- --- top action bar dinamis dengan ikon pin/unpin --- -->
     <div id="floatingTopActionBar" onclick="event.stopPropagation()" class="fixed top-0 left-0 right-0 z-[52] w-full max-w-4xl mx-auto px-3 sm:px-4 pt-2.5">
       <div class="chat-glass-bar rounded-full border border-slate-700/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2 shadow-[0_10px_32px_rgba(0,0,0,0.85)]">
         <div class="flex items-center gap-2.5">
@@ -677,7 +671,7 @@
           </button>
 
           <button id="floatingPinActionBtn" type="button" onclick="triggerFloatingPinToggleAction()" title="Sematkan Pesan" aria-label="Sematkan Pesan" class="hidden h-8 px-2.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90">
-            <svg id="floatingPinActionIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+            <svg id="floatingPinActionIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
             <span id="floatingPinActionLabel" class="text-[11px] font-bold">Sematkan</span>
           </button>
 
