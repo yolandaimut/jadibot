@@ -3819,32 +3819,6 @@ function updateCodeInspectorReport(errorMessageText, hasError) {
   }
 }
 
-// --- state pengaturan profil akun dan penghapusan akun permanen ---
-let currentUserFullName = 'User';
-let currentUserProfileData = null;
-let pendingProfileAvatarBase64 = '';
-
-// --- state modul xu core community (chat.html) & stiker hibrida supabase ---
-const STICKER_CACHE_PREFIX = 'xu_core_stickers_v1_';
-const COMMUNITY_DEFAULT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-
-let communityMessagesCache = [];
-let communityPinnedCache = [];
-let communityMembersCache = [];
-let communityStickersCache = [];
-let activePinnedCarouselIndex = 0;
-let activeCommunityReplyTarget = null;
-let activeFloatingMessageId = '';
-let activeDetailReactionMessageId = '';
-let activeDetailReactionFilter = 'all';
-let isChatAttachMenuOpen = false;
-let isStickerSheetOpen = false;
-let isMembersDrawerOpen = false;
-let isStickerSyncRunning = false;
-let messageLongPressTimer = null;
-let activePageName = 'dashboard';
-let isAppCoreInitialized = false;
-
 // --- sinkronkan nama dan avatar profil ke navbar dashboard maupun chat ---
 function applyProfileIdentityToHeader(profileObj) {
   if (!profileObj) return;
