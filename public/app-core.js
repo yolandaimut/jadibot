@@ -852,18 +852,9 @@ function clearPublicChatAdmin() {
   showCyberToast('Public Chat', 'Seluruh pesan ruang obrolan publik dibersihkan.', 'info');
 }
 
-function openLiveChatFullscreen(defaultMode = 'inbox') {
-  const overlay = getEl('liveChatFullscreenOverlay');
-  if (!overlay) return;
-  isLiveChatFullscreenOpen = true;
-  overlay.classList.remove('hidden');
-  overlay.classList.add('flex');
-  document.body.classList.add('overflow-hidden');
-  getEl('floatingChatFabBtn')?.classList.add('hidden');
-  switchLiveChatMode(defaultMode);
-  socketClient.emit('inbox:list');
-  socketClient.emit('public:chat:list');
-  syncChatUnreadIndicator();
+// --- arahkan pembukaan live chat langsung menuju halaman /chat ---
+function openLiveChatFullscreen() {
+  window.location.href = '/chat';
 }
 
 function closeLiveChatFullscreen() {
@@ -1345,7 +1336,7 @@ function getCommandPaletteActions() {
     { id: 'tab-manage', group: 'Navigasi', title: 'Buka Tab Kelola Bot & Config', desc: 'Auto-Reply, Pesan Sistem, Prefix, Menu, Limit & User', run: () => switchWorkspaceTab('manage') },
     { id: 'go-community', group: 'Komunitas', title: 'Buka Xu Core Community (/chat)', desc: 'Ruang live chat komunitas, stiker Supabase & reaksi emoji', run: () => { window.location.href = '/chat'; } },
     { id: 'open-profile', group: 'Akun', title: 'Buka Settings Profile', desc: 'Ubah nama akun, foto profil, atau tutup akun', run: () => openProfileSettingsModal() },
-    { id: 'open-wa-inbox', group: 'Live Chat', title: 'Buka WA Live Chat Inbox (Layar Penuh)', desc: 'Pantau dan balas pesan WhatsApp langsung dari browser', run: () => openLiveChatFullscreen('inbox') },
+    { id: 'open-wa-inbox', group: 'Live Chat', title: 'Buka WA Live Chat Inbox (Layar Penuh)', desc: 'Pantau dan balas pesan WhatsApp langsung dari browser', run: () => openLiveChatFullscreen() },
     { id: 'tab-api', group: 'Navigasi', title: 'Buka Tab API Gateway & Webhook', desc: 'Kelola API Key, Webhook Forwarder & Delivery Logs', run: () => switchWorkspaceTab('gateway') }
   ];
 
@@ -4579,6 +4570,7 @@ function renderSingleWelcomeCanvas(canvasEl) {
   if (avatarUrl) {
     const avatarImage = new Image();
     avatarImage.crossOrigin = 'anonymous';
+    avatarImage.referrerPolicy = 'no-referrer';
     avatarImage.onload = () => paintScene(avatarImage);
     avatarImage.src = avatarUrl;
   }
@@ -4693,11 +4685,16 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       ? '<span class="role-hex-badge role-hex-developer"><span class="w-1.5 h-1.5 rounded-full bg-white"></span>DEVELOPER</span>'
       : '<span class="role-hex-badge role-hex-member">MEMBER</span>';
 
-    const replyQuoteHtml = msg.replyTo && msg.replyTo.text
+    // --- tampilkan blok kutipan balasan secara konsisten di pengirim maupun penerima ---
+    const hasValidReply = Boolean(msg.replyTo && (msg.replyTo.id || msg.replyTo.text));
+    const replyAuthorLabel = msg.replyTo?.userId === currentGoogleUserId
+      ? 'Kamu'
+      : (msg.replyTo?.name || 'Member');
+    const replyQuoteHtml = hasValidReply
       ? `
-        <div class="mb-2 pl-2.5 py-1 pr-2 rounded-lg bg-black/35 border-l-2 border-[var(--accent-main)] text-[11px]">
-          <p class="font-bold accent-text text-[10px] truncate">${escapeHtmlString(msg.replyTo.name || 'Member')}</p>
-          <p class="text-slate-400 truncate">${escapeHtmlString(msg.replyTo.text)}</p>
+        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-2 pl-2.5 py-1.5 pr-2.5 rounded-lg bg-black/35 hover:bg-black/50 border-l-2 border-[var(--accent-main)] text-[11px] cursor-pointer transition-colors">
+          <p class="font-bold accent-text text-[10px] truncate">${escapeHtmlString(replyAuthorLabel)}</p>
+          <p class="text-slate-300 truncate">${escapeHtmlString(msg.replyTo.text || '[Pesan]')}</p>
         </div>
       `
       : '';
@@ -4983,15 +4980,22 @@ function renderReactionDetailSheetContent() {
   }).join('');
 }
 
-// --- balasan kutipan, kirim pesan teks, dan lightbox media ---
+// --- siapkan target balasan kutipan beserta id pengirim asli ---
 function setCommunityReplyTarget(messageId) {
   const foundMsg = communityMessagesCache.find((msg) => msg.id === messageId);
   if (!foundMsg) return;
 
+  const fallbackPreview = foundMsg.type === 'sticker'
+    ? '[Stiker]'
+    : (foundMsg.type === 'welcome' || foundMsg.isWelcome
+      ? `Welcome ${foundMsg.welcomeTargetName || 'Member'}`
+      : `[${foundMsg.type || 'Media'}]`);
+
   activeCommunityReplyTarget = {
     id: foundMsg.id,
+    userId: foundMsg.userId || '',
     name: foundMsg.name || 'Member',
-    text: foundMsg.text || (foundMsg.type === 'sticker' ? '[Stiker]' : `[${foundMsg.type || 'Media'}]`)
+    text: String(foundMsg.text || '').trim() || fallbackPreview
   };
 
   const barEl = getEl('communityReplyPreviewBar');
@@ -5008,6 +5012,16 @@ function setCommunityReplyTarget(messageId) {
 function clearCommunityReplyTarget() {
   activeCommunityReplyTarget = null;
   getEl('communityReplyPreviewBar')?.classList.add('hidden');
+}
+
+// --- sorot pesan asli saat kutipan balasan diklik ---
+function scrollToRepliedCommunityMessage(targetMsgId) {
+  if (!targetMsgId) return;
+  const targetRow = document.querySelector(`[data-community-msg-id="${CSS.escape(targetMsgId)}"]`);
+  if (!targetRow) return;
+  targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  targetRow.classList.add('ring-2', 'ring-emerald-400/60', 'rounded-2xl');
+  setTimeout(() => targetRow.classList.remove('ring-2', 'ring-emerald-400/60', 'rounded-2xl'), 1400);
 }
 
 function submitCommunityChatForm(event) {
@@ -5084,6 +5098,13 @@ socketClient.on('inbox:reply:result', (res) => {
   if (btn) btn.disabled = false;
   if (!res?.isSuccess) {
     showCyberToast('Balasan Gagal', res?.errorMessage || 'Pastikan bot sedang ONLINE.', 'danger');
+  }
+});
+
+// --- sinkronkan ulang ruang komunitas setiap kali socket tersambung atau reconnect ---
+socketClient.on('connect', () => {
+  if (activePageName === 'chat' || getEl('communityMessagesContainer')) {
+    socketClient.emit('community:init');
   }
 });
 

@@ -414,15 +414,8 @@
       </nav>
     </div>
 
-    <!-- --- grup kanan terisolasi: komunitas chat, lonceng pengumuman & menu profil --- -->
+    <!-- --- grup kanan terisolasi: lonceng pengumuman & menu profil --- -->
     <div class="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 flex-none">
-      <!-- --- tautan langsung ke ruang xu core community (/chat) --- -->
-      <a href="/chat" title="Xu Core Community Live Chat" aria-label="Xu Core Community" class="header-action-icon bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)]">
-        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
-        </svg>
-      </a>
-
       <!-- --- tombol lonceng pemicu modal pusat pemberitahuan --- -->
       <button id="announcementTriggerBtn" type="button" onclick="openAnnouncementCenterModal()" title="Pusat Pemberitahuan & Notifikasi" aria-label="Pusat Pemberitahuan" class="header-action-icon relative bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white">
         <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -431,7 +424,7 @@
         <span id="announcementUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-500 text-white text-[8px] font-mono-code font-bold flex items-center justify-center shadow-[0_0_8px_rgba(244,63,94,0.6)]">0</span>
       </button>
 
-      <!-- --- wrapper avatar profil dengan dropdown menu & pintasan settings profile --- -->
+      <!-- --- wrapper avatar profil tetap seperti sebelumnya --- -->
       <div class="relative flex items-center shrink-0 flex-none">
         <button type="button" onclick="toggleUserDropdownMenu(event)" aria-label="Menu Akun & Profil" class="header-profile-trigger bg-slate-900/90 hover:bg-slate-800 border border-slate-800">
           <img id="navGoogleAvatar" src="https://ui-avatars.com/api/?name=U&background=10b981&color=fff" alt="U" class="w-6 h-6 min-w-[24px] min-h-[24px] aspect-square shrink-0 flex-none rounded-full object-cover border accent-border" />
@@ -2353,98 +2346,13 @@
     </div>
   </div>
 
-  <!-- --- tombol ikon chat mengambang kanan bawah dengan animasi naik-turun & pulse ring --- -->
-  <button id="floatingChatFabBtn" type="button" onclick="openLiveChatFullscreen('inbox')" title="Buka Live Chat & WA Inbox" aria-label="Buka Live Chat" class="floating-chat-fab fixed bottom-5 right-5 z-40 w-14 h-14 p-3.5 rounded-full accent-bg text-slate-950 shadow-[0_10px_30px_rgba(0,0,0,0.65)] accent-shadow border border-white/25 flex items-center justify-center transition-transform active:scale-90">
+  <!-- --- tombol ikon chat mengambang kanan bawah langsung menuju /chat --- -->
+  <a id="floatingChatFabBtn" href="/chat" title="Buka Xu Core Community" aria-label="Buka Xu Core Community" class="floating-chat-fab fixed bottom-5 right-5 z-40 w-14 h-14 p-3.5 rounded-full accent-bg text-slate-950 shadow-[0_10px_30px_rgba(0,0,0,0.65)] accent-shadow border border-white/25 flex items-center justify-center transition-transform active:scale-90">
     <span class="fab-pulse-ring" aria-hidden="true"></span>
     <svg class="w-6 h-6 shrink-0 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
     </svg>
-    <span id="floatingChatUnreadBadge" class="hidden absolute -top-1 -right-1 z-20 min-w-[20px] h-[20px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-mono-code font-bold flex items-center justify-center border-2 border-[#050810] shadow-md">0</span>
-  </button>
-
-  <!-- --- mode layar penuh khusus live chat tanpa header/footer/elemen dashboard lain --- -->
-  <div id="liveChatFullscreenOverlay" class="fixed inset-0 z-50 hidden flex-col bg-[#050810] text-slate-100 h-[100dvh] w-screen overflow-hidden">
-    <!-- --- bar atas ringkas khusus pengalih wa inbox / public chat & tombol komunitas --- -->
-    <div class="flex items-center justify-between gap-2 px-3 sm:px-5 py-2.5 bg-slate-950/95 border-b border-slate-800/90 shrink-0">
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="inline-flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-          <button id="fsChatTabInboxBtn" type="button" onclick="switchLiveChatMode('inbox')" class="px-3 py-1.5 rounded-lg font-bold accent-bg text-slate-950 transition-all flex items-center gap-1.5">
-            <span>WA Inbox</span>
-            <span id="waInboxChatCountBadge" class="px-1.5 py-0.5 rounded bg-slate-950/30 font-mono-code text-[10px]">0</span>
-          </button>
-          <button id="fsChatTabPublicBtn" type="button" onclick="switchLiveChatMode('public')" class="px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
-            <span>Public Chat</span>
-            <span id="publicChatCountBadge" class="px-1.5 py-0.5 rounded bg-slate-800 font-mono-code text-[10px]">0</span>
-          </button>
-        </div>
-
-        <a href="/chat" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 text-[11px] font-bold transition-colors">
-          <span>Buka Xu Core Community</span>
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        </a>
-      </div>
-
-      <div class="flex items-center gap-1.5 shrink-0">
-        <button id="publicChatClearAdminBtn" type="button" onclick="clearPublicChatAdmin()" title="Bersihkan Public Chat (Admin)" class="hidden px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-semibold transition-colors">
-          Hapus Semua
-        </button>
-        <button type="button" onclick="closeLiveChatFullscreen()" aria-label="Tutup Live Chat" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all active:scale-95">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          <span class="hidden sm:inline">Tutup</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- --- panel full-screen 1: whatsapp live chat inbox --- -->
-    <div id="fsWaInboxPanel" class="flex-1 grid grid-cols-1 md:grid-cols-12 min-h-0 overflow-hidden">
-      <!-- --- daftar percakapan masuk (penuh di mobile saat belum pilih chat, 4 kolom di desktop) --- -->
-      <div id="waInboxListPane" class="md:col-span-4 lg:col-span-3 flex flex-col min-h-0 border-r border-slate-800/80 bg-slate-950/60">
-        <div class="px-3.5 py-2.5 border-b border-slate-800/70 flex items-center justify-between">
-          <span class="text-[11px] font-mono-code font-bold uppercase tracking-wider text-slate-400">Daftar Percakapan</span>
-          <span class="text-[10px] font-mono-code text-emerald-400">Real-Time</span>
-        </div>
-        <div id="waInboxChatList" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
-          <p class="text-xs font-mono-code text-slate-500 text-center py-10">Menunggu pesan WhatsApp masuk...</p>
-        </div>
-      </div>
-
-      <!-- --- ruang percakapan aktif full height --- -->
-      <div id="waInboxConversationPane" class="hidden md:flex md:col-span-8 lg:col-span-9 flex-col min-h-0 bg-[#050810]">
-        <div class="px-3.5 py-2.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center gap-2.5 shrink-0">
-          <button type="button" onclick="backToWaInboxListMobile()" aria-label="Kembali ke Daftar Chat" class="md:hidden p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-          </button>
-          <div class="min-w-0 flex-1">
-            <p id="waInboxActiveTitle" class="text-sm font-bold text-white truncate">Pilih percakapan</p>
-            <p id="waInboxActiveJid" class="text-[11px] font-mono-code text-emerald-400/90 truncate">-</p>
-          </div>
-        </div>
-
-        <div id="waInboxMessagesViewport" class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5">
-          <p class="text-xs font-mono-code text-slate-500 text-center py-12">Pilih percakapan untuk mulai membaca dan membalas pesan WhatsApp.</p>
-        </div>
-
-        <form onsubmit="submitWaInboxReply(event)" class="p-3 sm:p-4 border-t border-slate-800/80 bg-slate-950/95 flex items-center gap-2 shrink-0">
-          <input id="waInboxReplyInput" type="text" autocomplete="off" placeholder="Ketik balasan WhatsApp..." class="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none" />
-          <button id="waInboxReplyBtn" type="submit" class="px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs sm:text-sm transition-all active:scale-95 shrink-0 disabled:opacity-60">Kirim</button>
-        </form>
-      </div>
-    </div>
-
-    <!-- --- panel full-screen 2: public live chat seluruh user xu core --- -->
-    <div id="fsPublicChatPanel" class="hidden flex-1 flex-col min-h-0 overflow-hidden bg-[#050810]">
-      <div id="publicChatMessagesList" class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 max-w-4xl w-full mx-auto">
-        <p class="text-xs font-mono-code text-slate-500 text-center py-10">Memuat obrolan publik...</p>
-      </div>
-
-      <form onsubmit="submitPublicChatMessage(event)" class="p-3 sm:p-4 border-t border-slate-800/80 bg-slate-950/95 shrink-0">
-        <div class="max-w-4xl w-full mx-auto flex items-center gap-2">
-          <input id="publicChatInput" type="text" maxlength="600" autocomplete="off" placeholder="Tulis pesan ke seluruh pengguna Xu Core..." class="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none" />
-          <button type="submit" class="px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs sm:text-sm transition-all active:scale-95 shrink-0">Kirim</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  </a>
 
   <!-- --- toast notifikasi kompak di bawah header --- -->
   <div id="cyberToastContainer" class="fixed top-14 sm:top-16 right-3 left-3 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
@@ -2456,7 +2364,7 @@
       enableCharts: true,
       enableCommandPalette: true,
       enableProfileSettings: true,
-      enableLiveInboxOverlay: true
+      enableLiveInboxOverlay: false
     };
   </script>
 
