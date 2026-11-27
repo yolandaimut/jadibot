@@ -113,6 +113,7 @@ export function readMasterDatabaseFile() {
     publicChatMessages: [],
     pinnedMessages: [],
     userProfiles: {},
+    directMessages: {},
     communityWelcomedIds: [],
     announcement: { text: '', level: 'info', updatedAt: 0 },
     announcements: []
@@ -156,7 +157,11 @@ export function readMasterDatabaseFile() {
       announcement: parsedContent.announcement && typeof parsedContent.announcement === 'object'
         ? parsedContent.announcement
         : defaultMaster.announcement,
-      announcements: normalizedAnnouncements
+      announcements: normalizedAnnouncements,
+      directMessages: parsedContent.directMessages && typeof parsedContent.directMessages === 'object'
+        ? parsedContent.directMessages
+        : {},
+        
     };
   } catch {
     return defaultMaster;
@@ -768,6 +773,190 @@ export function removePinnedCommunityMessage(pinId) {
   masterDb.pinnedMessages = nextPins;
   writeMasterDatabaseFileAtomic(masterDb);
   return nextPins;
+}
+
+// --- bentuk kunci unik ruang dm antara dua akun xu core ---
+export function buildDmRoomKey(userIdA, userIdB) {
+  const sortedIds = [String(userIdA || '').trim(), String(userIdB || '').trim()].filter(Boolean).sort();
+  if (sortedIds.length !== 2 || sortedIds[0] === sortedIds[1]) return '';
+  return `dm_${sortedIds[0]}__${sortedIds[1]}`;
+}
+
+// --- ambil seluruh daftar percakapan dm milik satu akun xu core ---
+export function getUserDmRoomsList(userId, onlineUserIdsSet = new Set()) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return [];
+
+  const masterDb = readMasterDatabaseFile();
+  const dmStore = masterDb.directMessages || {};
+  const profilesMap = masterDb.userProfiles || {};
+  const rooms = [];
+
+  for (const [roomKey, roomData] of Object.entries(dmStore)) {
+    if (!roomData || !Array.isArray(roomData.participants) || !roomData.participants.includes(cleanUserId)) {
+      continue;
+    }
+
+    const peerUserId = roomData.participants.find((participantId) => participantId !== cleanUserId);
+    if (!peerUserId) continue;
+
+    const peerProfile = profilesMap[peerUserId] || {};
+    const messages = Array.isArray(roomData.messages) ? roomData.messages : [];
+    const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+    const unreadCount = Number(roomData.unreadBy?.[cleanUserId] || 0);
+
+    rooms.push({
+      roomKey,
+      peerUserId,
+      name: peerProfile.displayName || peerProfile.fullName || 'Member',
+      handle: peerProfile.handle || '',
+      avatarUrl: peerProfile.avatarUrl || '',
+      role: peerProfile.isAdmin || String(peerProfile.role || '').toUpperCase() === 'DEVELOPER' ? 'DEVELOPER' : 'MEMBER',
+      isAdmin: Boolean(peerProfile.isAdmin),
+      isOnline: onlineUserIdsSet instanceof Set ? onlineUserIdsSet.has(peerUserId) : false,
+      lastMessage: lastMsg
+        ? (lastMsg.text || (lastMsg.type === 'sticker' ? '[Stiker]' : `[${String(lastMsg.type || 'Media').toUpperCase()}]`))
+        : '',
+      lastSenderName: lastMsg?.name || '',
+      lastTimestamp: Number(lastMsg?.timestamp || roomData.updatedAt || 0),
+      unreadCount
+    });
+  }
+
+  return rooms.sort((a, b) => Number(b.lastTimestamp || 0) - Number(a.lastTimestamp || 0));
+}
+
+// --- ambil riwayat pesan dm antara dua akun xu core ---
+export function getDmRoomMessages(userIdA, userIdB) {
+  const roomKey = buildDmRoomKey(userIdA, userIdB);
+  if (!roomKey) return [];
+  const masterDb = readMasterDatabaseFile();
+  const messages = masterDb.directMessages?.[roomKey]?.messages;
+  return Array.isArray(messages) ? messages.slice(-80) : [];
+}
+
+// --- simpan pesan dm baru (teks, foto, video, stiker) antar akun xu core ---
+export function appendDmMessage({
+  fromUserId = '',
+  toUserId = '',
+  senderProfile = null,
+  isAdmin = false,
+  type = 'text',
+  text = '',
+  mediaUrl = '',
+  replyTo = null
+} = {}) {
+  const roomKey = buildDmRoomKey(fromUserId, toUserId);
+  if (!roomKey) return null;
+
+  const allowedTypes = ['text', 'image', 'video', 'sticker'];
+  const normalizedType = allowedTypes.includes(String(type || 'text').toLowerCase())
+    ? String(type).toLowerCase()
+    : 'text';
+  const cleanText = String(text || '').trim().slice(0, 600);
+  const cleanMediaUrl = String(mediaUrl || '').trim().slice(0, 500);
+
+  if (normalizedType === 'text' && !cleanText) return null;
+  if (normalizedType !== 'text' && !cleanMediaUrl) return null;
+
+  const cleanReplyTo = replyTo && typeof replyTo === 'object' && String(replyTo.id || '').trim()
+    ? {
+        id: String(replyTo.id).trim().slice(0, 80),
+        userId: String(replyTo.userId || '').trim().slice(0, 80),
+        name: String(replyTo.name || 'Member').trim().slice(0, 48),
+        text: String(replyTo.text || '[Pesan]').trim().slice(0, 140) || '[Pesan]'
+      }
+    : null;
+
+  const masterDb = readMasterDatabaseFile();
+  masterDb.directMessages = masterDb.directMessages && typeof masterDb.directMessages === 'object'
+    ? masterDb.directMessages
+    : {};
+
+  const existingRoom = masterDb.directMessages[roomKey] || {
+    roomKey,
+    participants: [String(fromUserId).trim(), String(toUserId).trim()],
+    unreadBy: {},
+    messages: [],
+    updatedAt: Date.now()
+  };
+
+  const dmEntry = {
+    id: `dm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    roomKey,
+    userId: String(fromUserId).trim(),
+    toUserId: String(toUserId).trim(),
+    name: String(senderProfile?.displayName || senderProfile?.fullName || 'Member').trim().slice(0, 48),
+    handle: String(senderProfile?.handle || '').trim().slice(0, 32),
+    avatarUrl: String(senderProfile?.avatarUrl || '').trim().slice(0, 450),
+    role: isAdmin || String(senderProfile?.role || '').toUpperCase() === 'DEVELOPER' ? 'DEVELOPER' : 'MEMBER',
+    isAdmin: Boolean(isAdmin),
+    type: normalizedType,
+    text: cleanText,
+    mediaUrl: cleanMediaUrl,
+    replyTo: cleanReplyTo,
+    reactions: [],
+    timestamp: Date.now()
+  };
+
+  const unreadBy = { ...(existingRoom.unreadBy || {}) };
+  unreadBy[String(toUserId).trim()] = Number(unreadBy[String(toUserId).trim()] || 0) + 1;
+  unreadBy[String(fromUserId).trim()] = 0;
+
+  masterDb.directMessages[roomKey] = {
+    ...existingRoom,
+    participants: [String(fromUserId).trim(), String(toUserId).trim()],
+    unreadBy,
+    messages: [...(Array.isArray(existingRoom.messages) ? existingRoom.messages : []), dmEntry].slice(-80),
+    updatedAt: dmEntry.timestamp
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return { roomKey, item: dmEntry };
+}
+
+// --- tandai ruang dm sebagai sudah dibaca oleh user ---
+export function markDmRoomRead(userId, peerUserId) {
+  const roomKey = buildDmRoomKey(userId, peerUserId);
+  if (!roomKey) return false;
+
+  const masterDb = readMasterDatabaseFile();
+  const existingRoom = masterDb.directMessages?.[roomKey];
+  if (!existingRoom) return false;
+
+  existingRoom.unreadBy = { ...(existingRoom.unreadBy || {}), [String(userId).trim()]: 0 };
+  masterDb.directMessages[roomKey] = existingRoom;
+  writeMasterDatabaseFileAtomic(masterDb);
+  return true;
+}
+
+// --- hapus pesan dm jika pemilik pesan atau admin ---
+export function deleteDmMessageAuthorized(userIdA, userIdB, messageId, actorUserId, isAdmin = false) {
+  const roomKey = buildDmRoomKey(userIdA, userIdB);
+  const targetId = String(messageId || '').trim();
+  if (!roomKey || !targetId) {
+    return { isSuccess: false, errorMessage: 'ID pesan DM tidak valid.' };
+  }
+
+  const masterDb = readMasterDatabaseFile();
+  const existingRoom = masterDb.directMessages?.[roomKey];
+  if (!existingRoom || !Array.isArray(existingRoom.messages)) {
+    return { isSuccess: false, errorMessage: 'Pesan tidak ditemukan.' };
+  }
+
+  const targetMsg = existingRoom.messages.find((msg) => msg?.id === targetId);
+  if (!targetMsg) {
+    return { isSuccess: false, errorMessage: 'Pesan tidak ditemukan.' };
+  }
+
+  if (!isAdmin && targetMsg.userId !== String(actorUserId || '').trim()) {
+    return { isSuccess: false, errorMessage: 'Anda hanya dapat menghapus pesan Anda sendiri.' };
+  }
+
+  existingRoom.messages = existingRoom.messages.filter((msg) => msg?.id !== targetId);
+  masterDb.directMessages[roomKey] = existingRoom;
+  writeMasterDatabaseFileAtomic(masterDb);
+  return { isSuccess: true, roomKey, deletedId: targetId };
 }
 
 // --- cari akun login lokal berdasarkan alamat email ---

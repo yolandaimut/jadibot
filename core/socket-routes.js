@@ -67,7 +67,12 @@ import {
   updateUserProfileAtomic,
   updateVoucher,
   verifyAndResetPasswordWithOtp,
-  writeBotDatabaseAtomic
+  writeBotDatabaseAtomic,
+  appendDmMessage,
+  deleteDmMessageAuthorized,
+  getDmRoomMessages,
+  getUserDmRoomsList,
+  markDmRoomRead,
 } from './database.js';
 import {
   deletePluginFile,
@@ -233,40 +238,61 @@ function startRealtimeSystemBroadcaster(io) {
   }
 }
 
-// --- susun daftar user (termasuk @lid dan @s.whatsapp.net) serta grup aktif ---
+// --- deteksi nomor lid berdasarkan akhiran @lid, globalUsers, maupun pola panjang digit lid ---
+function isLikelyLidNumber(cleanDigits, rawJid = '', globalUsers = {}) {
+  if (String(rawJid || '').endsWith('@lid')) return true;
+  if (cleanDigits && globalUsers[`${cleanDigits}@lid`]) return true;
+  if (cleanDigits && cleanDigits.length >= 14 && !cleanDigits.startsWith('62')) return true;
+  return false;
+}
+
+// --- susun daftar user (deteksi lid akurat tanpa duplikasi) serta grup aktif ---
 function buildManagedEntitiesPayload(googleUserId) {
   const botDb = readBotDatabase(googleUserId);
   const globalUsers = global.db?.users || {};
   const globalGroups = global.db?.groups || {};
   const globalMetadata = global.db?.metadata || {};
+  const defaultLimit = botDb.settings?.limitConfig?.defaultLimit ?? 25;
 
-  const usersMap = new Map();
-
-  for (const rawNum of botDb.uniqueUsers || []) {
-    const cleanNum = String(rawNum || '').replace(/\D/g, '');
-    if (!cleanNum) continue;
-    const jid = `${cleanNum}@s.whatsapp.net`;
-    const dbEntry = globalUsers[jid] || {};
-    usersMap.set(jid, {
-      jid,
-      number: cleanNum,
-      name: dbEntry.name || cleanNum,
-      limit: Number(dbEntry.limit ?? botDb.settings?.limitConfig?.defaultLimit ?? 25),
-      premium: Boolean(dbEntry.premium),
-      banned: Boolean(dbEntry.banned)
-    });
-  }
+  const usersByNumberMap = new Map();
 
   for (const [jid, dbEntry] of Object.entries(globalUsers)) {
     if (!/(@s\.whatsapp\.net|@lid)$/i.test(jid)) continue;
-    const cleanNum = jid.split('@')[0];
-    usersMap.set(jid, {
-      jid,
+    const cleanNum = jid.split('@')[0].split(':')[0].replace(/\D/g, '');
+    if (!cleanNum) continue;
+    const isLid = isLikelyLidNumber(cleanNum, jid, globalUsers);
+    const resolvedJid = isLid ? `${cleanNum}@lid` : `${cleanNum}@s.whatsapp.net`;
+
+    usersByNumberMap.set(cleanNum, {
+      jid: resolvedJid,
+      rawJid: jid,
       number: cleanNum,
       name: dbEntry?.name || cleanNum,
-      limit: Number(dbEntry?.limit ?? botDb.settings?.limitConfig?.defaultLimit ?? 25),
+      limit: Number(dbEntry?.limit ?? defaultLimit),
       premium: Boolean(dbEntry?.premium),
-      banned: Boolean(dbEntry?.banned)
+      banned: Boolean(dbEntry?.banned),
+      isLid
+    });
+  }
+
+  for (const rawEntry of botDb.uniqueUsers || []) {
+    const rawStr = String(rawEntry || '').trim();
+    const cleanNum = rawStr.split('@')[0].split(':')[0].replace(/\D/g, '');
+    if (!cleanNum || usersByNumberMap.has(cleanNum)) continue;
+
+    const isLid = isLikelyLidNumber(cleanNum, rawStr, globalUsers);
+    const resolvedJid = isLid ? `${cleanNum}@lid` : `${cleanNum}@s.whatsapp.net`;
+    const dbEntry = globalUsers[resolvedJid] || globalUsers[`${cleanNum}@s.whatsapp.net`] || globalUsers[`${cleanNum}@lid`] || {};
+
+    usersByNumberMap.set(cleanNum, {
+      jid: resolvedJid,
+      rawJid: resolvedJid,
+      number: cleanNum,
+      name: dbEntry.name || cleanNum,
+      limit: Number(dbEntry.limit ?? defaultLimit),
+      premium: Boolean(dbEntry.premium),
+      banned: Boolean(dbEntry.banned),
+      isLid
     });
   }
 
@@ -286,7 +312,7 @@ function buildManagedEntitiesPayload(googleUserId) {
   }
 
   return {
-    users: Array.from(usersMap.values()).sort((a, b) => Number(b.premium) - Number(a.premium)),
+    users: Array.from(usersByNumberMap.values()).sort((a, b) => Number(b.premium) - Number(a.premium)),
     groups: Array.from(groupsMap.values())
   };
 }
@@ -1324,7 +1350,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim payload inisialisasi ruang xu core community dan siarkan auto-welcome ke semua user ---
+    // --- kirim payload inisialisasi beranda chat (komunitas, dm xu core, dan wa bot inbox) ---
     clientSocket.on('community:init', () => {
       try {
         clientSocket.join('community_room');
@@ -1343,10 +1369,94 @@ export function registerSocketHandlers(io, coreModules) {
           messages: getPublicChatMessages(),
           pinnedMessages: getPinnedCommunityMessages(),
           members: latestMembers,
+          dmRooms: getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds),
+          waInbox: getLiveInboxSnapshot(authenticatedGoogleId),
           stickers: getUserStickerUrls(authenticatedGoogleId)
         });
       } catch (initErr) {
         clientSocket.emit('community:error', { errorMessage: initErr.message || 'Gagal memuat ruang komunitas.' });
+      }
+    });
+
+    // --- ambil daftar dm sesama user xu core ---
+    clientSocket.on('dm:list', () => {
+      try {
+        clientSocket.emit('dm:list:data', getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds));
+      } catch {
+        // --- abaikan error pembacaan daftar dm ---
+      }
+    });
+
+    // --- buka ruang dm dengan akun xu core lain dan tandai sudah dibaca ---
+    clientSocket.on('dm:open', (payload) => {
+      try {
+        const peerUserId = String(payload?.peerUserId || '').trim();
+        if (!peerUserId || peerUserId === authenticatedGoogleId) return;
+        markDmRoomRead(authenticatedGoogleId, peerUserId);
+        clientSocket.emit('dm:messages', {
+          peerUserId,
+          messages: getDmRoomMessages(authenticatedGoogleId, peerUserId)
+        });
+        clientSocket.emit('dm:list:data', getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds));
+      } catch (dmOpenErr) {
+        clientSocket.emit('community:error', { errorMessage: dmOpenErr.message || 'Gagal membuka DM.' });
+      }
+    });
+
+    // --- kirim pesan dm (teks, foto, video, stiker) ke sesama user akun xu core ---
+    clientSocket.on('dm:send', (payload) => {
+      try {
+        const peerUserId = String(payload?.peerUserId || '').trim();
+        if (!peerUserId || peerUserId === authenticatedGoogleId) return;
+
+        const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const saved = appendDmMessage({
+          fromUserId: authenticatedGoogleId,
+          toUserId: peerUserId,
+          senderProfile: latestProfile,
+          isAdmin,
+          type: payload?.type || 'text',
+          text: payload?.text || '',
+          mediaUrl: payload?.mediaUrl || '',
+          replyTo: payload?.replyTo || null
+        });
+
+        if (saved?.item) {
+          io.to(`user_${authenticatedGoogleId}`).emit('dm:message:new', saved.item);
+          io.to(`user_${peerUserId}`).emit('dm:message:new', saved.item);
+          io.to(`user_${authenticatedGoogleId}`).emit('dm:list:data', getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds));
+          io.to(`user_${peerUserId}`).emit('dm:list:data', getUserDmRoomsList(peerUserId, onlineCommunityUserIds));
+        }
+      } catch (dmSendErr) {
+        clientSocket.emit('community:error', { errorMessage: dmSendErr.message || 'Gagal mengirim pesan DM.' });
+      }
+    });
+
+    // --- hapus pesan dm secara real-time untuk kedua peserta ---
+    clientSocket.on('dm:delete', (payload) => {
+      try {
+        const peerUserId = String(payload?.peerUserId || '').trim();
+        const result = deleteDmMessageAuthorized(
+          authenticatedGoogleId,
+          peerUserId,
+          payload?.messageId,
+          authenticatedGoogleId,
+          isAdmin
+        );
+        if (!result.isSuccess) {
+          clientSocket.emit('community:error', { errorMessage: result.errorMessage });
+          return;
+        }
+        io.to(`user_${authenticatedGoogleId}`).emit('dm:message:deleted', {
+          peerUserId,
+          messageId: result.deletedId
+        });
+        io.to(`user_${peerUserId}`).emit('dm:message:deleted', {
+          peerUserId: authenticatedGoogleId,
+          messageId: result.deletedId
+        });
+      } catch (dmDelErr) {
+        clientSocket.emit('community:error', { errorMessage: dmDelErr.message || 'Gagal menghapus pesan DM.' });
       }
     });
 
