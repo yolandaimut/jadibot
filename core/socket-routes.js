@@ -61,6 +61,7 @@ import {
   redeemVoucherForUser,
   removePinnedCommunityMessage,
   removeUserStickerUrl,
+  removeUserStickerByUrl,
   revokeUserApiKey,
   toggleCommunityMessageReaction,
   updateUserProfileAtomic,
@@ -485,6 +486,29 @@ export function registerHttpRoutes(app) {
       return response.status(404).send('Halaman admin tidak ditemukan.');
     }
     return response.sendFile(adminFilePath);
+  });
+
+  // --- proteksi ketat /app-core.js agar hanya bisa dimuat oleh tag script dari halaman terautentikasi ---
+  app.get('/app-core.js', (request, response) => {
+    const userAgent = String(request.headers['user-agent'] || '').trim();
+    const secFetchDest = String(request.headers['sec-fetch-dest'] || '').toLowerCase();
+    const secFetchSite = String(request.headers['sec-fetch-site'] || '').toLowerCase();
+    const refererHeader = String(request.headers.referer || '').toLowerCase();
+    const automatedUaRegex = /(axios|curl|wget|node-fetch|undici|got\/|python|requests|httpx|aiohttp|postman|insomnia|httpie|scrapy|okhttp|go-http-client|java\/|libwww|headless|puppeteer|playwright|phantomjs)/i;
+
+    const isAutomatedClient = !userAgent || automatedUaRegex.test(userAgent) || !userAgent.includes('Mozilla/');
+    const isValidScriptRequest = secFetchDest === 'script' && secFetchSite === 'same-origin';
+    const isAllowedReferer = refererHeader.includes('/dashboard') || refererHeader.includes('/chat');
+    const sessionUser = getSessionUserFromCookieHeader(request.headers.cookie);
+
+    if (isAutomatedClient || !isValidScriptRequest || !isAllowedReferer || !sessionUser) {
+      return response.status(403).type('text/plain').send('403 Forbidden');
+    }
+
+    response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    response.setHeader('Pragma', 'no-cache');
+    response.setHeader('Expires', '0');
+    return response.sendFile(path.join(PUBLIC_ROOT_DIR, 'app-core.js'));
   });
 
   app.use(express.static(PUBLIC_ROOT_DIR, { index: false }));
@@ -1186,6 +1210,41 @@ export function registerHttpRoutes(app) {
   app.delete('/api/stickers/:id', requireAuthenticatedUserApi, (request, response) => {
     const stickers = removeUserStickerUrl(request.sessionUser.googleId, request.params.id);
     return response.status(200).json({ isSuccess: true, stickers });
+  });
+
+  // --- simpan atau hapus stiker user lain ke koleksi favorit tanpa upload ulang ---
+  app.post('/api/stickers/favorite', requireAuthenticatedUserApi, (request, response) => {
+    try {
+      const userId = request.sessionUser.googleId;
+      const stickerUrl = String(request.body?.url || '').trim();
+      const action = String(request.body?.action || 'add').trim().toLowerCase();
+
+      const isValidStickerUrl =
+        /^https?:\/\/.+/i.test(stickerUrl) || stickerUrl.startsWith('/api/uploads/');
+      if (!isValidStickerUrl) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'URL stiker tidak valid.' });
+      }
+
+      if (action === 'remove') {
+        const updatedStickers = removeUserStickerByUrl(userId, stickerUrl);
+        return response.status(200).json({
+          isSuccess: true,
+          isFavorited: false,
+          stickers: updatedStickers
+        });
+      }
+
+      const updatedStickers = appendUserStickerUrls(userId, [
+        { url: stickerUrl, createdAt: Date.now() }
+      ]);
+      return response.status(200).json({
+        isSuccess: true,
+        isFavorited: true,
+        stickers: updatedStickers
+      });
+    } catch (favoriteErr) {
+      return response.status(400).json({ isSuccess: false, errorMessage: favoriteErr.message });
+    }
   });
 
   // --- unggah foto atau video lampiran room chat ke supabase storage ---
