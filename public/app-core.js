@@ -5653,93 +5653,86 @@ function getActiveRoomMessagesList() {
   return activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
 }
 
-// --- katalog kategori reaksi lengkap gaya apple / iphone ---
-const APPLE_REACTION_CATEGORIES = [
-  {
-    category: 'Wajah',
-    emojis: [
-      '😀', '😁', '😂', '😃', '😄', '😅', '😆', '😇', '😈', '😉', '😊', '😋', '😌', '😍',
-      '😎', '😏', '😐', '😑', '😒', '😓', '😔', '😕', '😖', '😗', '😘', '😙', '😚', '😛',
-      '😜', '😝', '😞', '😟', '😠', '😡', '😢', '😣', '😤', '😥', '😦', '😧', '😨', '😩',
-      '😪', '😫', '😬', '😭', '😮', '😯', '😰', '😱', '😲', '😳', '😴', '😵', '😶', '😷',
-      '😸', '😹', '😺', '😻', '😼', '😽', '😾', '😿', '🙀', '🙁', '🙂', '🙃', '🙄', '🙅',
-      '🙆', '🙇', '🙈', '🙉', '🙊', '🙋', '🙌', '🙍', '🙎', '🙏', '🤐', '🤑', '🤒', '🤓',
-      '🤔', '🤕', '🤖', '🤗', '🤘', '🤙', '🖐', '🤜', '🤛', '🤝', '🤞', '🤟', '🤠', '🤡',
-      '🤢', '🤣', '🤤', '🤥', '🤦', '🤧', '🤨', '🤩', '🤪', '🤫', '🤬', '🤭', '🤮', '🤯',
-      '🥰', '🥱', '🥲', '🥳', '🥴', '🥵', '🥶', '🥷', '🥸', '🥹', '🥲', '🧐'
-    ]
-  },
-  {
-    category: 'Tangan',
-    emojis: [
-      '✊', '✋', '👌', '👍', '👎', '👏', '👐', '🙌', '🙏', '🤘', '🤙', '🖐', '🤜', '🤛',
-      '🤝', '🤞', '🤟', '🤲', '🤌', '🫵', '🤍', '🤎', '🫲', '💪'
-    ]
-  },
-  {
-    category: 'Hati dan simbol',
-    emojis: [
-      '❤️', '🩷', '💔', '💕', '💖', '💗', '💘', '💙', '💚', '💛', '💜', '💝', '💞', '💟',
-      '🤍', '🤎', '🧡', '🔥', '✨', '💯', '💥', '🎉', '🎊', '👑'
-    ]
-  },
-  {
-    category: 'Hewan',
-    emojis: [
-      '🐀', '🐁', '🐂', '🐃', '🐄', '🐅', '🐆', '🐇', '🐈', '🐉', '🐊', '🐋', '🐌', '🐍'
-    ]
-  },
-  {
-    category: 'Makanan',
-    emojis: [
-      '🍅', '🍆', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🍎', '🍏', '🍐', '🍑', '🍒',
-      '🍓', '🍔', '🍕', '🍖', '🍗', '🍱', '🍙', '🍚', '🍛', '🍜', '🍝', '🍞', '🍟', '🍠',
-      '🍡', '🍢', '🍣', '🍤', '🍥', '🍦', '🍧', '🍨', '🍩', '🍪', '🍫', '🍬', '🍭', '🍮',
-      '🍯', '🍰', '🍱', '🍲', '🍳', '🍴', '🍵', '🍶', '🍷', '🍸', '🍹', '🍺', '🍻', '🍼',
-      '🍾', '🍿'
-    ]
-  },
-  {
-    category: 'Aktivitas',
-    emojis: [
-      '🎀', '🎁', '🎂', '🎃', '🎄', '🎅', '🎆', '🎇', '🎈', '🎉', '🎊', '🎋', '🎌', '🎍',
-      '🎎', '🎏', '🎐', '🎑', '🎒', '🎓', '🎠', '🎡', '🎢', '🎣', '🎤', '🎥', '🎦', '🎧',
-      '🎨', '🎩', '🎪', '🎫', '🎬', '🎭', '🎮', '🎯', '🎰', '🎱', '🎲', '🎳', '🎴', '🎵',
-      '🎶', '🎷', '🎸', '🎹', '🎺', '🎻', '🎼', '🎽', '🎾', '🎿', '🏀', '🏁', '🏂', '🏃',
-      '🏄', '🏅', '🏆', '🏇', '🏈', '🏉', '🏊', '🏏', '⚽', '⚾'
-    ]
-  }
+// --- konfigurasi cdn resmi emoji-datasource-apple untuk daftar & gambar emoji iphone ---
+const APPLE_EMOJI_CDN_BASE = 'https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest';
+const APPLE_EMOJI_JSON_URL = `${APPLE_EMOJI_CDN_BASE}/emoji.json`;
+const APPLE_EMOJI_IMG_BASE = `${APPLE_EMOJI_CDN_BASE}/img/apple/64`;
+
+const APPLE_CATEGORY_LABELS_ID = {
+  'Smileys & Emotion': 'Wajah & Emosi',
+  'People & Body': 'Tangan & Orang',
+  'Symbols': 'Hati & Simbol',
+  'Animals & Nature': 'Hewan & Alam',
+  'Food & Drink': 'Makanan & Minuman',
+  'Activities': 'Aktivitas',
+  'Travel & Places': 'Perjalanan & Tempat',
+  'Objects': 'Objek',
+  'Flags': 'Bendera'
+};
+
+const APPLE_CATEGORY_ORDER = [
+  'Smileys & Emotion',
+  'People & Body',
+  'Symbols',
+  'Animals & Nature',
+  'Food & Drink',
+  'Activities',
+  'Travel & Places',
+  'Objects',
+  'Flags'
 ];
 
-const EXTENDED_REACTION_EMOJIS = Array.from(
-  new Set(APPLE_REACTION_CATEGORIES.flatMap((group) => group.emojis))
-);
+let appleEmojiCatalogCache = null;
+let isFetchingAppleEmojiCatalog = false;
 
-// --- konversi karakter emoji ke kode hex apple-emoji-linux cdn dengan fallback unicode ---
-function buildAppleEmojiCodePoints(emojiChar) {
-  return Array.from(String(emojiChar || ''))
-    .map((ch) => ch.codePointAt(0))
-    .filter((cp) => typeof cp === 'number' && cp !== 0xfe0f)
-    .map((cp) => cp.toString(16).toLowerCase())
-    .join('-');
+// --- konversi kode hex unified menjadi karakter unicode emoji ---
+function unifiedHexToEmojiChar(unifiedHex) {
+  try {
+    const codePoints = String(unifiedHex || '')
+      .split('-')
+      .filter(Boolean)
+      .map((hexPart) => parseInt(hexPart, 16));
+    return String.fromCodePoint(...codePoints);
+  } catch {
+    return '';
+  }
 }
 
-function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeClass = 'text-2xl') {
+// --- konversi karakter unicode emoji menjadi nama file hex cdn apple ---
+function buildAppleEmojiHexVariants(emojiChar) {
+  const rawPoints = Array.from(String(emojiChar || ''))
+    .map((ch) => ch.codePointAt(0))
+    .filter((cp) => typeof cp === 'number');
+
+  const withFe0f = rawPoints.map((cp) => cp.toString(16).toLowerCase()).join('-');
+  const withoutFe0f = rawPoints
+    .filter((cp) => cp !== 0xfe0f)
+    .map((cp) => cp.toString(16).toLowerCase())
+    .join('-');
+
+  return { withFe0f, withoutFe0f };
+}
+
+// --- render gambar emoji gaya apple/iphone dengan fallback otomatis ---
+function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeClass = 'text-2xl', exactImageFile = '') {
   const cleanEmoji = String(emojiChar || '').trim();
   if (!cleanEmoji) return '';
-  const hexCode = buildAppleEmojiCodePoints(cleanEmoji);
-  if (!hexCode) {
-    return `<span class="${textSizeClass} leading-none select-none">${escapeHtmlString(cleanEmoji)}</span>`;
-  }
-  const appleImgUrl = `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${hexCode}.png`;
+
+  const { withFe0f, withoutFe0f } = buildAppleEmojiHexVariants(cleanEmoji);
+  const primaryFile = exactImageFile || `${withFe0f}.png`;
+  const altFile = withoutFe0f && `${withoutFe0f}.png` !== primaryFile ? `${withoutFe0f}.png` : '';
+  const primaryUrl = `${APPLE_EMOJI_IMG_BASE}/${primaryFile}`;
+  const fallbackUrl = altFile ? `${APPLE_EMOJI_IMG_BASE}/${altFile}` : '';
+
   return `
     <span class="inline-flex items-center justify-center ${sizeClass} shrink-0 pointer-events-none select-none">
       <img
-        src="https://em-content.zobj.net/source/apple/391/${cleanEmoji.codePointAt(0)?.toString(16)}_${cleanEmoji.codePointAt(0)?.toString(16)}.png"
-        data-fallback-src="${appleImgUrl}"
+        src="${escapeHtmlString(primaryUrl)}"
+        data-alt-src="${escapeHtmlString(fallbackUrl)}"
         alt="${escapeHtmlString(cleanEmoji)}"
         loading="lazy"
-        onerror="if (this.dataset.fallbackSrc && this.src !== this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display='none'; this.nextElementSibling.classList.remove('hidden'); }"
+        decoding="async"
+        onerror="if (this.dataset.altSrc && this.src !== this.dataset.altSrc) { this.src = this.dataset.altSrc; this.dataset.altSrc = ''; } else { this.style.display='none'; this.nextElementSibling.classList.remove('hidden'); }"
         class="w-full h-full object-contain"
       />
       <span class="hidden ${textSizeClass} leading-none">${escapeHtmlString(cleanEmoji)}</span>
@@ -5747,20 +5740,82 @@ function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeCla
   `;
 }
 
-// --- render daftar kategori emoji ala iphone di dalam bottom sheet pilih reaksi ---
-function renderExtendedEmojiCategoriesGrid() {
+// --- tarik daftar lengkap emoji apple terbaru dari cdn lalu kelompokkan per kategori ---
+async function loadAppleEmojiCatalogFromCdn() {
+  if (Array.isArray(appleEmojiCatalogCache) && appleEmojiCatalogCache.length > 0) {
+    return appleEmojiCatalogCache;
+  }
+
+  const response = await fetch(APPLE_EMOJI_JSON_URL);
+  if (!response.ok) {
+    throw new Error(`Gagal memuat katalog emoji CDN (HTTP ${response.status}).`);
+  }
+
+  const rawList = await response.json();
+  const groupedMap = new Map();
+
+  for (const item of rawList) {
+    if (!item || !item.has_img_apple || !item.unified || !item.image) continue;
+    if (item.category === 'Component') continue;
+
+    const emojiChar = unifiedHexToEmojiChar(item.unified);
+    if (!emojiChar) continue;
+
+    const catKey = APPLE_CATEGORY_LABELS_ID[item.category] ? item.category : 'Objects';
+    if (!groupedMap.has(catKey)) groupedMap.set(catKey, []);
+
+    groupedMap.get(catKey).push({
+      char: emojiChar,
+      image: item.image,
+      name: String(item.short_name || item.name || '').toLowerCase(),
+      order: Number(item.sort_order || 99999)
+    });
+  }
+
+  const structuredGroups = [];
+  for (const catKey of APPLE_CATEGORY_ORDER) {
+    const items = groupedMap.get(catKey);
+    if (!items || items.length === 0) continue;
+    items.sort((a, b) => a.order - b.order);
+    structuredGroups.push({
+      category: APPLE_CATEGORY_LABELS_ID[catKey] || catKey,
+      items
+    });
+  }
+
+  appleEmojiCatalogCache = structuredGroups;
+  return structuredGroups;
+}
+
+// --- render daftar kategori emoji apple lengkap di dalam bottom sheet pilih reaksi ---
+async function renderExtendedEmojiCategoriesGrid() {
   const gridEl = getEl('extendedEmojiGridContainer');
   if (!gridEl) return;
 
-  gridEl.innerHTML = APPLE_REACTION_CATEGORIES.map((group) => {
-    const uniqueGroupEmojis = Array.from(new Set(group.emojis));
-    const tilesHtml = uniqueGroupEmojis.map((emojiChar) => `
+  if (!appleEmojiCatalogCache) {
+    if (isFetchingAppleEmojiCatalog) return;
+    isFetchingAppleEmojiCatalog = true;
+    gridEl.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-400 animate-pulse">Memuat katalog emoji Apple terbaru dari CDN...</div>';
+
+    try {
+      await loadAppleEmojiCatalogFromCdn();
+    } catch (cdnErr) {
+      gridEl.innerHTML = `<div class="py-10 text-center text-xs font-mono-code text-rose-400">${escapeHtmlString(cdnErr.message || 'Gagal memuat emoji CDN.')}</div>`;
+      isFetchingAppleEmojiCatalog = false;
+      return;
+    }
+    isFetchingAppleEmojiCatalog = false;
+  }
+
+  gridEl.innerHTML = appleEmojiCatalogCache.map((group) => {
+    const tilesHtml = group.items.map((entry) => `
       <button
         type="button"
-        onclick="triggerFloatingEmojiReaction('${escapeHtmlString(emojiChar)}')"
+        title="${escapeHtmlString(entry.name)}"
+        onclick="triggerFloatingEmojiReaction('${escapeHtmlString(entry.char)}')"
         class="aspect-square rounded-xl hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-115 active:scale-90"
       >
-        ${renderAppleStyleEmojiHtml(emojiChar, 'w-7 h-7', 'text-2xl')}
+        ${renderAppleStyleEmojiHtml(entry.char, 'w-7 h-7', 'text-2xl', entry.image)}
       </button>
     `).join('');
 
@@ -5781,20 +5836,23 @@ function handleCustomKeyboardEmojiInput(inputEl) {
   const rawVal = String(inputEl.value || '').trim();
   if (!rawVal) return;
 
-  const matchedEmoji = EXTENDED_REACTION_EMOJIS.find((em) => rawVal.includes(em)) || Array.from(rawVal)[0];
+  const firstSegment = typeof Intl !== 'undefined' && Intl.Segmenter
+    ? Array.from(new Intl.Segmenter('id', { granularity: 'grapheme' }).segment(rawVal))[0]?.segment
+    : Array.from(rawVal)[0];
+
   inputEl.value = '';
-  if (matchedEmoji) {
-    triggerFloatingEmojiReaction(matchedEmoji);
+  if (firstSegment) {
+    triggerFloatingEmojiReaction(firstSegment);
   }
 }
 
-// --- buka bottom sheet pilih reaksi lengkap & fokuskan input keyboard hp ---
+// --- buka bottom sheet pilih reaksi lengkap ala apple & fokuskan input keyboard hp ---
 function openExtendedEmojiPicker(clickEvent) {
   if (clickEvent) clickEvent.stopPropagation();
-  renderExtendedEmojiCategoriesGrid();
   const customInput = getEl('customKeyboardEmojiInput');
   if (customInput) customInput.value = '';
   toggleModalVisibility('extendedEmojiPickerSheet', true);
+  renderExtendedEmojiCategoriesGrid();
   setTimeout(() => customInput?.focus(), 60);
 }
 
