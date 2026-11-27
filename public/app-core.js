@@ -4,10 +4,11 @@ const EXCLUSIVE_ADMIN_GOOGLE_ID = '113793372874509761088';
 const READ_ANNOUNCEMENTS_STORAGE_KEY = 'xu_core_read_announcements';
 const ONBOARDING_DISMISSED_STORAGE_KEY = 'xu_core_onboarding_dismissed';
 const STICKER_CACHE_PREFIX = 'xu_core_stickers_v1_';
-const STICKER_SYNCED_PREFIX = 'xu_core_stickers_synced_v1_';
 const QUICK_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const MAX_CPU_POINTS = 25;
 
-let isAppInitialized = false;
+// --- state global identitas akun, koneksi, dan dashboard ---
+let isAppCoreInitialized = false;
 let activePageName = 'dashboard';
 let botStartTimeMs = Date.now();
 let loadedPluginsCache = [];
@@ -20,10 +21,12 @@ let currentUserEmail = '';
 let currentUserFullName = 'User';
 let currentUserAvatarUrl = '';
 let currentUserHandle = '';
+let currentUserProfileData = null;
 let adminWhatsAppNumber = '6285700408187';
 let currentConnectionStatus = 'DISCONNECTED';
 let lastKnownDatabaseSnapshot = null;
 
+// --- state pengumuman, terminal cli, entitas terkelola, dan penjadwal ---
 let announcementsCache = [];
 let terminalLogsBuffer = [];
 let activeLogFilter = 'all';
@@ -38,6 +41,7 @@ let scheduledMessagesCache = [];
 let directTargetMode = 'group';
 let scheduleTargetMode = 'group';
 
+// --- state api gateway, auto-reply builder, media upload, dan overlay live chat ---
 let currentGatewayApiKey = '';
 let isGatewayKeyVisible = false;
 let gatewayLocalFilePayload = null;
@@ -48,7 +52,7 @@ let pairingCopyResetTimer = null;
 let visualAutoReplyRules = [];
 let isAutoReplyRawMode = false;
 let brandingAvatarBase64Payload = '';
-let profileAvatarBase64Payload = '';
+let pendingProfileAvatarBase64 = '';
 let webhookDeliveryLogsCache = [];
 let publicChatMessagesCache = [];
 let waLiveInboxCache = [];
@@ -68,26 +72,13 @@ let refreshStartedAt = 0;
 let refreshFallbackTimer = null;
 let uptimeTickInterval = null;
 
-// --- state khusus modul xu core community (chat.html) ---
+// --- state khusus modul xu core community (chat.html) & stiker hibrida ---
 let communityMessagesCache = [];
 let communityPinnedCache = [];
 let communityMembersCache = [];
 let communityStickersCache = [];
-let currentPinnedBannerIndex = 0;
-let activeCommunityReplyTarget = null;
-let activeReactionPopupMessageId = '';
-let activeReactionDetailMessageId = '';
-let activeReactionDetailEmojiTab = 'ALL';
-let longPressMessageTimer = null;
-
-// --- state pengaturan profil akun dan penghapusan akun permanen ---
-let currentUserProfileData = null;
-let pendingProfileAvatarBase64 = '';
-
-// --- state modul xu core community (chat.html) & stiker hibrida supabase ---
-const COMMUNITY_DEFAULT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-
 let activePinnedCarouselIndex = 0;
+let activeCommunityReplyTarget = null;
 let activeFloatingMessageId = '';
 let activeDetailReactionMessageId = '';
 let activeDetailReactionFilter = 'all';
@@ -97,11 +88,12 @@ let isMembersDrawerOpen = false;
 let isStickerSyncRunning = false;
 let messageLongPressTimer = null;
 
-const MAX_CPU_POINTS = 25;
+// --- instance grafik dashboard ---
 let cpuChartInstance = null;
 let trafficChartInstance = null;
 let trafficVelocityChartInstance = null;
 
+// --- koneksi socket.io global ---
 const socketClient = io({
   withCredentials: true,
   reconnection: true,
@@ -192,31 +184,10 @@ function formatWibTimeOnly(timestampMs) {
   }).format(new Date(parsedMs)).replace('.', ':');
 }
 
-function formatWibDayDivider(timestampMs) {
-  const parsedMs = Number(timestampMs || Date.now());
-  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  const targetKey = dateFormatter.format(new Date(parsedMs));
-  const todayKey = dateFormatter.format(new Date());
-  const yesterdayKey = dateFormatter.format(new Date(Date.now() - 86400000));
-  if (targetKey === todayKey) return 'Hari ini';
-  if (targetKey === yesterdayKey) return 'Kemarin';
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric'
-  }).format(new Date(parsedMs));
-}
-
 function updateButtonGroupState(selector, dataAttr, activeValue, activeClass, inactiveClass) {
-  document.querySelectorAll(selector).forEach((btn) => {
-    const isMatched = btn.getAttribute(dataAttr) === activeValue;
-    btn.className = isMatched ? activeClass : inactiveClass;
+  document.querySelectorAll(selector).forEach((buttonEl) => {
+    const isMatched = buttonEl.getAttribute(dataAttr) === activeValue;
+    buttonEl.className = isMatched ? activeClass : inactiveClass;
   });
 }
 
@@ -294,73 +265,109 @@ function getExpectedDeleteAccountPhrase() {
   return `confirm ${resolvedName}`;
 }
 
-function syncProfileElementsAcrossPages() {
-  const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserFullName || 'User')}&background=10b981&color=fff`;
-  const resolvedAvatar = currentUserAvatarUrl || fallbackAvatar;
+function applyProfileIdentityToHeader(profileObj) {
+  if (!profileObj) return;
+  const resolvedName = String(profileObj.displayName || profileObj.fullName || profileObj.givenName || 'User').trim();
+  const resolvedAvatar =
+    profileObj.avatarUrl ||
+    profileObj.pictureUrl ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=10b981&color=fff`;
+
+  currentUserFullName = resolvedName;
+  currentUserAvatarUrl = resolvedAvatar;
+  if (typeof profileObj.handle === 'string') currentUserHandle = profileObj.handle;
+  if (typeof profileObj.email === 'string' && profileObj.email) currentUserEmail = profileObj.email;
 
   if (getEl('navGoogleAvatar')) getEl('navGoogleAvatar').src = resolvedAvatar;
   if (getEl('communityNavAvatar')) getEl('communityNavAvatar').src = resolvedAvatar;
-  if (getEl('navGoogleGivenName')) getEl('navGoogleGivenName').textContent = currentUserFullName || 'User';
-  if (getEl('profileAvatarPreviewImg') && !profileAvatarBase64Payload) {
+  if (getEl('navGoogleGivenName')) getEl('navGoogleGivenName').textContent = resolvedName;
+  if (getEl('profileAvatarPreviewImg') && !pendingProfileAvatarBase64) {
     getEl('profileAvatarPreviewImg').src = resolvedAvatar;
   }
   if (getEl('deleteAccountExpectedPhrase')) {
     getEl('deleteAccountExpectedPhrase').textContent = getExpectedDeleteAccountPhrase();
   }
+}
 
-  const roleHexEl = getEl('profileRoleHexBadge');
-  if (roleHexEl) {
-    roleHexEl.textContent = isCurrentUserAdmin ? 'DEVELOPER' : 'MEMBER';
-    roleHexEl.className = isCurrentUserAdmin ? 'role-hex-badge role-hex-developer' : 'role-hex-badge role-hex-member';
+function populateProfileSettingsModalFields(profileData) {
+  const safeProfile = profileData || {};
+  const displayName = String(safeProfile.displayName || currentUserFullName || 'User').slice(0, 20);
+  const avatarUrl =
+    safeProfile.avatarUrl ||
+    currentUserAvatarUrl ||
+    getEl('navGoogleAvatar')?.src ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=fff`;
+  const isDeveloperRole = isCurrentUserAdmin || String(safeProfile.role || '').toUpperCase() === 'DEVELOPER';
+
+  if (getEl('profileAvatarPreviewImg') && !pendingProfileAvatarBase64) {
+    getEl('profileAvatarPreviewImg').src = avatarUrl;
+  }
+  if (getEl('profileDisplayNameInput')) {
+    getEl('profileDisplayNameInput').value = displayName;
+  }
+  if (getEl('profileHandleInput')) {
+    getEl('profileHandleInput').value = String(safeProfile.handle ?? currentUserHandle ?? '');
+  }
+  if (getEl('profileEmailReadonly')) {
+    getEl('profileEmailReadonly').value = String(safeProfile.email || currentUserEmail || '-');
+  }
+
+  const roleBadgeEl = getEl('profileRoleHexBadge');
+  if (roleBadgeEl) {
+    roleBadgeEl.textContent = isDeveloperRole ? 'DEVELOPER' : 'MEMBER';
+    roleBadgeEl.className = isDeveloperRole
+      ? 'role-hex-badge role-hex-developer'
+      : 'role-hex-badge role-hex-member';
+  }
+
+  if (getEl('deleteAccountExpectedPhrase')) {
+    getEl('deleteAccountExpectedPhrase').textContent = getExpectedDeleteAccountPhrase();
+  }
+
+  updateProfileNameCounter();
+  validateDeleteAccountConfirmation();
+}
+
+async function fetchCurrentProfileSettings() {
+  try {
+    const response = await fetch('/api/profile/me', {
+      method: 'GET',
+      credentials: 'same-origin'
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.isSuccess) return null;
+
+    currentUserProfileData = payload.profile || null;
+    if (typeof payload.isAdmin === 'boolean') {
+      isCurrentUserAdmin = payload.isAdmin;
+    }
+
+    if (currentUserProfileData) {
+      applyProfileIdentityToHeader(currentUserProfileData);
+      populateProfileSettingsModalFields(currentUserProfileData);
+    }
+
+    if (Array.isArray(payload.stickers)) {
+      communityStickersCache = payload.stickers;
+    }
+
+    return payload;
+  } catch (profileErr) {
+    console.error('[PROFILE FETCH]', profileErr);
+    return null;
   }
 }
 
 async function openProfileSettingsModal() {
-  clearProfileAvatarSelection();
+  pendingProfileAvatarBase64 = '';
+  if (getEl('profileAvatarFileInput')) getEl('profileAvatarFileInput').value = '';
+  if (getEl('profileAvatarFileInfo')) getEl('profileAvatarFileInfo').textContent = 'JPG / PNG / WebP maksimal 5 MB';
+  getEl('profileClearAvatarBtn')?.classList.add('hidden');
+  if (getEl('deleteAccountConfirmInput')) getEl('deleteAccountConfirmInput').value = '';
+
+  populateProfileSettingsModalFields(currentUserProfileData);
   toggleModalVisibility('profileSettingsModal', true);
-
-  if (getEl('profileDisplayNameInput')) {
-    getEl('profileDisplayNameInput').value = String(currentUserFullName || '').slice(0, 20);
-  }
-  if (getEl('profileHandleInput')) {
-    getEl('profileHandleInput').value = currentUserHandle || '';
-  }
-  if (getEl('profileEmailReadonly')) {
-    getEl('profileEmailReadonly').value = currentUserEmail || '-';
-  }
-  if (getEl('deleteAccountConfirmInput')) {
-    getEl('deleteAccountConfirmInput').value = '';
-  }
-
-  syncProfileElementsAcrossPages();
-  updateProfileNameCounter();
-  validateDeleteAccountConfirmation();
-
-  try {
-    const response = await fetch('/api/profile/me', { method: 'GET', credentials: 'same-origin' });
-    const data = await response.json().catch(() => ({}));
-    if (response.ok && data.isSuccess && data.profile) {
-      currentUserFullName = data.profile.displayName || currentUserFullName;
-      currentUserHandle = data.profile.handle || '';
-      currentUserAvatarUrl = data.profile.avatarUrl || currentUserAvatarUrl;
-      currentUserEmail = data.profile.email || currentUserEmail;
-
-      if (getEl('profileDisplayNameInput')) {
-        getEl('profileDisplayNameInput').value = String(currentUserFullName).slice(0, 20);
-      }
-      if (getEl('profileHandleInput')) {
-        getEl('profileHandleInput').value = currentUserHandle;
-      }
-      if (getEl('profileEmailReadonly')) {
-        getEl('profileEmailReadonly').value = currentUserEmail || '-';
-      }
-      syncProfileElementsAcrossPages();
-      updateProfileNameCounter();
-      validateDeleteAccountConfirmation();
-    }
-  } catch {
-    // --- tetap gunakan state profil dari sesi aktif jika jaringan lambat ---
-  }
+  await fetchCurrentProfileSettings();
 }
 
 function closeProfileSettingsModal() {
@@ -372,67 +379,82 @@ function updateProfileNameCounter() {
   const inputEl = getEl('profileDisplayNameInput');
   const counterEl = getEl('profileDisplayNameCounter');
   if (!inputEl || !counterEl) return;
-  const currentLen = inputEl.value.length;
-  counterEl.textContent = `${currentLen}/20`;
-  counterEl.className = currentLen >= 20
-    ? 'text-[10px] font-mono-code text-amber-400 font-bold'
+
+  const currentLength = String(inputEl.value || '').length;
+  counterEl.textContent = `${currentLength}/20`;
+  counterEl.className = currentLength >= 20
+    ? 'text-[10px] font-mono-code text-amber-300 font-bold'
     : 'text-[10px] font-mono-code text-slate-400';
 }
 
 function handleProfileAvatarSelect(event) {
-  const file = event?.target?.files?.[0];
-  const previewImg = getEl('profileAvatarPreviewImg');
+  const selectedFile = event?.target?.files?.[0];
   const infoEl = getEl('profileAvatarFileInfo');
+  const previewEl = getEl('profileAvatarPreviewImg');
   const clearBtn = getEl('profileClearAvatarBtn');
 
-  if (!file) {
+  if (!selectedFile) {
     clearProfileAvatarSelection();
     return;
   }
 
-  if (file.size > 5 * 1024 * 1024) {
-    showCyberToast('Ukuran Terlalu Besar', 'Maksimal ukuran foto profil adalah 5 MB.', 'danger');
+  if (!/^image\/(jpeg|jpg|png|webp)$/i.test(selectedFile.type || '')) {
+    showCyberToast('Format Tidak Didukung', 'Gunakan gambar berformat JPG, PNG, atau WebP.', 'danger');
     clearProfileAvatarSelection();
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    profileAvatarBase64Payload = String(reader.result || '');
-    if (previewImg && profileAvatarBase64Payload) previewImg.src = profileAvatarBase64Payload;
-    if (infoEl) infoEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+  if (selectedFile.size > 5 * 1024 * 1024) {
+    showCyberToast('File Terlalu Besar', 'Maksimal ukuran foto profil adalah 5 MB.', 'danger');
+    clearProfileAvatarSelection();
+    return;
+  }
+
+  const fileReader = new FileReader();
+  fileReader.onload = () => {
+    pendingProfileAvatarBase64 = String(fileReader.result || '');
+    if (previewEl && pendingProfileAvatarBase64) {
+      previewEl.src = pendingProfileAvatarBase64;
+    }
+    if (infoEl) {
+      infoEl.textContent = `${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
+    }
     clearBtn?.classList.remove('hidden');
   };
-  reader.readAsDataURL(file);
+  fileReader.readAsDataURL(selectedFile);
 }
 
 function clearProfileAvatarSelection() {
-  profileAvatarBase64Payload = '';
-  const fileInput = getEl('profileAvatarFileInput');
-  const infoEl = getEl('profileAvatarFileInfo');
-  const clearBtn = getEl('profileClearAvatarBtn');
+  pendingProfileAvatarBase64 = '';
+  if (getEl('profileAvatarFileInput')) getEl('profileAvatarFileInput').value = '';
+  if (getEl('profileAvatarFileInfo')) getEl('profileAvatarFileInfo').textContent = 'JPG / PNG / WebP maksimal 5 MB';
+  getEl('profileClearAvatarBtn')?.classList.add('hidden');
 
-  if (fileInput) fileInput.value = '';
-  if (infoEl) infoEl.textContent = 'JPG / PNG / WebP maksimal 5 MB';
-  clearBtn?.classList.add('hidden');
-  syncProfileElementsAcrossPages();
+  const fallbackAvatar =
+    currentUserProfileData?.avatarUrl ||
+    currentUserAvatarUrl ||
+    getEl('navGoogleAvatar')?.src ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserFullName)}&background=10b981&color=fff`;
+  if (getEl('profileAvatarPreviewImg')) {
+    getEl('profileAvatarPreviewImg').src = fallbackAvatar;
+  }
 }
 
 async function submitProfileSettingsUpdate() {
   const displayName = String(getEl('profileDisplayNameInput')?.value || '').trim();
   const handle = String(getEl('profileHandleInput')?.value || '').trim();
-  const submitBtn = getEl('profileSaveSubmitBtn');
+  const saveBtn = getEl('profileSaveSubmitBtn');
 
   if (!displayName) {
     showCyberToast('Nama Kosong', 'Nama akun tidak boleh kosong.', 'danger');
     return;
   }
   if (displayName.length > 20) {
-    showCyberToast('Nama Terlalu Panjang', 'Nama akun maksimal 20 karakter.', 'danger');
+    showCyberToast('Nama Terlalu Panjang', 'Nama akun maksimal terdiri dari 20 karakter.', 'danger');
     return;
   }
 
-  if (submitBtn) submitBtn.disabled = true;
+  if (saveBtn) saveBtn.disabled = true;
   try {
     const response = await fetch('/api/profile/update', {
       method: 'POST',
@@ -441,79 +463,78 @@ async function submitProfileSettingsUpdate() {
       body: JSON.stringify({
         displayName,
         handle,
-        avatarBase64: profileAvatarBase64Payload || undefined
+        avatarBase64: pendingProfileAvatarBase64 || ''
       })
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.isSuccess) {
-      throw new Error(data.errorMessage || 'Gagal memperbarui profil.');
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.isSuccess) {
+      throw new Error(result.errorMessage || 'Gagal memperbarui profil akun.');
     }
 
-    currentUserFullName = data.profile?.displayName || displayName;
-    currentUserHandle = data.profile?.handle ?? handle;
-    if (data.profile?.avatarUrl) currentUserAvatarUrl = data.profile.avatarUrl;
+    currentUserProfileData = result.profile || currentUserProfileData;
+    pendingProfileAvatarBase64 = '';
+    getEl('profileClearAvatarBtn')?.classList.add('hidden');
+    if (getEl('profileAvatarFileInput')) getEl('profileAvatarFileInput').value = '';
+    if (getEl('profileAvatarFileInfo')) getEl('profileAvatarFileInfo').textContent = 'Profil tersinkronisasi.';
 
-    profileAvatarBase64Payload = '';
-    clearProfileAvatarSelection();
-    syncProfileElementsAcrossPages();
-    validateDeleteAccountConfirmation();
-
-    showCyberToast('Profil Diperbarui', 'Nama akun dan foto profil berhasil disimpan.', 'success');
+    applyProfileIdentityToHeader(currentUserProfileData);
+    populateProfileSettingsModalFields(currentUserProfileData);
+    showCyberToast('Profil Diperbarui', 'Nama dan foto profil Anda telah disimpan.', 'success');
   } catch (updateErr) {
     showCyberToast('Gagal Menyimpan Profil', updateErr.message, 'danger');
   } finally {
-    if (submitBtn) submitBtn.disabled = false;
+    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
 function validateDeleteAccountConfirmation() {
   const inputEl = getEl('deleteAccountConfirmInput');
   const submitBtn = getEl('deleteAccountSubmitBtn');
-  const expectedEl = getEl('deleteAccountExpectedPhrase');
-  if (!inputEl || !submitBtn) return;
+  if (!inputEl || !submitBtn) return false;
 
   const expectedPhrase = getExpectedDeleteAccountPhrase();
-  if (expectedEl) expectedEl.textContent = expectedPhrase;
+  if (getEl('deleteAccountExpectedPhrase')) {
+    getEl('deleteAccountExpectedPhrase').textContent = expectedPhrase;
+  }
 
-  const isExactMatch = inputEl.value === expectedPhrase;
+  const isExactMatch = Boolean(currentUserFullName) && String(inputEl.value || '') === expectedPhrase;
   submitBtn.disabled = !isExactMatch;
+  return isExactMatch;
 }
 
 async function submitPermanentAccountDeletion() {
-  const inputEl = getEl('deleteAccountConfirmInput');
-  const submitBtn = getEl('deleteAccountSubmitBtn');
   const expectedPhrase = getExpectedDeleteAccountPhrase();
-
-  if (!inputEl || inputEl.value !== expectedPhrase) {
-    showCyberToast('Konfirmasi Belum Cocok', `Ketik persis: ${expectedPhrase}`, 'danger');
+  if (!validateDeleteAccountConfirmation()) {
+    showCyberToast('Konfirmasi Belum Sesuai', `Ketik persis: ${expectedPhrase}`, 'danger');
     return;
   }
 
+  const submitBtn = getEl('deleteAccountSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
+
   try {
     const response = await fetch('/api/account/delete', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        confirmationText: inputEl.value,
-        expectedFullName: currentUserFullName
+        confirmationText: expectedPhrase,
+        verifiedDynamicPhrase: expectedPhrase
       })
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.isSuccess) {
-      throw new Error(data.errorMessage || 'Gagal menghapus akun secara permanen.');
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.isSuccess) {
+      throw new Error(result.errorMessage || 'Gagal menghapus akun.');
     }
 
     try {
       localStorage.removeItem(`${STICKER_CACHE_PREFIX}${currentGoogleUserId}`);
-      localStorage.removeItem(`${STICKER_SYNCED_PREFIX}${currentGoogleUserId}`);
     } catch {}
 
     if (socketClient.connected) socketClient.disconnect();
     window.location.replace('/login');
   } catch (deleteErr) {
-    showCyberToast('Penghapusan Ditolak', deleteErr.message, 'danger');
+    showCyberToast('Penghapusan Gagal', deleteErr.message, 'danger');
     validateDeleteAccountConfirmation();
   }
 }
@@ -664,6 +685,37 @@ function initHeaderBrandTextCanvas(canvasEl, options) {
 
   animateLoop();
 }
+// --- kompatibilitas sinkronisasi elemen profil lintas halaman ---
+function syncProfileElementsAcrossPages() {
+  applyProfileIdentityToHeader({
+    displayName: currentUserFullName,
+    avatarUrl: currentUserAvatarUrl,
+    handle: currentUserHandle,
+    email: currentUserEmail
+  });
+}
+
+// --- format pemisah hari zona asia/jakarta ---
+function formatWibDayDivider(timestampMs) {
+  const parsedMs = Number(timestampMs || Date.now());
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const targetKey = dateFormatter.format(new Date(parsedMs));
+  const todayKey = dateFormatter.format(new Date());
+  const yesterdayKey = dateFormatter.format(new Date(Date.now() - 86400000));
+  if (targetKey === todayKey) return 'Hari ini';
+  if (targetKey === yesterdayKey) return 'Kemarin';
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  }).format(new Date(parsedMs));
+}
 
 // --- kartu panduan onboarding 3 langkah khusus user baru ---
 function isOnboardingDismissed() {
@@ -683,14 +735,14 @@ function dismissOnboardingCard() {
 }
 
 function updateOnboardingStepBadge(elementId, stepNumber, isCompleted) {
-  const el = getEl(elementId);
-  if (!el) return;
+  const stepEl = getEl(elementId);
+  if (!stepEl) return;
   if (isCompleted) {
-    el.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
-    el.className = 'w-5 h-5 rounded-full accent-bg text-slate-950 flex items-center justify-center shrink-0 mt-0.5';
+    stepEl.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>';
+    stepEl.className = 'w-5 h-5 rounded-full accent-bg text-slate-950 flex items-center justify-center shrink-0 mt-0.5';
   } else {
-    el.textContent = String(stepNumber);
-    el.className = 'w-5 h-5 rounded-full bg-slate-900 border border-slate-700 text-[10px] font-mono-code font-bold text-slate-300 flex items-center justify-center shrink-0 mt-0.5';
+    stepEl.textContent = String(stepNumber);
+    stepEl.className = 'w-5 h-5 rounded-full bg-slate-900 border border-slate-700 text-[10px] font-mono-code font-bold text-slate-300 flex items-center justify-center shrink-0 mt-0.5';
   }
 }
 
@@ -906,7 +958,7 @@ function renderWaLiveInboxUI() {
     return;
   }
 
-  if (!activeWaInboxJid || !waLiveInboxCache.some((c) => c.jid === activeWaInboxJid)) {
+  if (!activeWaInboxJid || !waLiveInboxCache.some((chat) => chat.jid === activeWaInboxJid)) {
     activeWaInboxJid = waLiveInboxCache[0].jid;
   }
 
@@ -951,7 +1003,7 @@ function renderActiveWaInboxMessages() {
   const viewport = getEl('waInboxMessagesViewport');
   if (!viewport) return;
 
-  const activeChat = waLiveInboxCache.find((c) => c.jid === activeWaInboxJid);
+  const activeChat = waLiveInboxCache.find((chat) => chat.jid === activeWaInboxJid);
   if (!activeChat) {
     if (titleEl) titleEl.textContent = 'Pilih percakapan';
     if (jidEl) jidEl.textContent = '-';
@@ -1286,7 +1338,7 @@ function applyGroupWelcomePreset(presetKey) {
   showCyberToast('Preset Welcome', 'Template pesan selamat datang diterapkan.', 'info');
 }
 
-// --- command palette (ctrl + k) ---
+// --- command palette (ctrl + k) dan hotkeys global ---
 function getCommandPaletteActions() {
   const actions = [
     { id: 'tab-dash', group: 'Navigasi', title: 'Buka Tab Dashboard', desc: 'Lihat metrik, koneksi WA, grafik & terminal CLI', run: () => switchWorkspaceTab('dashboard') },
@@ -1417,11 +1469,14 @@ function setupGlobalHotkeys() {
         closeLiveChatFullscreen();
         return;
       }
-      if (activeReactionPopupMessageId) closeMessageReactionPopup();
-      if (activeReactionDetailMessageId) closeReactionDetailSheet();
-      if (getEl('chatMediaLightbox') && !getEl('chatMediaLightbox').classList.contains('hidden')) {
-        closeMediaLightbox();
-      }
+      if (activeFloatingMessageId) closeMessageActionPopup();
+      if (activeDetailReactionMessageId) closeReactionDetailSheet();
+      if (isStickerSheetOpen) closeStickerBottomSheet();
+      if (isChatAttachMenuOpen) closeChatAttachMenu();
+      if (isMembersDrawerOpen) toggleMembersDrawer(false);
+      closePinnedMessagesModal();
+      closeChatMediaLightbox();
+      closeProfileSettingsModal();
       return;
     }
 
@@ -1444,6 +1499,11 @@ function setupGlobalHotkeys() {
       executeCommandPaletteAction(cmdPaletteSelectedIndex);
     }
   });
+}
+
+// --- alias kompatibilitas untuk setupCommandPaletteHotkeys ---
+function setupCommandPaletteHotkeys() {
+  setupGlobalHotkeys();
 }
 
 // --- webhook delivery logs real-time ---
@@ -1708,11 +1768,10 @@ function markAllAnnouncementsAsRead() {
   renderAnnouncementsCenterUI(announcementsCache);
   showCyberToast('Notifikasi', 'Semua pemberitahuan ditandai sudah dibaca.', 'info');
 }
-
 // --- grafik high-amplitude: traffic velocity, cpu heartbeat, dan 7-day traffic ---
 function hexToRgba(hexColor, alpha) {
   const cleanHex = hexColor.replace('#', '').trim();
-  const fullHex = cleanHex.length === 3 ? cleanHex.split('').map((c) => c + c).join('') : cleanHex;
+  const fullHex = cleanHex.length === 3 ? cleanHex.split('').map((char) => char + char).join('') : cleanHex;
   const num = parseInt(fullHex, 16);
   if (Number.isNaN(num)) return `rgba(16, 185, 129, ${alpha})`;
   return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
@@ -1999,14 +2058,14 @@ function updateTrafficHistoryChart(trafficInput) {
 
   if (typeof trafficInput === 'object') {
     const keys = Object.keys(trafficInput).sort();
-    trafficChartInstance.data.labels = keys.map((d) => d.slice(5));
-    trafficChartInstance.data.datasets[0].data = keys.map((d) => Number(trafficInput[d]?.in || 0));
-    trafficChartInstance.data.datasets[1].data = keys.map((d) => Number(trafficInput[d]?.out || 0));
+    trafficChartInstance.data.labels = keys.map((dateKey) => dateKey.slice(5));
+    trafficChartInstance.data.datasets[0].data = keys.map((dateKey) => Number(trafficInput[dateKey]?.in || 0));
+    trafficChartInstance.data.datasets[1].data = keys.map((dateKey) => Number(trafficInput[dateKey]?.out || 0));
     trafficChartInstance.update('none');
   }
 }
 
-// --- ganti tema aksen dengan view transition ---
+// --- ganti tema aksen dengan transisi melingkar view transition ---
 function applyAccentTheme(themeName, notify = true) {
   const executeApply = () => {
     document.documentElement.setAttribute('data-theme', themeName);
@@ -2020,13 +2079,13 @@ function applyAccentTheme(themeName, notify = true) {
   };
 
   if (document.startViewTransition) {
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    const endRadius = Math.hypot(cx, cy);
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const endRadius = Math.hypot(centerX, centerY);
     const transition = document.startViewTransition(executeApply);
     transition.ready.then(() => {
       document.documentElement.animate(
-        { clipPath: [`circle(0px at ${cx}px ${cy}px)`, `circle(${endRadius}px at ${cx}px ${cy}px)`] },
+        { clipPath: [`circle(0px at ${centerX}px ${centerY}px)`, `circle(${endRadius}px at ${centerX}px ${centerY}px)`] },
         { duration: 500, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', pseudoElement: '::view-transition-new(root)' }
       );
     });
@@ -2037,12 +2096,12 @@ function applyAccentTheme(themeName, notify = true) {
   if (notify) showCyberToast('Tema Diubah', `Tema aksen aktif: ${themeName.toUpperCase()}`, 'info');
 }
 
-// --- notifikasi browser & dropdown akun ---
+// --- notifikasi browser & dropdown menu akun ---
 function syncBrowserNotifLabel() {
-  const el = getEl('browserNotifStatusLabel');
+  const statusEl = getEl('browserNotifStatusLabel');
   const modalBtn = getEl('modalEnableNotifBtn');
   const isGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
-  if (el) el.textContent = isGranted ? 'On' : 'Off';
+  if (statusEl) statusEl.textContent = isGranted ? 'On' : 'Off';
   if (modalBtn) {
     modalBtn.textContent = isGranted ? 'Aktif' : 'Aktifkan';
     modalBtn.className = isGranted
@@ -2056,9 +2115,9 @@ async function requestBrowserNotificationPermission() {
     showCyberToast('Tidak Didukung', 'Browser Anda tidak mendukung notifikasi desktop.', 'danger');
     return;
   }
-  const perm = await Notification.requestPermission();
+  const permission = await Notification.requestPermission();
   syncBrowserNotifLabel();
-  showCyberToast('Notifikasi Browser', perm === 'granted' ? 'Alert putus koneksi diaktifkan.' : 'Izin notifikasi ditolak.', perm === 'granted' ? 'success' : 'danger');
+  showCyberToast('Notifikasi Browser', permission === 'granted' ? 'Alert putus koneksi diaktifkan.' : 'Izin notifikasi ditolak.', permission === 'granted' ? 'success' : 'danger');
 }
 
 function notifyBotDisconnectIfAllowed(reasonText) {
@@ -2093,7 +2152,7 @@ async function logoutGoogleAccount() {
   window.location.replace('/login');
 }
 
-// --- navigasi workspace dashboard ---
+// --- navigasi workspace dashboard & pengalih mode autentikasi wa ---
 function switchWorkspaceTab(targetTab) {
   if (targetTab === 'developer' && !isCurrentUserAdmin) {
     showTopToast('Tab IDE khusus admin platform', true);
@@ -2470,7 +2529,7 @@ async function copyGatewayApiKey() {
     'Belum ada API Key aktif. Klik Generate Key terlebih dahulu.'
   );
   if (isCopied) {
-    flashCopyButtonCheckmark('gwCopyKeyBtn', 'gwCopyKeyIcon', 'Salin API Key', (t) => { gwCopyIconResetTimer = t; }, gwCopyIconResetTimer);
+    flashCopyButtonCheckmark('gwCopyKeyBtn', 'gwCopyKeyIcon', 'Salin API Key', (timer) => { gwCopyIconResetTimer = timer; }, gwCopyIconResetTimer);
   }
 }
 
@@ -2704,7 +2763,7 @@ async function copyGatewayPreviewSnippet() {
   const labelMap = { json: 'Payload JSON Disalin', javascript: 'Kode JavaScript Disalin', curl: 'Perintah cURL Disalin' };
   const isCopied = await copyTextToClipboard(snippetText, labelMap[selectedFormat] || 'Kode Disalin', 'Tidak ada konten untuk disalin.');
   if (isCopied) {
-    flashCopyButtonCheckmark('gwCopySnippetBtn', 'gwCopySnippetIcon', 'Salin Kode', (t) => { gwCopySnippetResetTimer = t; }, gwCopySnippetResetTimer);
+    flashCopyButtonCheckmark('gwCopySnippetBtn', 'gwCopySnippetIcon', 'Salin Kode', (timer) => { gwCopySnippetResetTimer = timer; }, gwCopySnippetResetTimer);
   }
 }
 
@@ -2739,8 +2798,7 @@ async function submitGatewayTestMessage() {
     if (btn) btn.disabled = false;
   }
 }
-
-// --- statistik langganan, leaderboard, dan form pengaturan bot ---
+// --- statistik langganan, leaderboard perintah, dan form pengaturan bot ---
 function renderSubscriptionCountdown(subscriptionOrExpiresAt) {
   const pill = getEl('subscriptionCountdownPill');
   if (!pill) return;
@@ -2851,8 +2909,8 @@ function populateSettingsForm(settingsObj) {
   ];
 
   fieldPairs.forEach(([id, val]) => {
-    const el = getEl(id);
-    if (el && document.activeElement !== el) el.value = val;
+    const fieldEl = getEl(id);
+    if (fieldEl && document.activeElement !== fieldEl) fieldEl.value = val;
   });
 
   const isEditingBuilder = ['arTriggerInput', 'arResponseInput', 'arMediaUrlInput', 'cfgAutoReplyInput'].includes(document.activeElement?.id);
@@ -2897,8 +2955,8 @@ function saveBotConfigurationForm() {
     botName: getEl('cfgBotNameInput')?.value.trim() || '',
     packname: getEl('cfgPacknameInput')?.value.trim() || '',
     author: getEl('cfgAuthorInput')?.value.trim() || '',
-    owners: rawOwners.split(',').map((s) => s.trim()).filter(Boolean),
-    toxic: rawToxic.split(',').map((w) => w.trim()).filter(Boolean),
+    owners: rawOwners.split(',').map((item) => item.trim()).filter(Boolean),
+    toxic: rawToxic.split(',').map((word) => word.trim()).filter(Boolean),
     autoReplies,
     disabledCategories: currentDisabledCategories,
     isNoPrefix: Boolean(getEl('cfgNoPrefixCheck')?.checked),
@@ -3051,7 +3109,7 @@ async function copyPairingCodeValue() {
   }
   const isCopied = await copyTextToClipboard(codeText, 'Pairing Code Disalin', 'Kode pairing belum tersedia.');
   if (isCopied) {
-    flashCopyButtonCheckmark('copyPairingCodeBtn', 'copyPairingCodeIcon', 'Copy Pairing Code', (t) => { pairingCopyResetTimer = t; }, pairingCopyResetTimer);
+    flashCopyButtonCheckmark('copyPairingCodeBtn', 'copyPairingCodeIcon', 'Copy Pairing Code', (timer) => { pairingCopyResetTimer = timer; }, pairingCopyResetTimer);
   }
 }
 
@@ -3132,8 +3190,8 @@ function renderFilteredTerminalLogs() {
   for (const entry of terminalLogsBuffer) {
     const entryLevel = String(entry?.level || 'info').toLowerCase();
     if (activeLogFilter !== 'all' && entryLevel !== activeLogFilter) continue;
-    const el = buildTerminalLineElement(entry);
-    if (el) terminalBox.appendChild(el);
+    const lineEl = buildTerminalLineElement(entry);
+    if (lineEl) terminalBox.appendChild(lineEl);
   }
   if (isTerminalAutoScrollEnabled) terminalBox.scrollTop = terminalBox.scrollHeight;
 }
@@ -3215,14 +3273,14 @@ function populateGroupSelectorOptions() {
   const selectors = [getEl('directGroupSelect'), getEl('schedGroupSelect')];
   const optionsHtml = managedGroupsCache.length > 0
     ? '<option value="">-- Pilih Grup Aktif --</option>' +
-      managedGroupsCache.map((g) => `<option value="${escapeHtmlString(g.jid)}">${escapeHtmlString(g.subject || g.jid)} (${Number(g.participantsCount || 0)} anggota)</option>`).join('')
+      managedGroupsCache.map((groupItem) => `<option value="${escapeHtmlString(groupItem.jid)}">${escapeHtmlString(groupItem.subject || groupItem.jid)} (${Number(groupItem.participantsCount || 0)} anggota)</option>`).join('')
     : '<option value="">-- Belum ada grup aktif --</option>';
 
   selectors.forEach((selectEl) => {
     if (!selectEl) return;
     const prevVal = selectEl.value;
     selectEl.innerHTML = optionsHtml;
-    if (prevVal && managedGroupsCache.some((g) => g.jid === prevVal)) selectEl.value = prevVal;
+    if (prevVal && managedGroupsCache.some((groupItem) => groupItem.jid === prevVal)) selectEl.value = prevVal;
   });
 }
 
@@ -3323,7 +3381,7 @@ function toggleBotFeatureCategory(categoryName) {
   if (!normalized) return;
 
   if (currentDisabledCategories.includes(normalized)) {
-    currentDisabledCategories = currentDisabledCategories.filter((c) => c !== normalized);
+    currentDisabledCategories = currentDisabledCategories.filter((cat) => cat !== normalized);
   } else {
     currentDisabledCategories = [...currentDisabledCategories, normalized];
   }
@@ -3347,7 +3405,7 @@ function renderFeatureCatalogUI() {
     const matchedCmds = commands.filter((cmd) => {
       if (!query) return true;
       const cmdLower = String(cmd).toLowerCase();
-      const aliasMatch = aliases.some((al) => String(al).toLowerCase().includes(query));
+      const aliasMatch = aliases.some((aliasItem) => String(aliasItem).toLowerCase().includes(query));
       return cmdLower.includes(query) || categoryKey.includes(query) || usageText.toLowerCase().includes(query) || aliasMatch;
     });
 
@@ -3372,7 +3430,7 @@ function renderFeatureCatalogUI() {
   container.innerHTML = categories.map((cat) => {
     const isOff = currentDisabledCategories.includes(cat);
     const chipsHtml = grouped[cat].flatMap((entry) => {
-      const aliasHint = entry.aliases.length > 0 ? `Alias: ${entry.aliases.map((a) => `.${a}`).join(', ')}` : '';
+      const aliasHint = entry.aliases.length > 0 ? `Alias: ${entry.aliases.map((aliasItem) => `.${aliasItem}`).join(', ')}` : '';
       const limitBadge = entry.limit > 0 ? `<span class="text-[9px] text-slate-400">L:${entry.limit}</span>` : '';
       const premBadge = entry.premiumOnly ? '<span class="px-1 rounded bg-sky-500/20 text-sky-300 text-[9px] font-bold">PRO</span>' : '';
       const ownerBadge = entry.ownerOnly ? '<span class="px-1 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">OWN</span>' : '';
@@ -3495,7 +3553,7 @@ function renderManagedUsersTable() {
   const cardGrid = getEl('managedUsersCardGrid');
   if (!cardGrid) return;
 
-  const validSet = new Set(managedUsersCache.map((u) => u.jid));
+  const validSet = new Set(managedUsersCache.map((user) => user.jid));
   for (const jid of Array.from(selectedManagedUserJids)) {
     if (!validSet.has(jid)) selectedManagedUserJids.delete(jid);
   }
@@ -3587,7 +3645,7 @@ function renderManagedGroupsTable() {
   if (!cardGrid) return;
 
   const filtered = managedGroupsCache.filter(
-    (g) => String(g.subject || '').toLowerCase().includes(query) || String(g.jid || '').toLowerCase().includes(query)
+    (groupItem) => String(groupItem.subject || '').toLowerCase().includes(query) || String(groupItem.jid || '').toLowerCase().includes(query)
   );
 
   if (filtered.length === 0) {
@@ -3636,7 +3694,7 @@ function syncCategoryFilterOptions(pluginsArray) {
   const selectEl = getEl('pluginCategoryFilter');
   if (!selectEl) return;
   const currentVal = selectEl.value || 'all';
-  const categories = Array.from(new Set(pluginsArray.map((p) => p.category || 'root'))).sort();
+  const categories = Array.from(new Set(pluginsArray.map((pluginItem) => pluginItem.category || 'root'))).sort();
   selectEl.innerHTML = '<option value="all">Semua</option>' +
     categories.map((cat) => `<option value="${escapeHtmlString(cat)}">${escapeHtmlString(cat)}</option>`).join('');
   if (categories.includes(currentVal)) selectEl.value = currentVal;
@@ -3835,282 +3893,6 @@ function updateCodeInspectorReport(errorMessageText, hasError) {
     output.textContent = errorMessageText || 'Belum ada error sintaks maupun runtime yang terdeteksi.';
   }
 }
-
-// --- sinkronkan nama dan avatar profil ke navbar dashboard maupun chat ---
-function applyProfileIdentityToHeader(profileObj) {
-  if (!profileObj) return;
-  const resolvedName = String(profileObj.displayName || profileObj.fullName || profileObj.givenName || 'User').trim();
-  const resolvedAvatar =
-    profileObj.avatarUrl ||
-    profileObj.pictureUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(resolvedName)}&background=10b981&color=fff`;
-
-  currentUserFullName = resolvedName;
-
-  const navAvatarEl = getEl('navGoogleAvatar');
-  const navNameEl = getEl('navGoogleGivenName');
-  const chatNavAvatarEl = getEl('communityNavAvatar');
-  const expectedPhraseEl = getEl('deleteAccountExpectedPhrase');
-
-  if (navAvatarEl) navAvatarEl.src = resolvedAvatar;
-  if (navNameEl) navNameEl.textContent = resolvedName;
-  if (chatNavAvatarEl) chatNavAvatarEl.src = resolvedAvatar;
-  if (expectedPhraseEl) expectedPhraseEl.textContent = `confirm ${currentUserFullName}`;
-}
-
-// --- muat data profil user saat ini dari endpoint /api/profile/me ---
-async function fetchCurrentProfileSettings() {
-  try {
-    const response = await fetch('/api/profile/me', {
-      method: 'GET',
-      credentials: 'same-origin'
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.isSuccess) return null;
-
-    currentUserProfileData = payload.profile || null;
-    if (typeof payload.isAdmin === 'boolean') {
-      isCurrentUserAdmin = payload.isAdmin;
-    }
-
-    if (currentUserProfileData) {
-      applyProfileIdentityToHeader(currentUserProfileData);
-      populateProfileSettingsModalFields(currentUserProfileData);
-    }
-
-    if (Array.isArray(payload.stickers)) {
-      communityStickersCache = payload.stickers;
-    }
-
-    return payload;
-  } catch (profileErr) {
-    console.error('[PROFILE FETCH]', profileErr);
-    return null;
-  }
-}
-
-// --- isi kolom modal settings profile sesuai data akun aktif ---
-function populateProfileSettingsModalFields(profileData) {
-  const safeProfile = profileData || {};
-  const displayName = String(safeProfile.displayName || currentUserFullName || 'User').slice(0, 20);
-  const avatarUrl =
-    safeProfile.avatarUrl ||
-    getEl('navGoogleAvatar')?.src ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=fff`;
-  const isDeveloperRole = isCurrentUserAdmin || String(safeProfile.role || '').toUpperCase() === 'DEVELOPER';
-
-  if (getEl('profileAvatarPreviewImg') && !pendingProfileAvatarBase64) {
-    getEl('profileAvatarPreviewImg').src = avatarUrl;
-  }
-  if (getEl('profileDisplayNameInput')) {
-    getEl('profileDisplayNameInput').value = displayName;
-  }
-  if (getEl('profileHandleInput')) {
-    getEl('profileHandleInput').value = String(safeProfile.handle || '');
-  }
-  if (getEl('profileEmailReadonly')) {
-    getEl('profileEmailReadonly').value = String(safeProfile.email || currentUserEmail || '-');
-  }
-
-  const roleBadgeEl = getEl('profileRoleHexBadge');
-  if (roleBadgeEl) {
-    roleBadgeEl.textContent = isDeveloperRole ? 'DEVELOPER' : 'MEMBER';
-    roleBadgeEl.className = isDeveloperRole
-      ? 'role-hex-badge role-hex-developer'
-      : 'role-hex-badge role-hex-member';
-  }
-
-  const expectedPhraseEl = getEl('deleteAccountExpectedPhrase');
-  if (expectedPhraseEl) {
-    expectedPhraseEl.textContent = `confirm ${currentUserFullName}`;
-  }
-
-  updateProfileNameCounter();
-  validateDeleteAccountConfirmation();
-}
-
-// --- buka modal settings profile & reset kolom konfirmasi hapus akun ---
-async function openProfileSettingsModal() {
-  pendingProfileAvatarBase64 = '';
-  if (getEl('profileAvatarFileInput')) getEl('profileAvatarFileInput').value = '';
-  if (getEl('profileAvatarFileInfo')) getEl('profileAvatarFileInfo').textContent = 'JPG / PNG / WebP maksimal 5 MB';
-  getEl('profileClearAvatarBtn')?.classList.add('hidden');
-  if (getEl('deleteAccountConfirmInput')) getEl('deleteAccountConfirmInput').value = '';
-
-  populateProfileSettingsModalFields(currentUserProfileData);
-  toggleModalVisibility('profileSettingsModal', true);
-  await fetchCurrentProfileSettings();
-}
-
-function closeProfileSettingsModal() {
-  toggleModalVisibility('profileSettingsModal', false);
-}
-
-// --- hitung panjang karakter nama akun maksimal 20 karakter ---
-function updateProfileNameCounter() {
-  const inputEl = getEl('profileDisplayNameInput');
-  const counterEl = getEl('profileDisplayNameCounter');
-  if (!inputEl || !counterEl) return;
-
-  const currentLength = String(inputEl.value || '').length;
-  counterEl.textContent = `${currentLength}/20`;
-  counterEl.className = currentLength >= 20
-    ? 'text-[10px] font-mono-code text-amber-300 font-bold'
-    : 'text-[10px] font-mono-code text-slate-400';
-}
-
-// --- pilih foto profil baru maks 5mb dengan pratinjau lingkaran instan ---
-function handleProfileAvatarSelect(event) {
-  const selectedFile = event?.target?.files?.[0];
-  const infoEl = getEl('profileAvatarFileInfo');
-  const previewEl = getEl('profileAvatarPreviewImg');
-  const clearBtn = getEl('profileClearAvatarBtn');
-
-  if (!selectedFile) {
-    clearProfileAvatarSelection();
-    return;
-  }
-
-  if (!/^image\/(jpeg|jpg|png|webp)$/i.test(selectedFile.type || '')) {
-    showCyberToast('Format Tidak Didukung', 'Gunakan gambar berformat JPG, PNG, atau WebP.', 'danger');
-    clearProfileAvatarSelection();
-    return;
-  }
-
-  if (selectedFile.size > 5 * 1024 * 1024) {
-    showCyberToast('File Terlalu Besar', 'Maksimal ukuran foto profil adalah 5 MB.', 'danger');
-    clearProfileAvatarSelection();
-    return;
-  }
-
-  const fileReader = new FileReader();
-  fileReader.onload = () => {
-    pendingProfileAvatarBase64 = String(fileReader.result || '');
-    if (previewEl && pendingProfileAvatarBase64) {
-      previewEl.src = pendingProfileAvatarBase64;
-    }
-    if (infoEl) {
-      infoEl.textContent = `${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
-    }
-    clearBtn?.classList.remove('hidden');
-  };
-  fileReader.readAsDataURL(selectedFile);
-}
-
-function clearProfileAvatarSelection() {
-  pendingProfileAvatarBase64 = '';
-  if (getEl('profileAvatarFileInput')) getEl('profileAvatarFileInput').value = '';
-  if (getEl('profileAvatarFileInfo')) getEl('profileAvatarFileInfo').textContent = 'JPG / PNG / WebP maksimal 5 MB';
-  getEl('profileClearAvatarBtn')?.classList.add('hidden');
-
-  const fallbackAvatar =
-    currentUserProfileData?.avatarUrl ||
-    getEl('navGoogleAvatar')?.src ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserFullName)}&background=10b981&color=fff`;
-  if (getEl('profileAvatarPreviewImg')) {
-    getEl('profileAvatarPreviewImg').src = fallbackAvatar;
-  }
-}
-
-// --- kirim perubahan profil ke /api/profile/update ---
-async function submitProfileSettingsUpdate() {
-  const displayName = String(getEl('profileDisplayNameInput')?.value || '').trim();
-  const handle = String(getEl('profileHandleInput')?.value || '').trim();
-  const saveBtn = getEl('profileSaveSubmitBtn');
-
-  if (!displayName) {
-    showCyberToast('Nama Kosong', 'Nama akun tidak boleh kosong.', 'danger');
-    return;
-  }
-  if (displayName.length > 20) {
-    showCyberToast('Nama Terlalu Panjang', 'Nama akun maksimal terdiri dari 20 karakter.', 'danger');
-    return;
-  }
-
-  if (saveBtn) saveBtn.disabled = true;
-  try {
-    const response = await fetch('/api/profile/update', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        displayName,
-        handle,
-        avatarBase64: pendingProfileAvatarBase64 || ''
-      })
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.isSuccess) {
-      throw new Error(result.errorMessage || 'Gagal memperbarui profil akun.');
-    }
-
-    currentUserProfileData = result.profile || currentUserProfileData;
-    pendingProfileAvatarBase64 = '';
-    getEl('profileClearAvatarBtn')?.classList.add('hidden');
-    if (getEl('profileAvatarFileInput')) getEl('profileAvatarFileInput').value = '';
-    if (getEl('profileAvatarFileInfo')) getEl('profileAvatarFileInfo').textContent = 'Profil tersinkronisasi.';
-
-    applyProfileIdentityToHeader(currentUserProfileData);
-    populateProfileSettingsModalFields(currentUserProfileData);
-    showCyberToast('Profil Diperbarui', 'Nama dan foto profil Anda telah disimpan.', 'success');
-  } catch (updateErr) {
-    showCyberToast('Gagal Menyimpan Profil', updateErr.message, 'danger');
-  } finally {
-    if (saveBtn) saveBtn.disabled = false;
-  }
-}
-
-// --- validasi ketat kalimat konfirmasi dinamis: confirm <fullName> ---
-function validateDeleteAccountConfirmation() {
-  const inputEl = getEl('deleteAccountConfirmInput');
-  const submitBtn = getEl('deleteAccountSubmitBtn');
-  if (!inputEl || !submitBtn) return false;
-
-  const expectedPhrase = `confirm ${currentUserFullName}`;
-  const typedValue = String(inputEl.value || '');
-  const isExactMatch = Boolean(currentUserFullName) && typedValue === expectedPhrase;
-
-  submitBtn.disabled = !isExactMatch;
-  return isExactMatch;
-}
-
-// --- eksekusi penghapusan akun permanen setelah verifikasi frasa dinamis ---
-async function submitPermanentAccountDeletion() {
-  if (!validateDeleteAccountConfirmation()) {
-    showCyberToast('Konfirmasi Belum Sesuai', `Ketik persis: confirm ${currentUserFullName}`, 'danger');
-    return;
-  }
-
-  const submitBtn = getEl('deleteAccountSubmitBtn');
-  if (submitBtn) submitBtn.disabled = true;
-
-  try {
-    const response = await fetch('/api/account/delete', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        confirmationText: 'confirm delete my account',
-        verifiedDynamicPhrase: `confirm ${currentUserFullName}`
-      })
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.isSuccess) {
-      throw new Error(result.errorMessage || 'Gagal menghapus akun.');
-    }
-
-    try {
-      localStorage.removeItem(`${STICKER_CACHE_PREFIX}${currentGoogleUserId}`);
-    } catch {}
-
-    if (socketClient.connected) socketClient.disconnect();
-    window.location.replace('/login');
-  } catch (deleteErr) {
-    showCyberToast('Penghapusan Gagal', deleteErr.message, 'danger');
-    validateDeleteAccountConfirmation();
-  }
-}
-
 // --- modul stiker hibrida via supabase storage & sinkronisasi localStorage ---
 function getUserStickerStorageKey(userId) {
   return `${STICKER_CACHE_PREFIX}${String(userId || currentGoogleUserId || 'guest')}`;
@@ -4633,13 +4415,13 @@ function unpinCommunityMessageAdmin(pinId) {
 }
 
 // --- gambar kanvas kartu auto-welcome modern dengan gradasi menyala & glowing avatar border ---
-function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+function drawRoundedRectPath(ctx, posX, posY, width, height, radius) {
   ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.arcTo(x + width, y, x + width, y + height, radius);
-  ctx.arcTo(x + width, y + height, x, y + height, radius);
-  ctx.arcTo(x, y + height, x, y, radius);
-  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.moveTo(posX + radius, posY);
+  ctx.arcTo(posX + width, posY, posX + width, posY + height, radius);
+  ctx.arcTo(posX + width, posY + height, posX, posY + height, radius);
+  ctx.arcTo(posX, posY + height, posX, posY, radius);
+  ctx.arcTo(posX, posY, posX + width, posY, radius);
   ctx.closePath();
 }
 
@@ -4660,7 +4442,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
   const paintScene = (loadedAvatarImg) => {
     ctx.clearRect(0, 0, width, height);
 
-    // --- latar gradasi gelap cyber aurora menyala ---
     const bgGrad = ctx.createLinearGradient(0, 0, width, height);
     bgGrad.addColorStop(0, '#070b18');
     bgGrad.addColorStop(0.5, '#0f172a');
@@ -4682,7 +4463,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
     ctx.fillStyle = orbRight;
     ctx.fillRect(0, 0, width, height);
 
-    // --- garis grid halus berteknologi tinggi ---
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
     ctx.lineWidth = 1;
     for (let gridX = 0; gridX <= width; gridX += 32) {
@@ -4698,7 +4478,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
       ctx.stroke();
     }
 
-    // --- label pill atas xu core community ---
     ctx.save();
     drawRoundedRectPath(ctx, width / 2 - 96, 18, 192, 24, 12);
     ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
@@ -4713,7 +4492,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
     ctx.fillText('XU CORE COMMUNITY', width / 2, 30);
     ctx.restore();
 
-    // --- lingkaran avatar dengan glowing border gradasi neon ---
     const centerX = width / 2;
     const centerY = 122;
     const avatarRadius = 52;
@@ -4765,7 +4543,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
     }
     ctx.restore();
 
-    // --- tipografi welcome tajam & bersinar ---
     ctx.save();
     ctx.shadowColor = 'rgba(56, 189, 248, 0.55)';
     ctx.shadowBlur = 16;
@@ -4780,7 +4557,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
     ctx.fillText('WELCOME', centerX, 218);
     ctx.restore();
 
-    // --- nama anggota baru di bawah welcome ---
     ctx.save();
     ctx.font = '700 18px "Plus Jakarta Sans", sans-serif';
     ctx.fillStyle = '#e2e8f0';
@@ -4789,7 +4565,6 @@ function renderSingleWelcomeCanvas(canvasEl) {
     const truncatedName = displayName.length > 26 ? `${displayName.slice(0, 25)}…` : displayName;
     ctx.fillText(truncatedName, centerX, 254);
 
-    // --- garis aksen neon bawah ---
     const barGrad = ctx.createLinearGradient(centerX - 60, 0, centerX + 60, 0);
     barGrad.addColorStop(0, 'rgba(16, 185, 129, 0)');
     barGrad.addColorStop(0.5, '#34d399');
@@ -4817,27 +4592,11 @@ function hydrateAllWelcomeCanvases() {
   });
 }
 
-// --- format pemisah tanggal (hari ini / kemarin / tanggal lengkap) ---
 function getCommunityDayDividerLabel(timestampMs) {
-  const msgDate = new Date(Number(timestampMs || Date.now()));
-  const nowDate = new Date();
-  const fmtKey = (dateObj) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(dateObj);
-
-  const msgKey = fmtKey(msgDate);
-  const todayKey = fmtKey(nowDate);
-  const yesterdayKey = fmtKey(new Date(nowDate.getTime() - 86400000));
-
-  if (msgKey === todayKey) return 'Hari ini';
-  if (msgKey === yesterdayKey) return 'Kemarin';
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric'
-  }).format(msgDate);
+  return formatWibDayDivider(timestampMs);
 }
 
-// --- susun html badge mini reaksi yang melekat di sudut bawah gelembung pesan ---
+// --- badge mini reaksi yang melekat di sudut bawah gelembung pesan ---
 function buildMessageReactionBadgesHtml(msg) {
   const reactionsList = Array.isArray(msg.reactions) ? msg.reactions : [];
   if (reactionsList.length === 0) return '';
@@ -4865,7 +4624,7 @@ function buildMessageReactionBadgesHtml(msg) {
   `;
 }
 
-// --- render seluruh linimasa pesan xu core community ---
+// --- render linimasa pesan xu core community ---
 function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport) return;
@@ -4889,7 +4648,6 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       `);
     }
 
-    // --- kartu ucapan selamat datang otomatis (auto-welcome canvas) ---
     if (msg.type === 'welcome' || msg.isWelcome) {
       const targetName = msg.welcomeTargetName || msg.name || 'Anggota Baru';
       const targetAvatar = msg.welcomeTargetAvatar || msg.avatarUrl || '';
@@ -4996,7 +4754,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
             ${replyQuoteHtml}
             ${bodyContentHtml}
 
-            <div class="flex items-center ${isMine ? 'justify-end' : 'justify-end'} gap-2 mt-1.5 text-[10px] font-mono-code text-slate-400">
+            <div class="flex items-center justify-end gap-2 mt-1.5 text-[10px] font-mono-code text-slate-400">
               <span>${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</span>
               <button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="openMessageActionPopup(this.dataset.msgId, this, event)" title="Reaksi / Opsi" class="p-0.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-white transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -5021,7 +4779,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   }
 }
 
-// --- kontrol long-press mobile & pop-up floating emoji reaction + aksi hapus/pin ---
+// --- long-press mobile, popup floating emoji reaction, pin admin, dan hapus pesan ---
 function startMessageLongPress(messageId, anchorEl, touchEvent) {
   cancelMessageLongPress();
   messageLongPressTimer = setTimeout(() => {
@@ -5057,7 +4815,6 @@ function openMessageActionPopup(messageId, anchorEl, event) {
   if (pinBtn) pinBtn.classList.toggle('hidden', !isCurrentUserAdmin);
   if (deleteBtn) deleteBtn.classList.toggle('hidden', !canDeleteMessage);
 
-  // --- posisikan bar floating tepat di atas gelembung pesan dengan penjagaan tepi viewport ---
   const anchorRect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
   overlay.classList.remove('hidden');
 
@@ -5102,7 +4859,6 @@ function triggerFloatingDeleteAction() {
   deleteCommunityMessage(targetId);
 }
 
-// --- kirim toggle reaksi emoji lewat socket.io ---
 function sendCommunityReaction(messageId, emojiChar) {
   if (!messageId || !emojiChar) return;
   socketClient.emit('community:message:react', {
@@ -5111,7 +4867,6 @@ function sendCommunityReaction(messageId, emojiChar) {
   });
 }
 
-// --- hapus pesan live chat real-time (member: milik sendiri, admin: full override) ---
 function deleteCommunityMessage(messageId) {
   const targetMsg = communityMessagesCache.find((msg) => msg.id === messageId);
   if (!targetMsg) return;
@@ -5126,7 +4881,7 @@ function deleteCommunityMessage(messageId) {
   closeReactionDetailSheet();
 }
 
-// --- bottom sheet modal detail reaksi (ala gambar 7) ---
+// --- bottom sheet modal detail reaksi ---
 function openReactionDetailSheet(messageId, filterEmoji = 'all', event) {
   if (event) event.stopPropagation();
   activeDetailReactionMessageId = messageId;
@@ -5228,7 +4983,7 @@ function renderReactionDetailSheetContent() {
   }).join('');
 }
 
-// --- balasan kutipan (reply) & kirim pesan teks ke xu core community ---
+// --- balasan kutipan, kirim pesan teks, dan lightbox media ---
 function setCommunityReplyTarget(messageId) {
   const foundMsg = communityMessagesCache.find((msg) => msg.id === messageId);
   if (!foundMsg) return;
@@ -5271,7 +5026,6 @@ function submitCommunityChatForm(event) {
   clearCommunityReplyTarget();
 }
 
-// --- pratinjau lightbox gambar resolusi penuh pada room chat ---
 function openChatMediaLightbox(mediaType, mediaUrl) {
   const modal = getEl('chatMediaLightboxModal');
   const content = getEl('chatMediaLightboxContent');
@@ -5496,7 +5250,6 @@ socketClient.on('session:ready', (payload) => {
     }
   }
 
-  // --- hentikan inisialisasi elemen dashboard jika berada di halaman chat.html ---
   if (!getEl('liveApplicationContainer')) return;
 
   const ideBtn = getEl('navTabDeveloper');
@@ -5802,11 +5555,31 @@ socketClient.on('plugin:error', (payload) => {
 
 // --- inisialisasi terpadu kondisional untuk dashboard.html dan chat.html ---
 function initXuCoreUnifiedPage(requestedPage) {
-  if (isAppInitialized) return;
-  isAppInitialized = true;
+  if (isAppCoreInitialized) return;
+  isAppCoreInitialized = true;
   activePageName = requestedPage || window.XU_CORE_PAGE_CONTEXT?.page || (getEl('communityMessagesContainer') ? 'chat' : 'dashboard');
 
   safeExecute(() => {
+    window.addEventListener('click', () => {
+      const popupMenu = getEl('userDropdownMenuPopup');
+      if (popupMenu && !popupMenu.classList.contains('hidden')) popupMenu.classList.add('hidden');
+      if (isChatAttachMenuOpen) closeChatAttachMenu();
+    });
+
+    setupGlobalHotkeys();
+
+    if (!uptimeTickInterval) {
+      uptimeTickInterval = setInterval(() => {
+        const uptimeEl = getEl('statBotUptime');
+        if (!uptimeEl) return;
+        const elapsedSeconds = Math.max(0, Math.floor((Date.now() - botStartTimeMs) / 1000));
+        const hours = String(Math.floor(elapsedSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(elapsedSeconds % 60).padStart(2, '0');
+        uptimeEl.textContent = `${hours}:${minutes}:${seconds}`;
+      }, 1000);
+    }
+
     if (activePageName === 'dashboard') {
       const brandCanvas = getEl('headerBrandTextCanvas');
       if (brandCanvas) {
@@ -5826,7 +5599,6 @@ function initXuCoreUnifiedPage(requestedPage) {
       if (getEl('terminalLogOutput')) setupTerminalScrollWatcher();
       if (getEl('pluginCodeEditorTextarea')) setupCodeEditorEnhancements();
       if (getEl('broadcastGroupMessageInput')) setupBroadcastTemplatePreviewListener();
-      if (getEl('commandPaletteModal')) setupCommandPaletteHotkeys();
       syncBrowserNotifLabel();
       if (getEl('gwMediaTypeSelect')) switchGatewayMediaFields();
       if (getEl('arVisualRulesList')) renderVisualAutoReplyRules();
@@ -5836,23 +5608,6 @@ function initXuCoreUnifiedPage(requestedPage) {
     if (activePageName === 'chat') {
       fetchCurrentProfileSettings();
       socketClient.emit('community:init');
-
-      window.addEventListener('click', () => {
-        if (isChatAttachMenuOpen) closeChatAttachMenu();
-      });
-
-      document.addEventListener('keydown', (keyEvent) => {
-        if (String(keyEvent.key || '').toLowerCase() === 'escape') {
-          closeMessageActionPopup();
-          closeReactionDetailSheet();
-          closeStickerBottomSheet();
-          closeChatAttachMenu();
-          closePinnedMessagesModal();
-          closeChatMediaLightbox();
-          closeProfileSettingsModal();
-          if (isMembersDrawerOpen) toggleMembersDrawer(false);
-        }
-      });
     }
 
     document.addEventListener('visibilitychange', () => {
