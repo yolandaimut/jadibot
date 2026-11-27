@@ -492,6 +492,27 @@ export function removeUserStickerUrl(userId, stickerId) {
   return nextStickers;
 }
 
+// --- hapus stiker dari koleksi favorit user berdasarkan url ---
+export function removeUserStickerByUrl(userId, stickerUrl) {
+  const cleanUserId = String(userId || '').trim();
+  const cleanUrl = String(stickerUrl || '').trim();
+  if (!cleanUserId || !cleanUrl) return [];
+
+  const masterDb = readMasterDatabaseFile();
+  const existingProfile = masterDb.userProfiles?.[cleanUserId];
+  if (!existingProfile || !Array.isArray(existingProfile.stickers)) return [];
+
+  const nextStickers = existingProfile.stickers.filter((item) => item?.url !== cleanUrl);
+  masterDb.userProfiles[cleanUserId] = {
+    ...existingProfile,
+    stickers: nextStickers,
+    updatedAt: Date.now()
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return nextStickers;
+}
+
 // --- susun daftar anggota komunitas lengkap dengan status online dan peran ---
 export function getCommunityMembersList(onlineUserIdsSet = new Set()) {
   const masterDb = readMasterDatabaseFile();
