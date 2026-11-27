@@ -4855,8 +4855,135 @@ function refreshAllChatHomeData() {
   showCyberToast('Disegarkan', 'Daftar percakapan diperbarui.', 'info');
 }
 
+// --- state & helper loader ruang chat serta pengunci scroll instan paling bawah ---
+let chatRoomLoaderHideTimer = null;
+let chatRoomLoaderFallbackTimer = null;
+let chatRoomRevealSequenceId = 0;
+
+function forceScrollChatToBottomInstant() {
+  const viewport = getEl('communityMessagesContainer');
+  if (!viewport) return;
+  viewport.scrollTop = viewport.scrollHeight + 9999;
+  handleChatScrollVisibility();
+}
+
+function showChatRoomLoader(labelText = 'Memuat chat...') {
+  const overlay = getEl('chatRoomLoadingOverlay');
+  const labelEl = getEl('chatRoomLoadingLabel');
+  if (chatRoomLoaderHideTimer) {
+    clearTimeout(chatRoomLoaderHideTimer);
+    chatRoomLoaderHideTimer = null;
+  }
+  if (chatRoomLoaderFallbackTimer) {
+    clearTimeout(chatRoomLoaderFallbackTimer);
+    chatRoomLoaderFallbackTimer = null;
+  }
+  if (labelEl) labelEl.textContent = labelText;
+  if (!overlay) return;
+  overlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+  overlay.classList.add('flex', 'opacity-100');
+}
+
+function hideChatRoomLoaderNow() {
+  const overlay = getEl('chatRoomLoadingOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('opacity-100');
+  overlay.classList.add('opacity-0', 'pointer-events-none');
+  if (chatRoomLoaderHideTimer) clearTimeout(chatRoomLoaderHideTimer);
+  chatRoomLoaderHideTimer = setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('flex');
+    chatRoomLoaderHideTimer = null;
+  }, 180);
+}
+
+function attachRoomMediaScrollSettlers(viewport, shouldLockToBottom = true) {
+  if (!viewport || !shouldLockToBottom) return;
+  const mediaElements = viewport.querySelectorAll('img, video');
+  mediaElements.forEach((mediaEl) => {
+    const isVideo = mediaEl.tagName === 'VIDEO';
+    const isAlreadyReady = isVideo ? mediaEl.readyState >= 1 : mediaEl.complete;
+    if (isAlreadyReady) return;
+    const onMediaReady = () => {
+      const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+      if (distanceFromBottom < 420) {
+        forceScrollChatToBottomInstant();
+      }
+    };
+    mediaEl.addEventListener(isVideo ? 'loadedmetadata' : 'load', onMediaReady, { once: true });
+  });
+}
+
+function settleInitialRoomScrollAndReveal() {
+  const viewport = getEl('communityMessagesContainer');
+  const currentSequence = ++chatRoomRevealSequenceId;
+  const startTimeMs = Date.now();
+  const minLoaderDisplayMs = 420;
+  const maxMediaWaitMs = 580;
+
+  if (!viewport) {
+    hideChatRoomLoaderNow();
+    return;
+  }
+
+  const pendingPromises = [];
+  viewport.querySelectorAll('img, video').forEach((mediaEl) => {
+    const isVideo = mediaEl.tagName === 'VIDEO';
+    const isAlreadyReady = isVideo ? mediaEl.readyState >= 1 : mediaEl.complete;
+    if (isAlreadyReady) return;
+    pendingPromises.push(
+      new Promise((resolve) => {
+        const done = () => resolve();
+        mediaEl.addEventListener(isVideo ? 'loadedmetadata' : 'load', done, { once: true });
+        mediaEl.addEventListener('error', done, { once: true });
+      })
+    );
+  });
+
+  const mediaWaitRace = pendingPromises.length > 0
+    ? Promise.race([
+        Promise.all(pendingPromises),
+        new Promise((resolve) => setTimeout(resolve, maxMediaWaitMs))
+      ])
+    : Promise.resolve();
+
+  mediaWaitRace.then(() => {
+    if (currentSequence !== chatRoomRevealSequenceId) return;
+    const elapsedMs = Date.now() - startTimeMs;
+    const remainingDelayMs = Math.max(0, minLoaderDisplayMs - elapsedMs);
+
+    setTimeout(() => {
+      if (currentSequence !== chatRoomRevealSequenceId) return;
+      requestAnimationFrame(() => {
+        forceScrollChatToBottomInstant();
+        requestAnimationFrame(() => {
+          forceScrollChatToBottomInstant();
+          hideChatRoomLoaderNow();
+          setTimeout(() => {
+            if (currentSequence === chatRoomRevealSequenceId) {
+              forceScrollChatToBottomInstant();
+            }
+          }, 90);
+        });
+      });
+    }, remainingDelayMs);
+  });
+}
+
 // --- kembali dari ruang chat ke beranda chat ---
 function backToChatHomeView() {
+  chatRoomRevealSequenceId += 1;
+  if (chatRoomLoaderHideTimer) {
+    clearTimeout(chatRoomLoaderHideTimer);
+    chatRoomLoaderHideTimer = null;
+  }
+  if (chatRoomLoaderFallbackTimer) {
+    clearTimeout(chatRoomLoaderFallbackTimer);
+    chatRoomLoaderFallbackTimer = null;
+  }
+  getEl('chatRoomLoadingOverlay')?.classList.add('hidden');
+  getEl('chatRoomLoadingOverlay')?.classList.remove('flex');
+
   activeChatRoomType = 'home';
   activeChatRoomTargetId = '';
   clearCommunityReplyTarget();
@@ -4882,6 +5009,8 @@ function openUnifiedChatRoom(roomType, targetId = '') {
   getEl('chatRoomView')?.classList.remove('hidden');
   getEl('chatRoomView')?.classList.add('flex');
 
+  showChatRoomLoader('Memuat chat...');
+
   const isCommunity = roomType === 'community';
   const isDm = roomType === 'dm';
   const isWa = roomType === 'wa';
@@ -4902,13 +5031,14 @@ function openUnifiedChatRoom(roomType, targetId = '') {
     if (titleEl) titleEl.textContent = 'Xu Core Community';
     if (badgeEl) {
       badgeEl.textContent = 'Official';
-      badgeEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded-md accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0';
+      badgeEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded-full accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0';
     }
-    const onlineCount = communityMembersCache.filter((m) => m.isOnline).length;
+    const onlineCount = communityMembersCache.filter((member) => member.isOnline).length;
     if (subEl) subEl.innerHTML = `<span id="communityMembersCountLabel">${communityMembersCache.length} anggota</span> • <span id="communityOnlineCountLabel" class="text-emerald-400">${onlineCount} online</span>`;
     if (inputEl) inputEl.placeholder = 'Ketik pesan ke Xu Core Community...';
     renderCommunityPinnedBar();
     renderCommunityMessagesTimeline(true);
+    settleInitialRoomScrollAndReveal();
     return;
   }
 
@@ -4916,8 +5046,8 @@ function openUnifiedChatRoom(roomType, targetId = '') {
 
   if (isDm) {
     const peerMember =
-      communityMembersCache.find((m) => m.userId === targetId) ||
-      dmRoomsListCache.find((r) => r.peerUserId === targetId) ||
+      communityMembersCache.find((member) => member.userId === targetId) ||
+      dmRoomsListCache.find((room) => room.peerUserId === targetId) ||
       {};
     const peerName = peerMember.displayName || peerMember.name || 'Member';
     const peerAvatar = peerMember.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(peerName)}&background=0f172a&color=38bdf8`;
@@ -4929,22 +5059,27 @@ function openUnifiedChatRoom(roomType, targetId = '') {
     if (titleEl) titleEl.textContent = peerName;
     if (badgeEl) {
       badgeEl.textContent = 'AKUN XU CORE';
-      badgeEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded-md bg-violet-500/20 border border-violet-500/40 text-violet-300 font-mono-code text-[9px] font-bold uppercase shrink-0';
+      badgeEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded-full bg-violet-500/20 border border-violet-500/40 text-violet-300 font-mono-code text-[9px] font-bold uppercase shrink-0';
     }
     if (subEl) subEl.textContent = peerMember.isOnline ? 'Online • Chat Pribadi Xu Core' : 'Offline • Chat Pribadi Xu Core';
     if (inputEl) inputEl.placeholder = `Kirim pesan ke ${peerName}...`;
 
     activeDmMessagesCache = [];
     if (getEl('communityMessagesContainer')) {
-      getEl('communityMessagesContainer').innerHTML = '<div class="py-10 text-center text-xs font-mono-code text-slate-500">Memuat percakapan pribadi...</div>';
+      getEl('communityMessagesContainer').innerHTML = '';
     }
     socketClient.emit('dm:open', { peerUserId: targetId });
+    chatRoomLoaderFallbackTimer = setTimeout(() => {
+      if (activeChatRoomType === 'dm' && activeChatRoomTargetId === targetId) {
+        settleInitialRoomScrollAndReveal();
+      }
+    }, 3500);
     return;
   }
 
   if (isWa) {
     activeWaInboxJid = targetId;
-    const waChat = waLiveInboxCache.find((c) => c.jid === targetId);
+    const waChat = waLiveInboxCache.find((chat) => chat.jid === targetId);
     const isGroupWa = Boolean(waChat?.isGroup || String(targetId).endsWith('@g.us'));
     const chatTitle = waChat?.name || String(targetId).split('@')[0];
 
@@ -4956,14 +5091,15 @@ function openUnifiedChatRoom(roomType, targetId = '') {
     if (badgeEl) {
       badgeEl.textContent = isGroupWa ? 'GRUP BOT WA' : 'USER BOT WA';
       badgeEl.className = isGroupWa
-        ? 'inline-flex items-center px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono-code text-[9px] font-bold uppercase shrink-0'
-        : 'inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono-code text-[9px] font-bold uppercase shrink-0';
+        ? 'inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono-code text-[9px] font-bold uppercase shrink-0'
+        : 'inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono-code text-[9px] font-bold uppercase shrink-0';
     }
     if (subEl) subEl.textContent = formatCleanWhatsappSubtitle(targetId);
     if (inputEl) inputEl.placeholder = isGroupWa ? 'Kirim pesan ke grup WhatsApp via Bot...' : 'Balas pesan WhatsApp via Bot...';
 
     socketClient.emit('inbox:read', { chatJid: targetId });
     renderActiveWaRoomTimeline(true);
+    settleInitialRoomScrollAndReveal();
   }
 }
 
@@ -5160,7 +5296,9 @@ function renderActiveWaRoomTimeline(shouldScrollBottom = true) {
     `;
   }).join('');
 
-  if (shouldScrollBottom) viewport.scrollTop = viewport.scrollHeight;
+  if (shouldScrollBottom) {
+    requestAnimationFrame(() => forceScrollChatToBottomInstant());
+  }
 }
 
 // --- pengirim pesan terpadu sesuai ruang aktif (community, dm xu core, atau wa bot) ---
@@ -5201,7 +5339,7 @@ function submitActiveRoomMessageForm(event) {
   clearCommunityReplyTarget();
 }
 
-// --- render linimasa pesan kompak dengan pengelompokan pesan berurutan dan kartu video modern ---
+// --- render linimasa pesan kompak dengan pengelompokan pesan berurutan dan scroll instan akurat ---
 function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport) return;
@@ -5387,8 +5525,11 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
 
   viewport.innerHTML = blocks.join('');
   hydrateAllWelcomeCanvases();
+  attachRoomMediaScrollSettlers(viewport, shouldScrollBottom);
 
-  if (shouldScrollBottom) viewport.scrollTop = viewport.scrollHeight;
+  if (shouldScrollBottom) {
+    requestAnimationFrame(() => forceScrollChatToBottomInstant());
+  }
 }
 
 // --- long-press mobile, popup floating emoji reaction, pin admin, dan hapus pesan ---
@@ -5527,11 +5668,32 @@ function closeReactionDetailSheet() {
   toggleModalVisibility('reactionDetailSheetOverlay', false);
 }
 
+// --- tangani klik pill emoji di samping tombol semua (ikut react jika belum, filter jika sudah) ---
+function handleReactionDetailEmojiClick(messageId, emojiChar) {
+  if (!messageId || !emojiChar) return;
+  const targetMsg = communityMessagesCache.find((msg) => msg.id === messageId);
+  if (!targetMsg) return;
+
+  const reactions = Array.isArray(targetMsg.reactions) ? targetMsg.reactions : [];
+  const hasUserReactedThis = reactions.some(
+    (entry) => entry.userId === currentGoogleUserId && entry.emoji === emojiChar
+  );
+
+  if (!hasUserReactedThis) {
+    sendCommunityReaction(messageId, emojiChar);
+    return;
+  }
+
+  activeDetailReactionFilter = activeDetailReactionFilter === emojiChar ? 'all' : emojiChar;
+  renderReactionDetailSheetContent();
+}
+
 function setReactionDetailFilter(emojiFilter) {
   activeDetailReactionFilter = emojiFilter || 'all';
   renderReactionDetailSheetContent();
 }
 
+// --- render isi bottom sheet detail reaksi dengan tombol ikut react ala whatsapp ---
 function renderReactionDetailSheetContent() {
   const titleEl = getEl('reactionDetailTitle');
   const tabsEl = getEl('reactionDetailTabs');
@@ -5562,8 +5724,12 @@ function renderReactionDetailSheetContent() {
   }
 
   const countsMap = new Map();
+  const ownEmojisSet = new Set();
   for (const entry of reactions) {
     countsMap.set(entry.emoji, (countsMap.get(entry.emoji) || 0) + 1);
+    if (entry.userId === currentGoogleUserId) {
+      ownEmojisSet.add(entry.emoji);
+    }
   }
 
   if (activeDetailReactionFilter !== 'all' && !countsMap.has(activeDetailReactionFilter)) {
@@ -5572,15 +5738,20 @@ function renderReactionDetailSheetContent() {
 
   if (tabsEl) {
     const allPillCls = activeDetailReactionFilter === 'all'
-      ? 'px-3 py-1 rounded-full accent-soft-bg border accent-border accent-text text-xs font-bold'
-      : 'px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white text-xs font-semibold';
+      ? 'px-3 py-1.5 rounded-full accent-soft-bg border accent-border accent-text text-xs font-bold transition-all active:scale-95'
+      : 'px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-all active:scale-95';
 
     const emojiTabsHtml = Array.from(countsMap.entries()).map(([emojiChar, count]) => {
       const isSelected = activeDetailReactionFilter === emojiChar;
-      const pillCls = isSelected
-        ? 'px-3 py-1 rounded-full accent-soft-bg border accent-border text-white text-xs font-bold'
-        : 'px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold';
-      return `<button type="button" onclick="setReactionDetailFilter('${escapeHtmlString(emojiChar)}')" class="${pillCls}">${escapeHtmlString(emojiChar)} <span class="font-mono-code ml-0.5">${count}</span></button>`;
+      const isUserReacted = ownEmojisSet.has(emojiChar);
+      const pillCls = isSelected || isUserReacted
+        ? 'px-3 py-1.5 rounded-full accent-soft-bg border accent-border text-white text-xs font-bold inline-flex items-center gap-1 transition-all active:scale-95'
+        : 'px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 text-slate-200 text-xs font-semibold inline-flex items-center gap-1 transition-all active:scale-95';
+      const joinHintHtml = !isUserReacted
+        ? '<span class="text-[10px] accent-text font-bold">+</span>'
+        : '';
+
+      return `<button type="button" title="${isUserReacted ? 'Filter reaksi ini' : 'Ketuk untuk ikut reaksi ini'}" onclick="handleReactionDetailEmojiClick('${escapeHtmlString(targetMsg.id)}', '${escapeHtmlString(emojiChar)}')" class="${pillCls}">${escapeHtmlString(emojiChar)} <span class="font-mono-code">${count}</span>${joinHintHtml}</button>`;
     }).join('');
 
     tabsEl.innerHTML = `<button type="button" onclick="setReactionDetailFilter('all')" class="${allPillCls}">Semua <span class="font-mono-code ml-0.5">${reactions.length}</span></button>${emojiTabsHtml}`;
@@ -5849,10 +6020,18 @@ socketClient.on('dm:list:data', (roomsList) => {
   if (getEl('chatHomeActiveList')) renderChatHomeView();
 });
 
+// --- terima riwayat pesan dm, render, dan selesaikan loader di posisi paling bawah ---
 socketClient.on('dm:messages', (payload) => {
   if (!payload || payload.peerUserId !== activeChatRoomTargetId) return;
+  if (chatRoomLoaderFallbackTimer) {
+    clearTimeout(chatRoomLoaderFallbackTimer);
+    chatRoomLoaderFallbackTimer = null;
+  }
   activeDmMessagesCache = Array.isArray(payload.messages) ? payload.messages : [];
-  if (activeChatRoomType === 'dm') renderCommunityMessagesTimeline(true);
+  if (activeChatRoomType === 'dm') {
+    renderCommunityMessagesTimeline(true);
+    settleInitialRoomScrollAndReveal();
+  }
 });
 
 socketClient.on('dm:message:new', (newMsg) => {
