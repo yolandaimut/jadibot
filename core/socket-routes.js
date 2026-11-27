@@ -1525,7 +1525,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- sematkan atau lepas pesan disematkan (dikunci ketat khusus peran admin) ---
+    // --- sematkan pesan khusus pengumuman admin atau media lampiran (video, foto, stiker) ---
     clientSocket.on('community:pin:add', (payload) => {
       if (!isAdmin) {
         clientSocket.emit('community:error', { errorMessage: 'Akses ditolak: hanya Admin yang dapat menyematkan pesan.' });
@@ -1533,14 +1533,40 @@ export function registerSocketHandlers(io, coreModules) {
       }
       try {
         const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const targetMessageId = String(payload?.messageId || '').trim();
+
+        if (targetMessageId) {
+          const allMessages = getPublicChatMessages();
+          const targetMessage = allMessages.find((messageItem) => messageItem?.id === targetMessageId);
+          if (!targetMessage) {
+            clientSocket.emit('community:error', { errorMessage: 'Pesan tidak ditemukan untuk disematkan.' });
+            return;
+          }
+
+          const pinnableTypes = ['image', 'video', 'sticker', 'audio', 'document', 'announcement', 'welcome'];
+          const normalizedType = String(targetMessage.type || '').trim().toLowerCase();
+          const isPinnableObject =
+            pinnableTypes.includes(normalizedType) ||
+            Boolean(targetMessage.mediaUrl) ||
+            Boolean(targetMessage.isAnnouncement) ||
+            Boolean(targetMessage.isWelcome);
+
+          if (!isPinnableObject) {
+            clientSocket.emit('community:error', {
+              errorMessage: 'Pesan teks biasa tidak dapat disematkan. Hanya pengumuman admin dan media lampiran.'
+            });
+            return;
+          }
+        }
+
         const pinnedMessages = addPinnedCommunityMessage({
-          messageId: payload?.messageId || '',
+          messageId: targetMessageId,
           text: payload?.text || '',
           pinnedBy: latestProfile?.displayName || 'Admin'
         });
         io.emit('community:pins:update', pinnedMessages);
-      } catch (err) {
-        clientSocket.emit('community:error', { errorMessage: err.message });
+      } catch (pinError) {
+        clientSocket.emit('community:error', { errorMessage: pinError.message });
       }
     });
 

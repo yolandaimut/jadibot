@@ -605,7 +605,7 @@ export function appendCommunityChatMessage({
   const cleanUserId = String(userId || '').trim();
   if (!cleanUserId) return null;
 
-  const allowedTypes = ['text', 'image', 'video', 'sticker'];
+  const allowedTypes = ['text', 'image', 'video', 'sticker', 'announcement'];
   const normalizedType = allowedTypes.includes(String(type || 'text').toLowerCase())
     ? String(type).toLowerCase()
     : 'text';
@@ -613,14 +613,18 @@ export function appendCommunityChatMessage({
   const cleanText = String(text || '').trim().slice(0, 600);
   const cleanMediaUrl = String(mediaUrl || '').trim().slice(0, 500);
 
-  if (normalizedType === 'text' && !cleanText) return null;
-  if (normalizedType !== 'text' && !cleanMediaUrl) return null;
+  if ((normalizedType === 'text' || normalizedType === 'announcement') && !cleanText) return null;
+  if (normalizedType !== 'text' && normalizedType !== 'announcement' && !cleanMediaUrl) return null;
 
+  const allowedReplyTypes = ['text', 'image', 'video', 'sticker', 'audio', 'document', 'announcement', 'welcome'];
+  const rawReplyType = String(replyTo?.type || 'text').trim().toLowerCase();
   const cleanReplyTo = replyTo && typeof replyTo === 'object' && String(replyTo.id || '').trim()
     ? {
         id: String(replyTo.id).trim().slice(0, 80),
         userId: String(replyTo.userId || '').trim().slice(0, 80),
         name: String(replyTo.name || 'Member').trim().slice(0, 48),
+        type: allowedReplyTypes.includes(rawReplyType) ? rawReplyType : 'text',
+        mediaUrl: String(replyTo.mediaUrl || '').trim().slice(0, 500),
         text: String(replyTo.text || '[Pesan]').trim().slice(0, 140) || '[Pesan]'
       }
     : null;
@@ -859,11 +863,15 @@ export function appendDmMessage({
   if (normalizedType === 'text' && !cleanText) return null;
   if (normalizedType !== 'text' && !cleanMediaUrl) return null;
 
+  const allowedReplyTypes = ['text', 'image', 'video', 'sticker', 'audio', 'document'];
+  const rawReplyType = String(replyTo?.type || 'text').trim().toLowerCase();
   const cleanReplyTo = replyTo && typeof replyTo === 'object' && String(replyTo.id || '').trim()
     ? {
         id: String(replyTo.id).trim().slice(0, 80),
         userId: String(replyTo.userId || '').trim().slice(0, 80),
         name: String(replyTo.name || 'Member').trim().slice(0, 48),
+        type: allowedReplyTypes.includes(rawReplyType) ? rawReplyType : 'text',
+        mediaUrl: String(replyTo.mediaUrl || '').trim().slice(0, 500),
         text: String(replyTo.text || '[Pesan]').trim().slice(0, 140) || '[Pesan]'
       }
     : null;
