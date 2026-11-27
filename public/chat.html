@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="id" class="dark" data-theme="emerald">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Xu Core Community — Live Chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    // --- terapkan tema tersimpan sejak awal untuk mencegah flicker ---
+    (function () {
+      var savedTheme = null;
+      try {
+        savedTheme = localStorage.getItem('jadibot_theme_pref');
+      } catch (storageErr) {}
+      document.documentElement.setAttribute('data-theme', savedTheme || 'emerald');
+    })();
+  </script>
+  <style>
+    /* --- variabel tema dinamis selaras dengan dashboard.html --- */
+    :root,
+    :root[data-theme="emerald"] {
+      --accent-main: #10b981;
+      --accent-hover: #059669;
+      --accent-soft: rgba(16, 185, 129, 0.14);
+      --accent-border: rgba(16, 185, 129, 0.35);
+      --accent-glow: rgba(16, 185, 129, 0.28);
+      --grid-line: rgba(16, 185, 129, 0.036);
+    }
+
+    :root[data-theme="cyan"] {
+      --accent-main: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.14);
+      --accent-border: rgba(6, 182, 212, 0.35);
+      --accent-glow: rgba(6, 182, 212, 0.28);
+      --grid-line: rgba(6, 182, 212, 0.036);
+    }
+
+    :root[data-theme="violet"] {
+      --accent-main: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --accent-soft: rgba(139, 92, 246, 0.14);
+      --accent-border: rgba(139, 92, 246, 0.35);
+      --accent-glow: rgba(139, 92, 246, 0.28);
+      --grid-line: rgba(139, 92, 246, 0.04);
+    }
+
+    :root[data-theme="mono"] {
+      --accent-main: #f8fafc;
+      --accent-hover: #e2e8f0;
+      --accent-soft: rgba(248, 250, 252, 0.12);
+      --accent-border: rgba(248, 250, 252, 0.32);
+      --accent-glow: rgba(248, 250, 252, 0.24);
+      --grid-line: rgba(248, 250, 252, 0.035);
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      overflow: hidden;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      background-color: #050810;
+      color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* --- latar cyber mesh grid & cahaya aurora glassmorphism gelap --- */
+    .community-backdrop {
+      background-color: #050810;
+      background-image:
+        radial-gradient(circle at 12% 14%, rgba(139, 92, 246, 0.14), transparent 36%),
+        radial-gradient(circle at 88% 82%, var(--accent-soft), transparent 40%),
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+    }
+
+    .font-heading-modern {
+      font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .chat-glass-bar {
+      background: linear-gradient(180deg, rgba(13, 19, 34, 0.88) 0%, rgba(7, 11, 22, 0.92) 100%);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.72), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .accent-bg { background-color: var(--accent-main); }
+    .accent-bg:hover { background-color: var(--accent-hover); }
+    .accent-text { color: var(--accent-main); }
+    .accent-border { border-color: var(--accent-border); }
+    .accent-soft-bg { background-color: var(--accent-soft); }
+    .accent-shadow { box-shadow: 0 0 18px -4px var(--accent-glow); }
+
+    /* --- badge peran segi-enam bersinar untuk member & developer --- */
+    .role-hex-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 2px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      clip-path: polygon(7px 0%, calc(100% - 7px) 0%, 100% 50%, calc(100% - 7px) 100%, 7px 100%, 0% 50%);
+      user-select: none;
+    }
+
+    .role-hex-member {
+      background: linear-gradient(90deg, #10b981 0%, #34d399 52%, #06b6d4 100%);
+      color: #022c22;
+      filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.55));
+    }
+
+    .role-hex-developer {
+      background: linear-gradient(90deg, #881337 0%, #be123c 55%, #9f1239 100%);
+      color: #fff1f2;
+      filter: drop-shadow(0 0 8px rgba(225, 29, 72, 0.65));
+    }
+
+    /* --- cincin cahaya avatar pada modal settings profile --- */
+    .profile-avatar-ring {
+      position: relative;
+      padding: 3px;
+      border-radius: 9999px;
+      background: conic-gradient(from 180deg, var(--accent-main), #38bdf8, #8b5cf6, var(--accent-main));
+      box-shadow: 0 0 22px -4px var(--accent-glow);
+    }
+
+    /* --- animasi masuk bottom sheet, pop-up reaksi, dan toast --- */
+    @keyframes sheetSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes popScaleIn {
+      from {
+        opacity: 0;
+        transform: scale(0.92) translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    @keyframes toastProgressDrain {
+      from { transform: scaleX(1); }
+      to { transform: scaleX(0); }
+    }
+
+    .sheet-enter {
+      animation: sheetSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .popup-enter {
+      animation: popScaleIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .cyber-toast-progress {
+      transform-origin: left center;
+      animation: toastProgressDrain 3.6s linear forwards;
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-main); }
+  </style>
+</head>
+<body class="community-backdrop flex flex-col h-[100dvh] w-screen overflow-hidden selection:bg-slate-700 selection:text-white antialiased">
+
+  <!-- --- wrapper utama responsif full-height mobile & desktop --- -->
+  <div class="relative flex flex-col h-[100dvh] w-full max-w-4xl mx-auto overflow-hidden sm:border-x sm:border-slate-800/70">
+
+    <!-- --- header melayang xu core community ala glassmorphism gelap --- -->
+    <header class="shrink-0 z-30 px-2.5 sm:px-4 pt-2.5 pb-1.5 space-y-2">
+      <div class="chat-glass-bar rounded-2xl border border-slate-800/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2">
+        <!-- --- grup kiri: tombol kembali, laci daftar anggota & identitas room --- -->
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <a href="/dashboard" title="Kembali ke Dashboard" aria-label="Kembali ke Dashboard" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
+          </a>
+
+          <button type="button" onclick="toggleMembersDrawer()" title="Daftar Anggota Komunitas" aria-label="Daftar Anggota Komunitas" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center shrink-0 transition-all active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+          </button>
+
+          <div class="min-w-0 flex-1 pl-0.5">
+            <div class="flex items-center gap-1.5">
+              <h1 class="font-heading-modern text-sm sm:text-base font-extrabold tracking-wide text-white truncate">Xu Core Community</h1>
+              <span class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0">Official</span>
+            </div>
+            <p class="text-[10px] sm:text-[11px] font-mono-code text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
+              <span>Official</span>
+              <span>•</span>
+              <span id="communityMembersCountLabel">0 anggota</span>
+              <span>•</span>
+              <span class="inline-flex items-center gap-1 text-emerald-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="communityOnlineCountLabel">0 online</span>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- --- grup kanan: tombol pesan disematkan & avatar pemicu settings profile --- -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="openPinnedMessagesModal()" title="Pesan Disematkan" aria-label="Pesan Disematkan" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          </button>
+
+          <button type="button" onclick="openProfileSettingsModal()" title="Settings Profile" aria-label="Settings Profile" class="p-0.5 rounded-full border-2 accent-border hover:scale-105 transition-transform active:scale-95 shrink-0">
+            <img id="communityNavAvatar" src="https://ui-avatars.com/api/?name=U&background=10b981&color=fff" alt="Profil" class="w-7 h-7 rounded-full object-cover bg-slate-900" />
+          </button>
+        </div>
+      </div>
+
+      <!-- --- bar pesan disematkan (pinned message bar) di bawah header --- -->
+      <div id="communityPinnedBar" onclick="cyclePinnedMessageBanner(event)" role="button" tabindex="0" class="hidden chat-glass-bar rounded-xl border border-amber-500/30 hover:border-amber-400/50 px-3 py-2 flex items-center justify-between gap-2.5 cursor-pointer transition-all">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <div class="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p id="communityPinnedCounter" class="text-[10px] font-mono-code font-bold text-amber-300 leading-tight">Pesan disematkan (1/1)</p>
+            <p id="communityPinnedPreviewText" class="text-xs text-slate-200 truncate mt-0.5">-</p>
+          </div>
+        </div>
+        <button type="button" onclick="event.stopPropagation(); openPinnedMessagesModal();" class="px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code font-semibold text-slate-300 shrink-0">
+          Lihat
+        </button>
+      </div>
+    </header>
+
+    <!-- --- linimasa pesan utama xu core community --- -->
+    <main id="communityMessagesContainer" class="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3 space-y-3.5 scroll-smooth">
+      <div class="py-12 text-center text-xs font-mono-code text-slate-500">Menghubungkan ke Xu Core Community...</div>
+    </main>
+
+    <!-- --- bar status unggah media & pratinjau balasan kutipan di atas input --- -->
+    <div class="shrink-0 px-2.5 sm:px-4 space-y-1.5">
+      <div id="chatMediaUploadStatusBar" class="hidden rounded-xl bg-slate-900/95 border accent-border px-3 py-2 flex items-center gap-2.5 text-xs">
+        <span class="w-4 h-4 rounded-full border-2 border-[var(--accent-main)] border-t-transparent animate-spin shrink-0"></span>
+        <span id="chatMediaUploadStatusText" class="text-slate-200 font-mono-code text-[11px] truncate">Mengunggah media ke Supabase Storage...</span>
+      </div>
+
+      <div id="communityReplyPreviewBar" class="hidden rounded-xl bg-slate-900/95 border border-slate-800 border-l-2 border-l-[var(--accent-main)] px-3 py-2 flex items-center justify-between gap-2 text-xs">
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-mono-code accent-text font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
+          <p id="communityReplyPreviewText" class="text-[11px] text-slate-400 truncate mt-0.5">-</p>
+        </div>
+        <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- --- area input pesan bawah beserta popup menu lampiran (foto, video, stiker) --- -->
+    <footer class="relative shrink-0 z-30 px-2.5 sm:px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <!-- --- input file tersembunyi untuk foto, video, dan multi-select stiker --- -->
+      <input id="chatPhotoFileInput" type="file" accept="image/*" onchange="handleChatMediaFileSelected(event, 'image')" class="hidden" />
+      <input id="chatVideoFileInput" type="file" accept="video/mp4,video/webm,video/quicktime" onchange="handleChatMediaFileSelected(event, 'video')" class="hidden" />
+      <input id="stickerMultiFileInput" type="file" accept="image/png,image/webp,image/jpeg,image/gif" multiple onchange="handleStickerMultiFileSelect(event)" class="hidden" />
+
+      <!-- --- popup attachment menu (hanya foto, video, dan stiker) --- -->
+      <div id="chatAttachMenuPopup" onclick="event.stopPropagation()" class="hidden popup-enter absolute bottom-full left-2.5 sm:left-4 mb-2 w-56 rounded-2xl bg-[#0d1322]/95 backdrop-blur-2xl border border-slate-800 shadow-[0_18px_48px_rgba(0,0,0,0.8)] p-2 space-y-1 z-40">
+        <button type="button" onclick="triggerChatMediaUpload('image')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
+          <span class="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-300 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </span>
+          <div>
+            <p class="font-bold text-white">Foto / GIF</p>
+            <p class="text-[10px] text-slate-400">unggah gambar maks 6 MB</p>
+          </div>
+        </button>
+
+        <button type="button" onclick="triggerChatMediaUpload('video')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
+          <span class="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          </span>
+          <div>
+            <p class="font-bold text-white">Video</p>
+            <p class="text-[10px] text-slate-400">unggah klip MP4/WebM maks 14 MB</p>
+          </div>
+        </button>
+
+        <button type="button" onclick="openStickerBottomSheet()" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
+          <span class="w-8 h-8 rounded-xl accent-soft-bg border accent-border accent-text flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </span>
+          <div>
+            <p class="font-bold text-white">Stiker</p>
+            <p class="text-[10px] text-slate-400">koleksi &amp; multi-select Supabase</p>
+          </div>
+        </button>
+      </div>
+
+      <!-- --- bilah input pesan utama --- -->
+      <form onsubmit="submitCommunityChatForm(event)" class="chat-glass-bar rounded-2xl border border-slate-800/90 p-1.5 flex items-center gap-1.5">
+        <button type="button" onclick="toggleChatAttachMenu(event)" title="Lampiran Foto, Video & Stiker" aria-label="Lampiran" class="w-9 h-9 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center shrink-0 transition-all active:scale-90">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+        </button>
+
+        <input id="communityMessageInput" type="text" maxlength="600" autocomplete="off" placeholder="Ketik pesan ke Xu Core Community..." class="flex-1 min-w-0 bg-transparent px-2 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none" />
+
+        <button type="button" onclick="openStickerBottomSheet()" title="Buka Stiker" aria-label="Buka Stiker" class="w-9 h-9 rounded-xl bg-slate-900/70 hover:bg-slate-800 border border-slate-800/80 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </button>
+
+        <button type="submit" aria-label="Kirim Pesan" class="w-9 h-9 rounded-xl accent-bg text-slate-950 flex items-center justify-center shrink-0 transition-all active:scale-90 accent-shadow">
+          <svg class="w-4 h-4 translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        </button>
+      </form>
+    </footer>
+
+  </div>
+
+  <!-- --- laci sidebar daftar anggota komunitas dengan badge segi-enam bersinar --- -->
+  <div id="membersDrawerBackdrop" onclick="toggleMembersDrawer(false)" class="fixed inset-0 z-40 hidden bg-black/70 backdrop-blur-sm transition-opacity"></div>
+  <aside id="membersDrawerPanel" class="fixed top-0 bottom-0 left-0 z-50 w-[84vw] max-w-xs -translate-x-full transition-transform duration-300 ease-out bg-[#080d18]/98 backdrop-blur-2xl border-r border-slate-800/90 shadow-2xl flex flex-col">
+    <div class="p-4 border-b border-slate-800/80 space-y-3">
+      <div class="rounded-2xl bg-gradient-to-br from-emerald-500/20 via-sky-500/15 to-violet-500/20 border accent-border p-3.5 flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <h2 class="font-heading-modern text-base font-extrabold text-white truncate">Xu Core Community</h2>
+          <p id="membersDrawerTotalLabel" class="text-[11px] font-mono-code text-slate-300 mt-0.5">0 anggota • 0 online</p>
+        </div>
+        <button type="button" onclick="toggleMembersDrawer(false)" aria-label="Tutup Daftar Anggota" class="p-1 rounded-lg bg-slate-950/60 text-slate-300 hover:text-white shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="relative">
+        <input id="membersDrawerSearchInput" oninput="renderCommunityMembersDrawer()" type="text" placeholder="Cari anggota, @handle, atau peran..." class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-[var(--accent-main)] text-xs text-slate-200 placeholder-slate-500 focus:outline-none" />
+        <svg class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+    </div>
+
+    <div class="px-4 pt-3 pb-1.5 flex items-center justify-between">
+      <span class="text-[10px] font-mono-code font-bold uppercase tracking-wider text-slate-400">DAFTAR ANGGOTA</span>
+      <span class="text-[10px] font-mono-code text-slate-500">Live Status</span>
+    </div>
+
+    <div id="membersDrawerListContainer" class="flex-1 overflow-y-auto px-3 pb-3 space-y-2">
+      <p class="text-xs font-mono-code text-slate-500 text-center py-8">Memuat daftar anggota...</p>
+    </div>
+
+    <div class="p-3 border-t border-slate-800/80 bg-slate-950/80 grid grid-cols-2 gap-2">
+      <button type="button" onclick="toggleMembersDrawer(false); openProfileSettingsModal();" class="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition-colors">
+        Settings Profile
+      </button>
+      <a href="/dashboard" class="py-2 px-3 rounded-xl accent-bg text-slate-950 text-xs font-extrabold text-center transition-opacity hover:opacity-90">
+        Dashboard
+      </a>
+    </div>
+  </aside>
+
+  <!-- --- bottom sheet stiker hibrida supabase & progress bar sinkronisasi localStorage --- -->
+  <div id="stickerBottomSheet" onclick="if (event.target === this) closeStickerBottomSheet()" class="fixed inset-0 z-50 hidden items-end justify-center bg-black/75 backdrop-blur-sm">
+    <div class="sheet-enter w-full max-w-2xl rounded-t-3xl bg-[#0b101d]/98 border-t border-x border-slate-800 p-4 sm:p-5 space-y-3.5 shadow-[0_-18px_50px_rgba(0,0,0,0.8)] max-h-[76vh] flex flex-col">
+      <div class="w-10 h-1 rounded-full bg-slate-700 mx-auto"></div>
+
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <h3 class="font-heading-modern text-base font-extrabold text-white">Stiker</h3>
+          <span id="stickerCountBadge" class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 font-mono-code text-[10px] accent-text font-bold">0</span>
+        </div>
+        <button type="button" onclick="closeStickerBottomSheet()" aria-label="Tutup Sheet Stiker" class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- --- loader & progress bar sinkronisasi stiker supabase ke localStorage perangkat baru --- -->
+      <div id="stickerSyncProgressWrap" class="hidden rounded-xl bg-slate-950/90 border accent-border p-3 space-y-2">
+        <div class="flex items-center justify-between gap-2 text-[11px] font-mono-code">
+          <span id="stickerSyncStatusText" class="text-slate-200 truncate">Menyinkronkan stiker dari Supabase...</span>
+          <span id="stickerSyncPercentLabel" class="accent-text font-bold shrink-0">0%</span>
+        </div>
+        <div class="h-1.5 w-full rounded-full bg-slate-900 overflow-hidden">
+          <div id="stickerSyncProgressBar" class="h-full accent-bg rounded-full transition-all duration-200" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div id="stickerGridContainer" class="flex-1 overflow-y-auto grid grid-cols-3 sm:grid-cols-5 gap-2.5 pr-1"></div>
+
+      <p class="text-[11px] text-slate-400 leading-relaxed">
+        Ketuk <strong class="text-slate-200">+ Buat</strong> untuk memilih beberapa gambar PNG, JPG, atau WebP sekaligus dari galeri. Stiker otomatis tersinkronisasi lintas perangkat melalui Supabase Storage.
+      </p>
+    </div>
+  </div>
+
+  <!-- --- popup floating emoji reaction & aksi hapus/sematkan di atas gelembung pesan --- -->
+  <div id="floatingMessageActionOverlay" onclick="if (event.target === this) closeMessageActionPopup()" class="fixed inset-0 z-50 hidden bg-black/45 backdrop-blur-[2px]">
+    <div id="floatingReactionBar" class="popup-enter fixed left-3 top-24 rounded-2xl bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_18px_48px_rgba(0,0,0,0.85)] p-2 space-y-2">
+      <div class="flex items-center justify-between gap-1 px-1">
+        <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">👍</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">❤️</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😂</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😮')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😮</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😢')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😢</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('🙏')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">🙏</button>
+      </div>
+
+      <div class="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800 text-xs">
+        <button type="button" onclick="triggerFloatingReplyAction()" class="flex-1 py-1.5 px-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-semibold flex items-center justify-center gap-1.5 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+          <span>Balas</span>
+        </button>
+
+        <button id="floatingPinActionBtn" type="button" onclick="triggerFloatingPinAction()" class="hidden flex-1 py-1.5 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-semibold flex items-center justify-center gap-1.5 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          <span>Sematkan</span>
+        </button>
+
+        <button id="floatingDeleteActionBtn" type="button" onclick="triggerFloatingDeleteAction()" class="hidden flex-1 py-1.5 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-semibold flex items-center justify-center gap-1.5 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          <span>Hapus</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- bottom sheet modal detail reaksi dengan filter emoji & opsi hapus pesan --- -->
+  <div id="reactionDetailSheetOverlay" onclick="if (event.target === this) closeReactionDetailSheet()" class="fixed inset-0 z-50 hidden items-end justify-center bg-black/75 backdrop-blur-sm">
+    <div class="sheet-enter w-full max-w-lg rounded-t-3xl bg-[#0b101d]/98 border-t border-x border-slate-800 p-4 sm:p-5 space-y-3.5 shadow-[0_-18px_50px_rgba(0,0,0,0.8)] max-h-[68vh] flex flex-col">
+      <div class="w-10 h-1 rounded-full bg-slate-700 mx-auto"></div>
+
+      <div class="flex items-center justify-between gap-2">
+        <h3 id="reactionDetailTitle" class="font-heading-modern text-base font-extrabold text-white">0 reaksi</h3>
+        <div class="flex items-center gap-2">
+          <button id="reactionDetailDeleteMsgBtn" type="button" class="hidden px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-bold transition-colors">
+            Hapus Pesan
+          </button>
+          <button type="button" onclick="closeReactionDetailSheet()" aria-label="Tutup Detail Reaksi" class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="reactionDetailTabs" class="flex flex-wrap items-center gap-1.5"></div>
+
+      <div id="reactionDetailList" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+    </div>
+  </div>
+
+  <!-- --- modal daftar & kontrol pesan disematkan (modifikasi khusus admin) --- -->
+  <div id="communityPinnedModal" onclick="if (event.target === this) closePinnedMessagesModal()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4">
+    <div class="popup-enter w-full max-w-md rounded-2xl bg-[#0c111d]/98 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[82vh]">
+      <div class="px-4 py-3.5 border-b border-slate-800 flex items-center justify-between gap-2 bg-slate-950/70">
+        <div>
+          <h3 class="font-heading-modern text-sm sm:text-base font-extrabold text-white">Pesan Disematkan</h3>
+          <p class="text-[10px] font-mono-code text-slate-400">hanya Admin yang dapat menambah atau melepas sematan</p>
+        </div>
+        <button type="button" onclick="closePinnedMessagesModal()" aria-label="Tutup" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">✕</button>
+      </div>
+
+      <div id="communityPinnedAdminForm" class="hidden p-3.5 border-b border-slate-800 bg-slate-950/50 space-y-2">
+        <label for="communityPinnedNewInput" class="block text-[11px] font-semibold text-amber-300">Sematkan Pengumuman Baru (Admin)</label>
+        <div class="flex items-center gap-2">
+          <input id="communityPinnedNewInput" type="text" maxlength="400" placeholder="Tulis pesan penting untuk disematkan..." class="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 focus:border-[var(--accent-main)] text-xs text-white focus:outline-none" />
+          <button type="button" onclick="submitNewPinnedMessageAdmin()" class="px-3.5 py-2 rounded-xl accent-bg text-slate-950 font-bold text-xs shrink-0 transition-all active:scale-95">Sematkan</button>
+        </div>
+      </div>
+
+      <div id="communityPinnedModalList" class="flex-1 overflow-y-auto p-3.5 space-y-2.5"></div>
+    </div>
+  </div>
+
+  <!-- --- modal pratinjau media foto/video layar penuh --- -->
+  <div id="chatMediaLightboxModal" onclick="if (event.target === this) closeChatMediaLightbox()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-4">
+    <button type="button" onclick="closeChatMediaLightbox()" aria-label="Tutup Pratinjau" class="fixed top-4 right-4 w-10 h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-white flex items-center justify-center">✕</button>
+    <div id="chatMediaLightboxContent" class="flex items-center justify-center"></div>
+  </div>
+
+  <!-- --- modal settings profile & penutupan akun permanen sinkron dengan app-core.js --- -->
+  <div id="profileSettingsModal" onclick="if (event.target === this) closeProfileSettingsModal()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4">
+    <div class="popup-enter w-full max-w-md rounded-2xl bg-[#0c111d]/98 border border-slate-800 shadow-[0_24px_64px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[88vh]">
+      <div class="px-5 py-4 border-b border-slate-800/90 flex items-center justify-between gap-3 bg-slate-950/70">
+        <div class="min-w-0">
+          <h3 class="font-heading-modern text-sm sm:text-base font-extrabold text-white tracking-wide">Settings Profile</h3>
+          <p class="text-[11px] text-slate-400 mt-0.5 truncate">kelola identitas profil, foto akun, dan keamanan akun</p>
+        </div>
+        <button type="button" onclick="closeProfileSettingsModal()" aria-label="Tutup Settings Profile" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-5 space-y-5">
+        <div class="flex flex-col items-center text-center gap-3">
+          <div class="profile-avatar-ring">
+            <img id="profileAvatarPreviewImg" src="https://ui-avatars.com/api/?name=User&background=10b981&color=fff" alt="Foto Profil" class="w-20 h-20 rounded-full object-cover bg-slate-950 border-2 border-slate-950" />
+          </div>
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-center gap-2">
+              <span id="profileRoleHexBadge" class="role-hex-badge role-hex-member">MEMBER</span>
+            </div>
+            <input id="profileAvatarFileInput" onchange="handleProfileAvatarSelect(event)" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" />
+            <div class="flex items-center justify-center gap-2 pt-1">
+              <button type="button" onclick="getEl('profileAvatarFileInput')?.click()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-100 transition-all active:scale-95">
+                <svg class="w-3.5 h-3.5 accent-text shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span>Ganti Foto Profil</span>
+              </button>
+              <button id="profileClearAvatarBtn" type="button" onclick="clearProfileAvatarSelection()" title="Batal Pilih Foto" class="hidden p-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <p id="profileAvatarFileInfo" class="text-[10px] font-mono-code text-slate-500">JPG / PNG / WebP maksimal 5 MB</p>
+          </div>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="profileDisplayNameInput" class="font-semibold text-slate-300">Nama Akun</label>
+              <span id="profileDisplayNameCounter" class="text-[10px] font-mono-code text-slate-400">0/20</span>
+            </div>
+            <input id="profileDisplayNameInput" oninput="updateProfileNameCounter()" type="text" maxlength="20" placeholder="Nama tampilan Anda (maks 20 karakter)" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-[var(--accent-main)] text-xs text-white focus:outline-none transition-colors" />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="profileHandleInput" class="block font-semibold text-slate-300">ID Discord / Sosmed (Opsional)</label>
+            <input id="profileHandleInput" type="text" maxlength="32" placeholder="Contoh: @username" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-[var(--accent-main)] text-xs font-mono-code text-slate-200 focus:outline-none transition-colors" />
+          </div>
+
+          <div class="space-y-1">
+            <label for="profileEmailReadonly" class="block font-semibold text-slate-400">Email Terhubung</label>
+            <input id="profileEmailReadonly" type="text" readonly value="-" class="w-full px-3.5 py-2 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] font-mono-code text-slate-400 focus:outline-none" />
+          </div>
+
+          <button id="profileSaveSubmitBtn" type="button" onclick="submitProfileSettingsUpdate()" class="w-full py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 accent-shadow disabled:opacity-60">
+            Simpan Perubahan Profil
+          </button>
+        </div>
+
+        <div class="rounded-xl bg-rose-950/20 border border-rose-500/35 p-4 space-y-3">
+          <div class="space-y-1">
+            <p class="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+              <span>Tutup Akun Permanen</span>
+            </p>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              Seluruh sesi bot, pengaturan, koleksi stiker, dan data akun akan dihapus permanen. Untuk melanjutkan, ketik persis kalimat berikut:
+            </p>
+            <div class="px-3 py-1.5 rounded-lg bg-black/60 border border-rose-500/30 font-mono-code text-[11px] text-rose-300 select-all">
+              <span id="deleteAccountExpectedPhrase">confirm User</span>
+            </div>
+          </div>
+
+          <input id="deleteAccountConfirmInput" oninput="validateDeleteAccountConfirmation()" type="text" autocomplete="off" placeholder="Ketik frasa konfirmasi di atas..." class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-rose-500/30 focus:border-rose-400 text-xs font-mono-code text-white placeholder-slate-500 focus:outline-none" />
+
+          <button id="deleteAccountSubmitBtn" type="button" disabled onclick="submitPermanentAccountDeletion()" class="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed">
+            Hapus Akun Saya Secara Permanen
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- toast notifikasi kompak di sudut kanan atas --- -->
+  <div id="cyberToastContainer" class="fixed top-16 right-3 left-3 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- --- konteks halaman untuk inisialisasi kondisional app-core.js --- -->
+  <script>
+    // --- konfigurasi identitas halaman komunitas sebelum memuat skrip global ---
+    window.XU_CORE_PAGE_CONTEXT = {
+      page: 'chat',
+      enableCharts: false,
+      enableCommandPalette: false,
+      enableProfileSettings: true,
+      enableLiveInboxOverlay: false
+    };
+  </script>
+
+  <!-- --- muat skrip global terpadu untuk dashboard.html dan chat.html --- -->
+  <script src="/app-core.js"></script>
+
+  <!-- --- bootstrap aman inisialisasi modul xu core community --- -->
+  <script>
+    (function bootstrapCommunityChatPage() {
+      'use strict';
+
+      // --- jalankan inisialisasi halaman chat dengan proteksi try-catch ---
+      function runSafeChatBoot() {
+        try {
+          if (window.XuCoreApp && typeof window.XuCoreApp.initPage === 'function') {
+            window.XuCoreApp.initPage('chat');
+          }
+        } catch (bootErr) {
+          console.error('[CHAT BOOT]', bootErr);
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runSafeChatBoot);
+      } else {
+        runSafeChatBoot();
+      }
+    })();
+  </script>
+
+  <!-- --- proteksi anti-devtools tanpa mengganggu klik kanan reaksi pada gelembung pesan --- -->
+  <script>
+    (function initAntiInspectGuard() {
+      'use strict';
+
+      const REDIRECT_TARGET_URL = '/login';
+      const DIMENSION_THRESHOLD_PX = 160;
+      const DEBUGGER_DELAY_THRESHOLD_MS = 120;
+      let isGuardTriggered = false;
+
+      // --- eksekusi pengalihan halaman saat devtools terdeteksi ---
+      function triggerPreventiveAction() {
+        if (isGuardTriggered) return;
+        isGuardTriggered = true;
+
+        for (let clearIndex = 0; clearIndex < 20; clearIndex += 1) {
+          try { console.clear(); } catch (clearErr) {}
+        }
+        try { document.documentElement.innerHTML = ''; } catch (domErr) {}
+        window.location.replace(REDIRECT_TARGET_URL);
+      }
+
+      // --- blokir menu klik kanan bawaan di luar gelembung pesan ---
+      document.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        return false;
+      });
+
+      // --- blokir pintasan keyboard inspeksi elemen dan view source ---
+      document.addEventListener('keydown', (event) => {
+        const pressedKey = String(event.key || '').toUpperCase();
+        const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+        const isShift = event.shiftKey;
+        const isAlt = event.altKey;
+
+        const isF12 = pressedKey === 'F12' || event.keyCode === 123;
+        const isInspectShortcut = isCtrlOrMeta && isShift && ['I', 'J', 'C'].includes(pressedKey);
+        const isMacInspectShortcut = event.metaKey && isAlt && ['I', 'J', 'C'].includes(pressedKey);
+        const isViewSourceShortcut = isCtrlOrMeta && pressedKey === 'U';
+
+        if (isF12 || isInspectShortcut || isMacInspectShortcut || isViewSourceShortcut) {
+          event.preventDefault();
+          event.stopPropagation();
+          try { console.clear(); } catch (clearErr) {}
+          return false;
+        }
+        return true;
+      });
+
+      // --- deteksi pembukaan devtools melalui selisih dimensi viewport desktop ---
+      function detectDevToolsByViewport() {
+        const widthDiff = Math.abs(window.outerWidth - window.innerWidth);
+        const heightDiff = Math.abs(window.outerHeight - window.innerHeight);
+        const isLikelyDesktop = window.matchMedia('(pointer: fine)').matches;
+
+        if (isLikelyDesktop && (widthDiff > DIMENSION_THRESHOLD_PX || heightDiff > DIMENSION_THRESHOLD_PX)) {
+          triggerPreventiveAction();
+        }
+      }
+
+      // --- deteksi jeda eksekusi debugger ---
+      function detectDevToolsByDebugger() {
+        const startTimeMs = performance.now();
+        (function () {}).constructor('debugger')();
+        const elapsedMs = performance.now() - startTimeMs;
+
+        if (elapsedMs > DEBUGGER_DELAY_THRESHOLD_MS) {
+          triggerPreventiveAction();
+        }
+      }
+
+      window.addEventListener('resize', detectDevToolsByViewport);
+
+      setInterval(() => {
+        try { console.clear(); } catch (clearErr) {}
+        detectDevToolsByViewport();
+        detectDevToolsByDebugger();
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>
