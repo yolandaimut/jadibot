@@ -212,6 +212,20 @@
       }
     }
 
+    /* --- animasi melayang naik-turun halus untuk tombol chat mengambang kanan bawah --- */
+    @keyframes floatingChatBob {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-7px); }
+    }
+
+    .floating-chat-fab {
+      animation: floatingChatBob 2.6s ease-in-out infinite;
+    }
+
+    .floating-chat-fab:hover {
+      animation-play-state: paused;
+    }
+
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
@@ -244,7 +258,7 @@
         <canvas id="headerBrandTextCanvas" class="brand-canvas" aria-hidden="true"></canvas>
       </a>
 
-      <!-- --- grup ikon navigasi workspace termasuk tab live chat --- -->
+      <!-- --- grup 4 ikon navigasi workspace bersih di sebelah kanan logo --- -->
       <nav aria-label="Navigasi Workspace" class="header-nav-pill bg-slate-900/90 border border-slate-800/90 rounded-xl shadow-inner">
         <button id="navTabDashboard" type="button" onclick="switchWorkspaceTab('dashboard')" title="Dashboard" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
@@ -254,12 +268,6 @@
         <button id="navTabManage" type="button" onclick="switchWorkspaceTab('manage')" title="Kelola Bot & Config" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
           <span class="hidden sm:inline">kelola</span>
-        </button>
-
-        <button id="navTabChat" type="button" onclick="switchWorkspaceTab('chat')" title="Live Chat & WA Inbox" class="header-nav-btn relative flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-          <span class="hidden sm:inline">chat</span>
-          <span id="navChatUnreadDot" class="hidden absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.9)]"></span>
         </button>
 
         <button id="navTabGateway" type="button" onclick="switchWorkspaceTab('gateway')" title="WA API Gateway" class="header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap">
@@ -1427,81 +1435,6 @@
 
       </section>
 
-      <!-- --- tampilan tab baru: live chat (public live chat komunitas & wa live chat inbox) --- -->
-      <section id="workspaceChatView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
-
-        <!-- --- kolom kiri: public live chat antar seluruh user xu core --- -->
-        <div class="lg:col-span-5 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-5 flex flex-col h-[560px]">
-          <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-            <div class="min-w-0">
-              <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Public Live Chat
-              </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5 truncate">obrolan publik real-time seluruh pengguna Xu Core</p>
-            </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <span id="publicChatCountBadge" class="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-300">0</span>
-              <button id="publicChatClearAdminBtn" type="button" onclick="clearPublicChatAdmin()" title="Bersihkan Public Chat (Admin)" class="hidden p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <div id="publicChatMessagesList" class="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1">
-            <p class="text-xs font-mono-code text-slate-500 text-center py-6">Memuat obrolan publik...</p>
-          </div>
-
-          <form onsubmit="submitPublicChatMessage(event)" class="pt-3 border-t border-slate-800/80 flex items-center gap-2">
-            <input id="publicChatInput" type="text" maxlength="600" autocomplete="off" placeholder="Tulis pesan ke seluruh user Xu Core..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none" />
-            <button type="submit" class="px-3.5 py-2 rounded-xl accent-bg text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0">Kirim</button>
-          </form>
-        </div>
-
-        <!-- --- kolom kanan: wa live chat inbox (balas chat whatsapp masuk dari browser) --- -->
-        <div class="lg:col-span-7 saas-glass-card rounded-2xl border border-slate-800/90 p-4 sm:p-5 flex flex-col h-[560px]">
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-            <div>
-              <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
-                WhatsApp Live Chat Inbox
-              </h2>
-              <p class="text-[11px] text-slate-400 mt-0.5">pantau chat masuk ke bot Anda dan balas langsung dari dashboard</p>
-            </div>
-            <span id="waInboxChatCountBadge" class="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 font-mono-code text-[10px] text-slate-300">0 chat</span>
-          </div>
-
-          <div class="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3 min-h-0">
-            <!-- --- daftar kontak/grup masuk --- -->
-            <div class="sm:col-span-5 flex flex-col min-h-0 border-b sm:border-b-0 sm:border-r border-slate-800/80 pb-2 sm:pb-0 sm:pr-3">
-              <div id="waInboxChatList" class="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-36 sm:max-h-none">
-                <p class="text-[11px] font-mono-code text-slate-500 text-center py-6">Menunggu pesan WhatsApp masuk...</p>
-              </div>
-            </div>
-
-            <!-- --- ruang percakapan aktif & form balas --- -->
-            <div class="sm:col-span-7 flex flex-col min-h-0">
-              <div class="pb-2 mb-2 border-b border-slate-800/70 flex items-center justify-between gap-2">
-                <div class="min-w-0">
-                  <p id="waInboxActiveTitle" class="text-xs font-bold text-white truncate">Pilih percakapan</p>
-                  <p id="waInboxActiveJid" class="text-[10px] font-mono-code text-slate-500 truncate">-</p>
-                </div>
-              </div>
-
-              <div id="waInboxMessagesViewport" class="flex-1 overflow-y-auto space-y-2 pr-1">
-                <p class="text-[11px] font-mono-code text-slate-500 text-center py-8">Pilih chat di sebelah kiri untuk membaca dan membalas pesan.</p>
-              </div>
-
-              <form onsubmit="submitWaInboxReply(event)" class="pt-2.5 mt-2 border-t border-slate-800/80 flex items-center gap-2">
-                <input id="waInboxReplyInput" type="text" autocomplete="off" placeholder="Ketik balasan WhatsApp..." class="flex-1 min-w-0 bg-slate-950/90 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none" />
-                <button id="waInboxReplyBtn" type="submit" class="px-3.5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition-all active:scale-95 shrink-0 disabled:opacity-60">Balas</button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-      </section>
-
       <!-- --- tampilan tab api gateway multi-media, webhook forwarder & webhook delivery logs --- -->
       <section id="workspaceGatewayView" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
 
@@ -2174,6 +2107,93 @@
     </div>
   </div>
 
+  <!-- --- tombol ikon chat mengambang kanan bawah dengan animasi naik-turun --- -->
+  <button id="floatingChatFabBtn" type="button" onclick="openLiveChatFullscreen('inbox')" title="Buka Live Chat & WA Inbox" aria-label="Buka Live Chat" class="floating-chat-fab fixed bottom-5 right-5 z-40 w-13 h-13 sm:w-14 sm:h-14 p-3.5 rounded-full accent-bg text-slate-950 shadow-[0_10px_30px_rgba(0,0,0,0.65)] accent-shadow border border-white/25 flex items-center justify-center transition-transform active:scale-90">
+    <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+    <span id="floatingChatUnreadBadge" class="hidden absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-mono-code font-bold flex items-center justify-center border-2 border-[#050810] shadow-md">0</span>
+  </button>
+
+  <!-- --- mode layar penuh khusus live chat tanpa header/footer/elemen dashboard lain --- -->
+  <div id="liveChatFullscreenOverlay" class="fixed inset-0 z-50 hidden flex-col bg-[#050810] text-slate-100 h-[100dvh] w-screen overflow-hidden">
+    <!-- --- bar atas ringkas khusus pengalih wa inbox / public chat & tombol kembali --- -->
+    <div class="flex items-center justify-between gap-2 px-3 sm:px-5 py-2.5 bg-slate-950/95 border-b border-slate-800/90 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="inline-flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+          <button id="fsChatTabInboxBtn" type="button" onclick="switchLiveChatMode('inbox')" class="px-3 py-1.5 rounded-lg font-bold accent-bg text-slate-950 transition-all flex items-center gap-1.5">
+            <span>WA Inbox</span>
+            <span id="waInboxChatCountBadge" class="px-1.5 py-0.5 rounded bg-slate-950/30 font-mono-code text-[10px]">0</span>
+          </button>
+          <button id="fsChatTabPublicBtn" type="button" onclick="switchLiveChatMode('public')" class="px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+            <span>Public Chat</span>
+            <span id="publicChatCountBadge" class="px-1.5 py-0.5 rounded bg-slate-800 font-mono-code text-[10px]">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="publicChatClearAdminBtn" type="button" onclick="clearPublicChatAdmin()" title="Bersihkan Public Chat (Admin)" class="hidden px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-semibold transition-colors">
+          Hapus Semua
+        </button>
+        <button type="button" onclick="closeLiveChatFullscreen()" aria-label="Tutup Live Chat" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition-all active:scale-95">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <span class="hidden sm:inline">Tutup</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- --- panel full-screen 1: whatsapp live chat inbox --- -->
+    <div id="fsWaInboxPanel" class="flex-1 grid grid-cols-1 md:grid-cols-12 min-h-0 overflow-hidden">
+      <!-- --- daftar percakapan masuk (penuh di mobile saat belum pilih chat, 4 kolom di desktop) --- -->
+      <div id="waInboxListPane" class="md:col-span-4 lg:col-span-3 flex flex-col min-h-0 border-r border-slate-800/80 bg-slate-950/60">
+        <div class="px-3.5 py-2.5 border-b border-slate-800/70 flex items-center justify-between">
+          <span class="text-[11px] font-mono-code font-bold uppercase tracking-wider text-slate-400">Daftar Percakapan</span>
+          <span class="text-[10px] font-mono-code text-emerald-400">Real-Time</span>
+        </div>
+        <div id="waInboxChatList" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+          <p class="text-xs font-mono-code text-slate-500 text-center py-10">Menunggu pesan WhatsApp masuk...</p>
+        </div>
+      </div>
+
+      <!-- --- ruang percakapan aktif full height --- -->
+      <div id="waInboxConversationPane" class="hidden md:flex md:col-span-8 lg:col-span-9 flex-col min-h-0 bg-[#050810]">
+        <div class="px-3.5 py-2.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center gap-2.5 shrink-0">
+          <button type="button" onclick="backToWaInboxListMobile()" aria-label="Kembali ke Daftar Chat" class="md:hidden p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <div class="min-w-0 flex-1">
+            <p id="waInboxActiveTitle" class="text-sm font-bold text-white truncate">Pilih percakapan</p>
+            <p id="waInboxActiveJid" class="text-[11px] font-mono-code text-emerald-400/90 truncate">-</p>
+          </div>
+        </div>
+
+        <div id="waInboxMessagesViewport" class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5">
+          <p class="text-xs font-mono-code text-slate-500 text-center py-12">Pilih percakapan untuk mulai membaca dan membalas pesan WhatsApp.</p>
+        </div>
+
+        <form onsubmit="submitWaInboxReply(event)" class="p-3 sm:p-4 border-t border-slate-800/80 bg-slate-950/95 flex items-center gap-2 shrink-0">
+          <input id="waInboxReplyInput" type="text" autocomplete="off" placeholder="Ketik balasan WhatsApp..." class="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none" />
+          <button id="waInboxReplyBtn" type="submit" class="px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs sm:text-sm transition-all active:scale-95 shrink-0 disabled:opacity-60">Kirim</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- --- panel full-screen 2: public live chat seluruh user xu core --- -->
+    <div id="fsPublicChatPanel" class="hidden flex-1 flex-col min-h-0 overflow-hidden bg-[#050810]">
+      <div id="publicChatMessagesList" class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 max-w-4xl w-full mx-auto">
+        <p class="text-xs font-mono-code text-slate-500 text-center py-10">Memuat obrolan publik...</p>
+      </div>
+
+      <form onsubmit="submitPublicChatMessage(event)" class="p-3 sm:p-4 border-t border-slate-800/80 bg-slate-950/95 shrink-0">
+        <div class="max-w-4xl w-full mx-auto flex items-center gap-2">
+          <input id="publicChatInput" type="text" maxlength="600" autocomplete="off" placeholder="Tulis pesan ke seluruh pengguna Xu Core..." class="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none" />
+          <button type="submit" class="px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs sm:text-sm transition-all active:scale-95 shrink-0">Kirim</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- --- toast notifikasi kompak di bawah header --- -->
   <div id="cyberToastContainer" class="fixed top-14 sm:top-16 right-3 left-3 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
   <script>
@@ -2686,23 +2706,125 @@
       showCyberToast('Public Chat', 'Seluruh pesan ruang obrolan publik dibersihkan.', 'info');
     }
 
-    // --- wa live chat inbox (balas chat whatsapp langsung dari browser) ---
-    function syncChatUnreadIndicator() {
-      const dot = getEl('navChatUnreadDot');
-      if (!dot) return;
-      const totalUnread = waLiveInboxCache.reduce((sum, chat) => sum + Number(chat.unreadCount || 0), 0);
-      dot.classList.toggle('hidden', totalUnread <= 0 || activeWorkspaceTab === 'chat');
+    // --- state kontrol layar penuh live chat ---
+    let isLiveChatFullscreenOpen = false;
+    let activeLiveChatMode = 'inbox';
+    let isMobileInboxConversationOpen = false;
+
+    // --- buka overlay full-screen live chat tanpa elemen dashboard lain ---
+    function openLiveChatFullscreen(defaultMode = 'inbox') {
+      isLiveChatFullscreenOpen = true;
+      const overlay = getEl('liveChatFullscreenOverlay');
+      if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+      }
+      document.body.classList.add('overflow-hidden');
+      getEl('floatingChatFabBtn')?.classList.add('hidden');
+      switchLiveChatMode(defaultMode);
+      socketClient.emit('inbox:list');
+      socketClient.emit('public:chat:list');
+      syncChatUnreadIndicator();
     }
 
+    // --- tutup overlay full-screen live chat dan tampilkan tombol mengambang kembali ---
+    function closeLiveChatFullscreen() {
+      isLiveChatFullscreenOpen = false;
+      isMobileInboxConversationOpen = false;
+      const overlay = getEl('liveChatFullscreenOverlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+      }
+      document.body.classList.remove('overflow-hidden');
+      getEl('floatingChatFabBtn')?.classList.remove('hidden');
+      syncChatUnreadIndicator();
+    }
+
+    // --- beralih antara wa inbox dan public live chat di dalam mode layar penuh ---
+    function switchLiveChatMode(mode) {
+      activeLiveChatMode = mode === 'public' ? 'public' : 'inbox';
+      const isPublic = activeLiveChatMode === 'public';
+
+      const inboxPanel = getEl('fsWaInboxPanel');
+      const publicPanel = getEl('fsPublicChatPanel');
+      const inboxBtn = getEl('fsChatTabInboxBtn');
+      const publicBtn = getEl('fsChatTabPublicBtn');
+      const clearAdminBtn = getEl('publicChatClearAdminBtn');
+
+      if (inboxPanel) {
+        inboxPanel.classList.toggle('hidden', isPublic);
+        inboxPanel.classList.toggle('grid', !isPublic);
+      }
+      if (publicPanel) {
+        publicPanel.classList.toggle('hidden', !isPublic);
+        publicPanel.classList.toggle('flex', isPublic);
+      }
+
+      const activeBtnCls = 'px-3 py-1.5 rounded-lg font-bold accent-bg text-slate-950 transition-all flex items-center gap-1.5';
+      const inactiveBtnCls = 'px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all flex items-center gap-1.5';
+
+      if (inboxBtn) inboxBtn.className = isPublic ? inactiveBtnCls : activeBtnCls;
+      if (publicBtn) publicBtn.className = isPublic ? activeBtnCls : inactiveBtnCls;
+      if (clearAdminBtn && isCurrentUserAdmin) {
+        clearAdminBtn.classList.toggle('hidden', !isPublic);
+      }
+
+      if (isPublic) {
+        renderPublicChatMessages();
+      } else {
+        renderWaLiveInboxUI();
+      }
+    }
+
+    // --- perbarui lencana unread pada tombol chat mengambang kanan bawah ---
+    function syncChatUnreadIndicator() {
+      const badge = getEl('floatingChatUnreadBadge');
+      if (!badge) return;
+      const totalUnread = waLiveInboxCache.reduce((sum, chat) => sum + Number(chat.unreadCount || 0), 0);
+      if (totalUnread > 0 && !isLiveChatFullscreenOpen) {
+        badge.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    // --- format tampilan jid menjadi nomor hp rapi (+62...) atau id grup ---
+    function formatCleanWhatsappSubtitle(jid) {
+      const raw = String(jid || '').trim();
+      if (!raw) return '-';
+      if (raw.endsWith('@g.us')) return `Grup • ${raw.split('@')[0]}`;
+      if (raw.endsWith('@s.whatsapp.net')) return `+${raw.split('@')[0]}`;
+      return raw;
+    }
+
+    // --- render daftar percakapan wa inbox responsif untuk layar penuh mobile & desktop ---
     function renderWaLiveInboxUI() {
       const listEl = getEl('waInboxChatList');
       const countBadge = getEl('waInboxChatCountBadge');
-      if (countBadge) countBadge.textContent = `${waLiveInboxCache.length} chat`;
+      const listPane = getEl('waInboxListPane');
+      const convPane = getEl('waInboxConversationPane');
+
+      if (countBadge) countBadge.textContent = String(waLiveInboxCache.length);
       syncChatUnreadIndicator();
+
+      if (listPane && convPane) {
+        if (isMobileInboxConversationOpen && activeWaInboxJid) {
+          listPane.classList.add('hidden', 'md:flex');
+          convPane.classList.remove('hidden');
+          convPane.classList.add('flex');
+        } else {
+          listPane.classList.remove('hidden');
+          listPane.classList.add('flex');
+          convPane.classList.add('hidden', 'md:flex');
+          convPane.classList.remove('flex');
+        }
+      }
 
       if (!listEl) return;
       if (waLiveInboxCache.length === 0) {
-        listEl.innerHTML = '<p class="text-[11px] font-mono-code text-slate-500 text-center py-6">Menunggu pesan WhatsApp masuk...</p>';
+        listEl.innerHTML = '<p class="text-xs font-mono-code text-slate-500 text-center py-10">Menunggu pesan WhatsApp masuk...</p>';
         return;
       }
 
@@ -2716,13 +2838,14 @@
           ? `<span class="px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-mono-code text-[9px] font-bold shrink-0">${chat.unreadCount}</span>`
           : '';
         return `
-          <button type="button" data-jid="${escapeHtmlString(chat.jid)}" onclick="selectWaInboxChat(this.dataset.jid)" class="w-full text-left rounded-xl px-3 py-2 border transition-all ${isSelected ? 'bg-slate-800/90 accent-border' : 'bg-slate-950/75 border-slate-800/80 hover:bg-slate-900'}">
+          <button type="button" data-jid="${escapeHtmlString(chat.jid)}" onclick="selectWaInboxChat(this.dataset.jid)" class="w-full text-left rounded-xl px-3 py-2.5 border transition-all ${isSelected ? 'bg-slate-800/90 accent-border' : 'bg-slate-900/60 border-slate-800/80 hover:bg-slate-900'}">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs font-bold text-white truncate">${escapeHtmlString(chat.name || chat.jid.split('@')[0])}</p>
               <span class="text-[9px] font-mono-code text-slate-500 shrink-0">${escapeHtmlString(formatWibTimeOnly(chat.lastTimestamp))}</span>
             </div>
-            <div class="flex items-center justify-between gap-2 mt-0.5">
-              <p class="text-[10px] text-slate-400 truncate">${escapeHtmlString(chat.lastMessage || '-')}</p>
+            <p class="text-[10px] font-mono-code text-emerald-400/80 truncate mt-0.5">${escapeHtmlString(formatCleanWhatsappSubtitle(chat.jid))}</p>
+            <div class="flex items-center justify-between gap-2 mt-1">
+              <p class="text-[11px] text-slate-400 truncate">${escapeHtmlString(chat.lastMessage || '-')}</p>
               ${unreadBadge}
             </div>
           </button>
@@ -2732,12 +2855,21 @@
       renderActiveWaInboxMessages();
     }
 
+    // --- pilih percakapan wa inbox dan buka ruang chat penuh pada mobile ---
     function selectWaInboxChat(chatJid) {
       activeWaInboxJid = chatJid;
+      isMobileInboxConversationOpen = true;
       socketClient.emit('inbox:read', { chatJid });
       renderWaLiveInboxUI();
     }
 
+    // --- kembali ke daftar percakapan wa inbox pada tampilan mobile ---
+    function backToWaInboxListMobile() {
+      isMobileInboxConversationOpen = false;
+      renderWaLiveInboxUI();
+    }
+
+    // --- tampilkan isi percakapan wa inbox aktif dengan label nomor hp bersih ---
     function renderActiveWaInboxMessages() {
       const titleEl = getEl('waInboxActiveTitle');
       const jidEl = getEl('waInboxActiveJid');
@@ -2748,27 +2880,27 @@
       if (!activeChat) {
         if (titleEl) titleEl.textContent = 'Pilih percakapan';
         if (jidEl) jidEl.textContent = '-';
-        viewport.innerHTML = '<p class="text-[11px] font-mono-code text-slate-500 text-center py-8">Pilih chat di sebelah kiri untuk membaca dan membalas pesan.</p>';
+        viewport.innerHTML = '<p class="text-xs font-mono-code text-slate-500 text-center py-12">Pilih percakapan untuk mulai membaca dan membalas pesan WhatsApp.</p>';
         return;
       }
 
       if (titleEl) titleEl.textContent = activeChat.name || activeChat.jid.split('@')[0];
-      if (jidEl) jidEl.textContent = activeChat.jid;
+      if (jidEl) jidEl.textContent = formatCleanWhatsappSubtitle(activeChat.jid);
 
       const msgs = Array.isArray(activeChat.messages) ? activeChat.messages : [];
       if (msgs.length === 0) {
-        viewport.innerHTML = '<p class="text-[11px] font-mono-code text-slate-500 text-center py-8">Belum ada pesan di percakapan ini.</p>';
+        viewport.innerHTML = '<p class="text-xs font-mono-code text-slate-500 text-center py-12">Belum ada pesan di percakapan ini.</p>';
         return;
       }
 
       viewport.innerHTML = msgs.map((m) => `
         <div class="flex ${m.fromMe ? 'justify-end' : 'justify-start'}">
-          <div class="max-w-[85%] rounded-xl px-3 py-2 text-xs ${m.fromMe ? 'bg-sky-500/20 border border-sky-500/35 text-slate-100' : 'bg-slate-950/90 border border-slate-800 text-slate-200'}">
-            <div class="flex items-center justify-between gap-2 mb-0.5">
+          <div class="max-w-[85%] sm:max-w-[72%] rounded-2xl px-3.5 py-2.5 text-xs ${m.fromMe ? 'bg-sky-500/20 border border-sky-500/35 text-slate-100' : 'bg-slate-900/95 border border-slate-800 text-slate-200'}">
+            <div class="flex items-center justify-between gap-3 mb-1">
               <span class="text-[10px] font-bold ${m.fromMe ? 'text-sky-300' : 'text-emerald-300'}">${escapeHtmlString(m.senderName || (m.fromMe ? 'Bot' : 'User'))}</span>
               <span class="text-[9px] font-mono-code text-slate-500">${escapeHtmlString(formatWibTimeOnly(m.timestamp))}</span>
             </div>
-            <p class="text-[11px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(m.text)}</p>
+            <p class="text-xs leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(m.text)}</p>
           </div>
         </div>
       `).join('');
@@ -3086,12 +3218,13 @@
       showCyberToast('Preset Welcome', 'Template pesan selamat datang diterapkan.', 'info');
     }
 
-    // --- command palette (ctrl + k) & keyboard navigation ---
+    // --- daftar aksi command palette dengan pintasan buka layar penuh live chat ---
     function getCommandPaletteActions() {
       const actions = [
         { id: 'tab-dash', group: 'Navigasi', title: 'Buka Tab Dashboard', desc: 'Lihat metrik, koneksi WA, grafik & terminal CLI', run: () => switchWorkspaceTab('dashboard') },
         { id: 'tab-manage', group: 'Navigasi', title: 'Buka Tab Kelola Bot & Config', desc: 'Auto-Reply, Pesan Sistem, Prefix, Menu, Limit & User', run: () => switchWorkspaceTab('manage') },
-        { id: 'tab-chat', group: 'Navigasi', title: 'Buka Tab Live Chat & WA Inbox', desc: 'Public Live Chat komunitas & balas WA dari browser', run: () => switchWorkspaceTab('chat') },
+        { id: 'open-wa-inbox', group: 'Live Chat', title: 'Buka WA Live Chat Inbox (Layar Penuh)', desc: 'Pantau dan balas pesan WhatsApp langsung dari browser', run: () => openLiveChatFullscreen('inbox') },
+        { id: 'open-pub-chat', group: 'Live Chat', title: 'Buka Public Live Chat (Layar Penuh)', desc: 'Obrolan komunitas seluruh user Xu Core', run: () => openLiveChatFullscreen('public') },
         { id: 'tab-api', group: 'Navigasi', title: 'Buka Tab API Gateway & Webhook', desc: 'Kelola API Key, Webhook Forwarder & Delivery Logs', run: () => switchWorkspaceTab('gateway') }
       ];
 
@@ -3195,6 +3328,7 @@
       }
     }
 
+    // --- pintasan keyboard command palette & tombol esc untuk tutup full-screen live chat ---
     function setupCommandPaletteHotkeys() {
       document.addEventListener('keydown', (event) => {
         const key = String(event.key || '').toLowerCase();
@@ -3202,6 +3336,12 @@
           event.preventDefault();
           if (isCommandPaletteOpen) closeCommandPalette();
           else openCommandPalette();
+          return;
+        }
+
+        if (key === 'escape' && isLiveChatFullscreenOpen && !isCommandPaletteOpen) {
+          event.preventDefault();
+          closeLiveChatFullscreen();
           return;
         }
 
@@ -3888,6 +4028,7 @@
       window.location.replace('/login');
     }
 
+    // --- ganti tab navigasi workspace (4 tab header tanpa tab chat) ---
     function switchWorkspaceTab(targetTab) {
       if (targetTab === 'developer' && !isCurrentUserAdmin) {
         showTopToast('Tab IDE khusus admin platform', true);
@@ -3899,7 +4040,6 @@
       const views = {
         dashboard: getEl('workspaceDashboardView'),
         manage: getEl('workspaceManageView'),
-        chat: getEl('workspaceChatView'),
         gateway: getEl('workspaceGatewayView'),
         developer: getEl('workspaceDeveloperView')
       };
@@ -3907,13 +4047,12 @@
       const buttons = {
         dashboard: getEl('navTabDashboard'),
         manage: getEl('navTabManage'),
-        chat: getEl('navTabChat'),
         gateway: getEl('navTabGateway'),
         developer: getEl('navTabDeveloper')
       };
 
-      const activeTabClasses = 'header-nav-btn relative flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm';
-      const inactiveTabClasses = 'header-nav-btn relative flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap';
+      const activeTabClasses = 'header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 accent-bg text-slate-950 whitespace-nowrap shadow-sm';
+      const inactiveTabClasses = 'header-nav-btn flex items-center justify-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 text-slate-400 hover:text-slate-100 whitespace-nowrap';
 
       for (const [key, sectionEl] of Object.entries(views)) {
         if (!sectionEl) continue;
@@ -3938,18 +4077,10 @@
         renderFeatureCatalogUI();
         renderVisualAutoReplyRules();
       }
-      if (targetTab === 'chat') {
-        socketClient.emit('public:chat:list');
-        socketClient.emit('inbox:list');
-        renderPublicChatMessages();
-        renderWaLiveInboxUI();
-      }
       if (targetTab === 'gateway') {
         updateGatewayPayloadPreview();
         renderWebhookDeliveryLogs(webhookDeliveryLogsCache);
       }
-
-      syncChatUnreadIndicator();
     }
 
     function switchAuthMode(mode) {
