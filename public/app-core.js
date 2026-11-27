@@ -80,6 +80,23 @@ let activeReactionDetailMessageId = '';
 let activeReactionDetailEmojiTab = 'ALL';
 let longPressMessageTimer = null;
 
+// --- state pengaturan profil akun dan penghapusan akun permanen ---
+let currentUserProfileData = null;
+let pendingProfileAvatarBase64 = '';
+
+// --- state modul xu core community (chat.html) & stiker hibrida supabase ---
+const COMMUNITY_DEFAULT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+let activePinnedCarouselIndex = 0;
+let activeFloatingMessageId = '';
+let activeDetailReactionMessageId = '';
+let activeDetailReactionFilter = 'all';
+let isChatAttachMenuOpen = false;
+let isStickerSheetOpen = false;
+let isMembersDrawerOpen = false;
+let isStickerSyncRunning = false;
+let messageLongPressTimer = null;
+
 const MAX_CPU_POINTS = 25;
 let cpuChartInstance = null;
 let trafficChartInstance = null;
@@ -5785,8 +5802,8 @@ socketClient.on('plugin:error', (payload) => {
 
 // --- inisialisasi terpadu kondisional untuk dashboard.html dan chat.html ---
 function initXuCoreUnifiedPage(requestedPage) {
-  if (isAppCoreInitialized) return;
-  isAppCoreInitialized = true;
+  if (isAppInitialized) return;
+  isAppInitialized = true;
   activePageName = requestedPage || window.XU_CORE_PAGE_CONTEXT?.page || (getEl('communityMessagesContainer') ? 'chat' : 'dashboard');
 
   safeExecute(() => {
