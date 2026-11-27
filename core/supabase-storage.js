@@ -5,6 +5,9 @@ import path from 'path';
 import { SESSIONS_VOLUME_ROOT } from './config.js';
 
 const LOCAL_UPLOADS_ROOT = path.join(SESSIONS_VOLUME_ROOT, 'uploads');
+const SUPABASE_URL = "https://rxcvojhhtldbkhhnehwn.supabase.co";
+const SUPABASE_KEY = "sb_secret_kXRCt7_N1R4XKPLTHmciDQ_X9EUkk9O";
+const SUPABASE_STORAGE_BUCKET = "xucore-media";
 
 // --- peta ekstensi file berdasarkan mimetype ---
 function resolveExtensionFromMime(mimeType) {
@@ -55,11 +58,11 @@ export async function uploadMediaToSupabaseStorage({
   const uniqueName = `${Date.now()}_${crypto.randomBytes(5).toString('hex')}.${extension}`;
   const objectPath = `${safeFolder}/${safeOwner}/${uniqueName}`;
 
-  const supabaseUrl = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const supabaseUrl = String(SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const supabaseKey = String(
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
+    SUPABASE_KEY || ''
   ).trim();
-  const bucketName = String(process.env.SUPABASE_STORAGE_BUCKET || 'xucore-media').trim();
+  const bucketName = String(SUPABASE_STORAGE_BUCKET || 'xucore-media').trim();
 
   if (supabaseUrl && supabaseKey) {
     try {
