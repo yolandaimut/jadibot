@@ -87,6 +87,8 @@ let isStickerSheetOpen = false;
 let isMembersDrawerOpen = false;
 let isStickerSyncRunning = false;
 let messageLongPressTimer = null;
+// --- state & controller simpan atau hapus stiker favorit ala whatsapp ---
+let activeInspectStickerUrl = '';
 
 // --- instance grafik dashboard ---
 let cpuChartInstance = null;
@@ -1552,6 +1554,7 @@ function setupGlobalHotkeys() {
       if (activeFloatingMessageId) closeMessageActionPopup();
       if (activeDetailReactionMessageId) closeReactionDetailSheet();
       if (isStickerSheetOpen) closeStickerBottomSheet();
+      if (activeInspectStickerUrl) closeStickerFavoriteSheet();
       if (isChatAttachMenuOpen) closeChatAttachMenu();
       if (isMembersDrawerOpen) toggleMembersDrawer(false);
       closePinnedMessagesModal();
@@ -4233,6 +4236,95 @@ function sendCommunityStickerMessage(stickerUrl) {
   closeStickerBottomSheet();
 }
 
+function isStickerUrlFavorited(stickerUrl) {
+  if (!stickerUrl) return false;
+  return communityStickersCache.some((item) => item?.url === stickerUrl);
+}
+
+function renderStickerFavoriteSheetState() {
+  const toggleBtn = getEl('stickerFavoriteToggleBtn');
+  const toggleIcon = getEl('stickerFavoriteToggleIcon');
+  const toggleLabel = getEl('stickerFavoriteToggleLabel');
+  if (!toggleBtn || !toggleLabel) return;
+
+  const isSaved = isStickerUrlFavorited(activeInspectStickerUrl);
+  if (isSaved) {
+    toggleBtn.className = 'w-full py-3 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-300 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60';
+    toggleLabel.textContent = 'Hapus dari Favorit';
+    if (toggleIcon) {
+      toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>';
+    }
+  } else {
+    toggleBtn.className = 'w-full py-3 px-4 rounded-xl accent-bg text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 accent-shadow disabled:opacity-60';
+    toggleLabel.textContent = 'Tambahkan ke Favorit';
+    if (toggleIcon) {
+      toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>';
+    }
+  }
+}
+
+function openStickerFavoriteSheet(stickerUrl, senderName = 'Member', event) {
+  if (event) event.stopPropagation();
+  if (!stickerUrl) return;
+
+  activeInspectStickerUrl = stickerUrl;
+  if (getEl('stickerFavoritePreviewImg')) getEl('stickerFavoritePreviewImg').src = stickerUrl;
+  if (getEl('stickerFavoriteSenderLabel')) {
+    getEl('stickerFavoriteSenderLabel').textContent = `Dikirim oleh ${senderName || 'Member'}`;
+  }
+
+  renderStickerFavoriteSheetState();
+  toggleModalVisibility('stickerFavoriteSheetOverlay', true);
+}
+
+function closeStickerFavoriteSheet() {
+  activeInspectStickerUrl = '';
+  toggleModalVisibility('stickerFavoriteSheetOverlay', false);
+}
+
+async function toggleStickerFavoriteStatus() {
+  if (!activeInspectStickerUrl) return;
+
+  const toggleBtn = getEl('stickerFavoriteToggleBtn');
+  const isCurrentlySaved = isStickerUrlFavorited(activeInspectStickerUrl);
+  const actionType = isCurrentlySaved ? 'remove' : 'add';
+
+  if (toggleBtn) toggleBtn.disabled = true;
+  try {
+    const response = await fetch('/api/stickers/favorite', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: activeInspectStickerUrl,
+        action: actionType
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.isSuccess) {
+      throw new Error(result.errorMessage || 'Gagal memperbarui stiker favorit.');
+    }
+
+    communityStickersCache = Array.isArray(result.stickers) ? result.stickers : [];
+    saveLocalCachedStickers(currentGoogleUserId, communityStickersCache);
+    renderCommunityStickerGrid();
+    renderStickerFavoriteSheetState();
+
+    showCyberToast(
+      actionType === 'add' ? 'Disimpan ke Favorit' : 'Dihapus dari Favorit',
+      actionType === 'add'
+        ? 'Stiker kini tersedia di koleksi Stiker Anda.'
+        : 'Stiker telah dihapus dari koleksi favorit Anda.',
+      actionType === 'add' ? 'success' : 'info'
+    );
+    closeStickerFavoriteSheet();
+  } catch (favoriteErr) {
+    showCyberToast('Gagal Memproses', favoriteErr.message, 'danger');
+  } finally {
+    if (toggleBtn) toggleBtn.disabled = false;
+  }
+}
+
 // --- buka/tutup menu lampiran (foto, video, stiker) & sheet stiker ---
 function toggleChatAttachMenu(event) {
   if (event) event.stopPropagation();
@@ -4789,11 +4881,17 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       : '';
 
     let bodyContentHtml = '';
-    // --- ukuran stiker kompak setara tampilan whatsapp ---
+    // --- stiker kompak ala whatsapp yang dapat diklik untuk disimpan ke favorit ---
     if (msg.type === 'sticker' && msg.mediaUrl) {
       bodyContentHtml = `
         <div class="py-0.5">
-          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Stiker" loading="lazy" class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]" />
+          <img
+            src="${escapeHtmlString(msg.mediaUrl)}"
+            alt="Stiker"
+            loading="lazy"
+            onclick="openStickerFavoriteSheet('${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', event)"
+            class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none cursor-pointer hover:scale-105 active:scale-95 transition-transform drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]"
+          />
         </div>
       `;
     } else if (msg.type === 'image' && msg.mediaUrl) {

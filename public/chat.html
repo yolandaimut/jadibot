@@ -474,6 +474,40 @@
     </div>
   </div>
 
+  <!-- --- bottom sheet pratinjau stiker untuk tambah atau hapus dari favorit ala whatsapp --- -->
+  <div id="stickerFavoriteSheetOverlay" onclick="if (event.target === this) closeStickerFavoriteSheet()" class="fixed inset-0 z-50 hidden items-end justify-center bg-black/75 backdrop-blur-sm">
+    <div class="sheet-enter w-full max-w-md rounded-t-3xl bg-[#0b101d]/98 border-t border-x border-slate-800 p-5 space-y-4 shadow-[0_-18px_50px_rgba(0,0,0,0.85)]">
+      <div class="w-10 h-1 rounded-full bg-slate-700 mx-auto"></div>
+
+      <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <h3 class="font-heading-modern text-sm sm:text-base font-extrabold text-white">Info Stiker</h3>
+          <p id="stickerFavoriteSenderLabel" class="text-[11px] font-mono-code text-slate-400 truncate mt-0.5">Dikirim oleh Member</p>
+        </div>
+        <button type="button" onclick="closeStickerFavoriteSheet()" aria-label="Tutup Info Stiker" class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-colors shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="flex items-center justify-center py-3 rounded-2xl bg-slate-950/75 border border-slate-800/80">
+        <img id="stickerFavoritePreviewImg" src="" alt="Pratinjau Stiker" class="w-36 h-36 object-contain rounded-xl select-none drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)]" />
+      </div>
+
+      <div class="space-y-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+        <button id="stickerFavoriteToggleBtn" type="button" onclick="toggleStickerFavoriteStatus()" class="w-full py-3 px-4 rounded-xl accent-bg text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60">
+          <svg id="stickerFavoriteToggleIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+          </svg>
+          <span id="stickerFavoriteToggleLabel">Tambahkan ke Favorit</span>
+        </button>
+
+        <button type="button" onclick="closeStickerFavoriteSheet()" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors">
+          Batal
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- --- popup floating emoji reaction & aksi hapus/sematkan di atas gelembung pesan --- -->
   <div id="floatingMessageActionOverlay" onclick="if (event.target === this) closeMessageActionPopup()" class="fixed inset-0 z-50 hidden bg-black/45 backdrop-blur-[2px]">
     <div id="floatingReactionBar" class="popup-enter fixed left-3 top-24 rounded-2xl bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_18px_48px_rgba(0,0,0,0.85)] p-2 space-y-2">
