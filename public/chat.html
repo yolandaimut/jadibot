@@ -190,211 +190,203 @@
 </head>
 <body class="community-backdrop flex flex-col h-[100dvh] w-screen overflow-hidden selection:bg-slate-700 selection:text-white antialiased">
 
-  <!-- --- wrapper utama responsif full-height mobile & desktop --- -->
+  <!-- --- wrapper utama dua tampilan: beranda chat ala wa & ruang percakapan aktif --- -->
   <div class="relative flex flex-col h-[100dvh] w-full max-w-4xl mx-auto overflow-hidden sm:border-x sm:border-slate-800/70">
 
-    <!-- --- header melayang xu core community & switcher wa bot inbox --- -->
-    <header class="shrink-0 z-30 px-2.5 sm:px-4 pt-2.5 pb-1.5 space-y-2">
-      <div class="chat-glass-bar rounded-2xl border border-slate-800/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2">
-        <!-- --- grup kiri: tombol kembali, laci daftar anggota & identitas room --- -->
-        <div class="flex items-center gap-2 min-w-0 flex-1">
-          <a href="/dashboard" title="Kembali ke Dashboard" aria-label="Kembali ke Dashboard" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
-          </a>
+    <!-- --- tampilan 1: beranda chat ala whatsapp (community, bot wa/grup, dm akun xu core & mulai percakapan) --- -->
+    <div id="chatHomeView" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <header class="shrink-0 z-30 px-3.5 sm:px-5 pt-3.5 pb-2.5 space-y-3 border-b border-slate-800/70 bg-slate-950/75 backdrop-blur-xl">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <a href="/dashboard" title="Kembali ke Dashboard" aria-label="Kembali ke Dashboard" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
+            </a>
+            <h1 class="font-heading-modern text-xl sm:text-2xl font-extrabold tracking-tight text-white">Chat</h1>
+          </div>
 
-          <button id="communityMembersDrawerBtn" type="button" onclick="toggleMembersDrawer()" title="Daftar Anggota Komunitas" aria-label="Daftar Anggota Komunitas" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center shrink-0 transition-all active:scale-90">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 6h16M4 12h16M4 18h10"/></svg>
-          </button>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="hidden sm:inline-block text-[11px] font-mono-code text-slate-400">Xu Core Community</span>
+            <button type="button" onclick="refreshAllChatHomeData()" title="Refresh Percakapan" aria-label="Refresh Percakapan" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+            <button type="button" onclick="openProfileSettingsModal()" title="Settings Profile" aria-label="Settings Profile" class="p-0.5 rounded-full border-2 accent-border hover:scale-105 transition-transform active:scale-95">
+              <img id="communityNavAvatar" src="https://ui-avatars.com/api/?name=U&background=10b981&color=fff" alt="Profil" class="w-7 h-7 rounded-full object-cover bg-slate-900" />
+            </button>
+          </div>
+        </div>
 
-          <div class="min-w-0 flex-1 pl-0.5">
-            <div class="flex items-center gap-1.5">
-              <h1 id="chatRoomHeaderTitle" class="font-heading-modern text-sm sm:text-base font-extrabold tracking-wide text-white truncate">Xu Core Community</h1>
-              <span id="chatRoomHeaderBadge" class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0">Official</span>
+        <!-- --- kolom pencarian beranda chat --- -->
+        <div class="relative">
+          <input id="chatHomeSearchInput" oninput="renderChatHomeView()" type="text" placeholder="Cari chat, grup WA, atau anggota..." class="w-full pl-10 pr-4 py-2.5 rounded-full bg-slate-900/90 border border-slate-800 focus:border-[var(--accent-main)] text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-colors" />
+          <svg class="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+
+        <!-- --- pill filter percakapan ala beranda wa --- -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-xs">
+          <button type="button" data-home-filter="all" onclick="setChatHomeFilter('all')" class="chat-home-filter-btn px-3.5 py-1.5 rounded-full accent-bg text-slate-950 font-bold whitespace-nowrap transition-all">Semua</button>
+          <button type="button" data-home-filter="unread" onclick="setChatHomeFilter('unread')" class="chat-home-filter-btn px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-semibold whitespace-nowrap transition-all">Belum dibaca</button>
+          <button type="button" data-home-filter="group" onclick="setChatHomeFilter('group')" class="chat-home-filter-btn px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-semibold whitespace-nowrap transition-all">Grup</button>
+          <button type="button" data-home-filter="bot" onclick="setChatHomeFilter('bot')" class="chat-home-filter-btn px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-semibold whitespace-nowrap transition-all">Bot WA</button>
+          <button type="button" data-home-filter="xucore" onclick="setChatHomeFilter('xucore')" class="chat-home-filter-btn px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-semibold whitespace-nowrap transition-all">Akun Xu Core</button>
+        </div>
+      </header>
+
+      <!-- --- daftar percakapan terpadu + bagian mulai percakapan antar anggota --- -->
+      <div class="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3 space-y-5">
+        <section class="space-y-2">
+          <div id="chatHomeActiveList" class="space-y-2">
+            <div class="py-8 text-center text-xs font-mono-code text-slate-500">Memuat daftar percakapan...</div>
+          </div>
+        </section>
+
+        <section class="space-y-2.5 pb-6">
+          <div class="flex items-center justify-between px-1">
+            <div>
+              <h2 class="font-heading-modern text-sm sm:text-base font-extrabold text-white">Mulai percakapan</h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">Kirim pesan pribadi ke sesama pengguna akun Xu Core.</p>
             </div>
-
-            <p id="communityHeaderMeta" class="text-[10px] sm:text-[11px] font-mono-code text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
-              <span>Official</span>
-              <span>•</span>
-              <span id="communityMembersCountLabel">0 anggota</span>
-              <span>•</span>
-              <span class="inline-flex items-center gap-1 text-emerald-400">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span id="communityOnlineCountLabel">0 online</span>
-              </span>
-            </p>
-
-            <p id="waInboxHeaderMeta" class="hidden text-[10px] sm:text-[11px] font-mono-code text-slate-400 truncate items-center gap-1.5 mt-0.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Pantau &amp; balas pesan masuk bot WhatsApp secara real-time</span>
-            </p>
+            <button type="button" onclick="toggleMembersDrawer(true)" class="text-xs font-semibold accent-text hover:underline shrink-0">Anggota</button>
           </div>
-        </div>
 
-        <!-- --- grup kanan: tombol pesan disematkan, refresh inbox & avatar profil --- -->
-        <div class="flex items-center gap-1.5 shrink-0">
-          <button id="communityPinnedHeaderBtn" type="button" onclick="openPinnedMessagesModal()" title="Pesan Disematkan" aria-label="Pesan Disematkan" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
-          </button>
-
-          <button id="waInboxRefreshHeaderBtn" type="button" onclick="refreshWaLiveInbox()" title="Refresh WA Inbox" aria-label="Refresh WA Inbox" class="hidden w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] items-center justify-center shrink-0 transition-all active:scale-90">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          </button>
-
-          <button type="button" onclick="openProfileSettingsModal()" title="Settings Profile" aria-label="Settings Profile" class="p-0.5 rounded-full border-2 accent-border hover:scale-105 transition-transform active:scale-95 shrink-0">
-            <img id="communityNavAvatar" src="https://ui-avatars.com/api/?name=U&background=10b981&color=fff" alt="Profil" class="w-7 h-7 rounded-full object-cover bg-slate-900" />
-          </button>
-        </div>
-      </div>
-
-      <!-- --- switcher mode community dan wa bot inbox --- -->
-      <div class="chat-glass-bar rounded-xl border border-slate-800/90 p-1 grid grid-cols-2 gap-1 text-xs">
-        <button id="chatPageTabCommunityBtn" type="button" onclick="switchChatPageSection('community')" class="py-1.5 px-3 rounded-lg font-bold accent-bg text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-sm">
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          <span>Community</span>
-        </button>
-
-        <button id="chatPageTabInboxBtn" type="button" onclick="switchChatPageSection('inbox')" class="py-1.5 px-3 rounded-lg font-semibold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5">
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-          <span>WA Inbox</span>
-          <span id="waInboxChatCountBadge" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono-code text-[10px] text-slate-300">0</span>
-          <span id="chatPageInboxUnreadBadge" class="hidden px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono-code text-[9px] font-bold">0</span>
-        </button>
-      </div>
-
-      <!-- --- bar pesan disematkan (pinned message bar) di bawah header --- -->
-      <div id="communityPinnedBar" onclick="cyclePinnedMessageBanner(event)" role="button" tabindex="0" class="hidden chat-glass-bar rounded-xl border border-amber-500/30 hover:border-amber-400/50 px-3 py-2 flex items-center justify-between gap-2.5 cursor-pointer transition-all">
-        <div class="flex items-center gap-2.5 min-w-0 flex-1">
-          <div class="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
-          </div>
-          <div class="min-w-0 flex-1">
-            <p id="communityPinnedCounter" class="text-[10px] font-mono-code font-bold text-amber-300 leading-tight">Pesan disematkan (1/1)</p>
-            <p id="communityPinnedPreviewText" class="text-xs text-slate-200 truncate mt-0.5">-</p>
-          </div>
-        </div>
-        <button type="button" onclick="event.stopPropagation(); openPinnedMessagesModal();" class="px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code font-semibold text-slate-300 shrink-0">
-          Lihat
-        </button>
-      </div>
-    </header>
-
-    <!-- --- linimasa pesan utama xu core community --- -->
-    <main id="communityMessagesContainer" class="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-3 space-y-3.5 scroll-smooth">
-      <div class="py-12 text-center text-xs font-mono-code text-slate-500">Menghubungkan ke Xu Core Community...</div>
-    </main>
-
-    <div id="communityStatusBarsWrap" class="shrink-0 px-2.5 sm:px-4 space-y-1.5">
-
-    <!-- --- bar status unggah media & pratinjau balasan kutipan di atas input --- -->
-    <div class="shrink-0 px-2.5 sm:px-4 space-y-1.5">
-      <div id="chatMediaUploadStatusBar" class="hidden rounded-xl bg-slate-900/95 border accent-border px-3 py-2 flex items-center gap-2.5 text-xs">
-        <span class="w-4 h-4 rounded-full border-2 border-[var(--accent-main)] border-t-transparent animate-spin shrink-0"></span>
-        <span id="chatMediaUploadStatusText" class="text-slate-200 font-mono-code text-[11px] truncate">Mengunggah media ke Supabase Storage...</span>
-      </div>
-
-      <div id="communityReplyPreviewBar" class="hidden rounded-xl bg-slate-900/95 border border-slate-800 border-l-2 border-l-[var(--accent-main)] px-3 py-2 flex items-center justify-between gap-2 text-xs">
-        <div class="min-w-0 flex-1">
-          <p class="text-[10px] font-mono-code accent-text font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
-          <p id="communityReplyPreviewText" class="text-[11px] text-slate-400 truncate mt-0.5">-</p>
-        </div>
-        <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
+          <div id="chatHomeMembersList" class="space-y-2"></div>
+        </section>
       </div>
     </div>
 
-    <!-- --- area input pesan bawah beserta popup menu lampiran (foto, video, stiker) --- -->
-    <footer id="communityInputFooter" class="relative shrink-0 z-30 px-2.5 sm:px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <!-- --- input file tersembunyi untuk foto, video, dan multi-select stiker --- -->
-      <input id="chatPhotoFileInput" type="file" accept="image/*" onchange="handleChatMediaFileSelected(event, 'image')" class="hidden" />
-      <input id="chatVideoFileInput" type="file" accept="video/mp4,video/webm,video/quicktime" onchange="handleChatMediaFileSelected(event, 'video')" class="hidden" />
-      <input id="stickerMultiFileInput" type="file" accept="image/png,image/webp,image/jpeg,image/gif" multiple onchange="handleStickerMultiFileSelect(event)" class="hidden" />
+    <!-- --- tampilan 2: ruang percakapan aktif (xu core community, dm sesama user, atau chat bot/grup wa) --- -->
+    <div id="chatRoomView" class="hidden flex-1 flex-col min-h-0 overflow-hidden">
+      <!-- --- floating header pill melayang ala referensi --- -->
+      <header class="shrink-0 z-30 px-3 sm:px-4 pt-3 pb-1.5 space-y-2">
+        <div class="chat-glass-bar rounded-full border border-slate-800/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2 shadow-[0_8px_28px_rgba(0,0,0,0.5)]">
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <button type="button" onclick="backToChatHomeView()" title="Kembali ke Beranda Chat" aria-label="Kembali ke Beranda Chat" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
 
-      <!-- --- popup attachment menu (hanya foto, video, dan stiker) --- -->
-      <div id="chatAttachMenuPopup" onclick="event.stopPropagation()" class="hidden popup-enter absolute bottom-full left-2.5 sm:left-4 mb-2 w-56 rounded-2xl bg-[#0d1322]/95 backdrop-blur-2xl border border-slate-800 shadow-[0_18px_48px_rgba(0,0,0,0.8)] p-2 space-y-1 z-40">
-        <button type="button" onclick="triggerChatMediaUpload('image')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
-          <span class="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-300 flex items-center justify-center shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          </span>
-          <div>
-            <p class="font-bold text-white">Foto / GIF</p>
-            <p class="text-[10px] text-slate-400">unggah gambar maks 6 MB</p>
+            <button id="roomMembersDrawerBtn" type="button" onclick="toggleMembersDrawer()" title="Daftar Anggota Komunitas" aria-label="Daftar Anggota Komunitas" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center shrink-0 transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+            </button>
+
+            <img id="roomHeaderAvatarImg" src="" alt="Avatar" class="hidden w-8 h-8 rounded-full object-cover border border-slate-700 shrink-0" />
+
+            <div class="min-w-0 flex-1 pl-0.5">
+              <div class="flex items-center gap-1.5">
+                <h1 id="roomHeaderTitle" class="font-heading-modern text-sm sm:text-base font-extrabold tracking-wide text-white truncate">Xu Core Community</h1>
+                <span id="roomSourceBadge" class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-full accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0">Official</span>
+              </div>
+              <p id="roomHeaderSubtitle" class="text-[10px] sm:text-[11px] font-mono-code text-slate-400 truncate mt-0.5">
+                Official • <span id="communityMembersCountLabel">0 anggota</span> • <span id="communityOnlineCountLabel" class="text-emerald-400">0 online</span>
+              </p>
+            </div>
           </div>
-        </button>
 
-        <button type="button" onclick="triggerChatMediaUpload('video')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
-          <span class="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 flex items-center justify-center shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-          </span>
-          <div>
-            <p class="font-bold text-white">Video</p>
-            <p class="text-[10px] text-slate-400">unggah klip MP4/WebM maks 14 MB</p>
+          <div class="flex items-center gap-1.5 shrink-0 pr-0.5">
+            <button id="roomPinnedHeaderBtn" type="button" onclick="openPinnedMessagesModal()" title="Pesan Disematkan" aria-label="Pesan Disematkan" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+            </button>
           </div>
-        </button>
-
-        <button type="button" onclick="openStickerBottomSheet()" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
-          <span class="w-8 h-8 rounded-xl accent-soft-bg border accent-border accent-text flex items-center justify-center shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          </span>
-          <div>
-            <p class="font-bold text-white">Stiker</p>
-            <p class="text-[10px] text-slate-400">koleksi &amp; multi-select Supabase</p>
-          </div>
-        </button>
-      </div>
-
-      <!-- --- bilah input pesan utama --- -->
-      <form onsubmit="submitCommunityChatForm(event)" class="chat-glass-bar rounded-2xl border border-slate-800/90 p-1.5 flex items-center gap-1.5">
-        <button type="button" onclick="toggleChatAttachMenu(event)" title="Lampiran Foto, Video & Stiker" aria-label="Lampiran" class="w-9 h-9 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center shrink-0 transition-all active:scale-90">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-        </button>
-
-        <input id="communityMessageInput" type="text" maxlength="600" autocomplete="off" placeholder="Ketik pesan ke Xu Core Community..." class="flex-1 min-w-0 bg-transparent px-2 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none" />
-
-        <button type="button" onclick="openStickerBottomSheet()" title="Buka Stiker" aria-label="Buka Stiker" class="w-9 h-9 rounded-xl bg-slate-900/70 hover:bg-slate-800 border border-slate-800/80 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </button>
-
-        <button type="submit" aria-label="Kirim Pesan" class="w-9 h-9 rounded-xl accent-bg text-slate-950 flex items-center justify-center shrink-0 transition-all active:scale-90 accent-shadow">
-          <svg class="w-4 h-4 translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-        </button>
-      </form>
-    </footer>
-    <!-- --- panel wa bot live inbox terintegrasi di halaman /chat --- -->
-    <section id="chatPageWaInboxPanel" class="hidden flex-1 grid-cols-1 md:grid-cols-12 min-h-0 overflow-hidden border-t border-slate-800/80">
-      <!-- --- daftar percakapan masuk bot whatsapp --- -->
-      <div id="waInboxListPane" class="md:col-span-4 flex flex-col min-h-0 border-r border-slate-800/80 bg-slate-950/60">
-        <div class="px-3.5 py-2.5 border-b border-slate-800/70 flex items-center justify-between">
-          <span class="text-[11px] font-mono-code font-bold uppercase tracking-wider text-slate-400">Daftar Percakapan WA</span>
-          <span class="text-[10px] font-mono-code text-emerald-400">Real-Time</span>
         </div>
-        <div id="waInboxChatList" class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
-          <p class="text-xs font-mono-code text-slate-500 text-center py-10">Menunggu pesan WhatsApp masuk...</p>
-        </div>
-      </div>
 
-      <!-- --- ruang percakapan wa aktif full height --- -->
-      <div id="waInboxConversationPane" class="hidden md:flex md:col-span-8 flex-col min-h-0 bg-[#050810]/80">
-        <div class="px-3.5 py-2.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center gap-2.5 shrink-0">
-          <button type="button" onclick="backToWaInboxListMobile()" aria-label="Kembali ke Daftar Chat" class="md:hidden p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        <!-- --- bar pesan disematkan melayang --- -->
+        <div id="communityPinnedBar" onclick="cyclePinnedMessageBanner(event)" role="button" tabindex="0" class="hidden chat-glass-bar rounded-2xl border border-amber-500/30 hover:border-amber-400/50 px-3.5 py-2 flex items-center justify-between gap-2.5 cursor-pointer transition-all">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <div class="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p id="communityPinnedCounter" class="text-[10px] font-mono-code font-bold text-amber-300 leading-tight">Pesan disematkan (1/1)</p>
+              <p id="communityPinnedPreviewText" class="text-xs text-slate-200 truncate mt-0.5">-</p>
+            </div>
+          </div>
+          <button type="button" onclick="event.stopPropagation(); openPinnedMessagesModal();" class="px-2.5 py-1 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code font-semibold text-slate-300 shrink-0">
+            Lihat
           </button>
-          <div class="min-w-0 flex-1">
-            <p id="waInboxActiveTitle" class="text-sm font-bold text-white truncate">Pilih percakapan</p>
-            <p id="waInboxActiveJid" class="text-[11px] font-mono-code text-emerald-400/90 truncate">-</p>
-          </div>
         </div>
+      </header>
 
-        <div id="waInboxMessagesViewport" class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5">
-          <p class="text-xs font-mono-code text-slate-500 text-center py-12">Pilih percakapan untuk mulai membaca dan membalas pesan WhatsApp.</p>
-        </div>
+      <!-- --- area linimasa pesan beserta tombol scroll ke bawah melayang --- -->
+      <div class="relative flex-1 min-h-0 flex flex-col">
+        <main id="communityMessagesContainer" onscroll="handleChatScrollVisibility()" class="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-2.5 space-y-1 scroll-smooth"></main>
 
-        <form onsubmit="submitWaInboxReply(event)" class="p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800/80 bg-slate-950/95 flex items-center gap-2 shrink-0">
-          <input id="waInboxReplyInput" type="text" autocomplete="off" placeholder="Ketik balasan ke pengguna WhatsApp..." class="flex-1 min-w-0 bg-slate-900 border border-slate-800 focus:border-[var(--accent-main)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none" />
-          <button id="waInboxReplyBtn" type="submit" class="px-4 py-2.5 rounded-xl accent-bg text-slate-950 font-bold text-xs sm:text-sm transition-all active:scale-95 shrink-0 disabled:opacity-60">Kirim</button>
-        </form>
+        <button id="chatScrollBottomBtn" type="button" onclick="scrollActiveChatToBottom()" title="Ke pesan terbaru" aria-label="Ke pesan terbaru" class="hidden absolute bottom-3 right-3.5 z-20 w-9 h-9 rounded-full chat-glass-bar border border-slate-700/90 text-slate-200 hover:text-white flex items-center justify-center shadow-xl transition-all active:scale-90">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M19 9l-7 7-7-7"/></svg>
+        </button>
       </div>
-    </section>
+
+      <!-- --- bar status unggah media & pratinjau balasan kutipan --- -->
+      <div class="shrink-0 px-2.5 sm:px-4 space-y-1.5">
+        <div id="chatMediaUploadStatusBar" class="hidden rounded-xl bg-slate-900/95 border accent-border px-3 py-2 flex items-center gap-2.5 text-xs">
+          <span class="w-4 h-4 rounded-full border-2 border-[var(--accent-main)] border-t-transparent animate-spin shrink-0"></span>
+          <span id="chatMediaUploadStatusText" class="text-slate-200 font-mono-code text-[11px] truncate">Mengunggah media ke Supabase Storage...</span>
+        </div>
+
+        <div id="communityReplyPreviewBar" class="hidden rounded-xl bg-slate-900/95 border border-slate-800 border-l-2 border-l-[var(--accent-main)] px-3 py-2 flex items-center justify-between gap-2 text-xs">
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] font-mono-code accent-text font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
+            <p id="communityReplyPreviewText" class="text-[11px] text-slate-400 truncate mt-0.5">-</p>
+          </div>
+          <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- --- area input pesan bawah beserta popup lampiran --- -->
+      <footer class="relative shrink-0 z-30 px-2.5 sm:px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <input id="chatPhotoFileInput" type="file" accept="image/*" onchange="handleChatMediaFileSelected(event, 'image')" class="hidden" />
+        <input id="chatVideoFileInput" type="file" accept="video/mp4,video/webm,video/quicktime" onchange="handleChatMediaFileSelected(event, 'video')" class="hidden" />
+        <input id="stickerMultiFileInput" type="file" accept="image/png,image/webp,image/jpeg,image/gif" multiple onchange="handleStickerMultiFileSelect(event)" class="hidden" />
+
+        <div id="chatAttachMenuPopup" onclick="event.stopPropagation()" class="hidden popup-enter absolute bottom-full left-2.5 sm:left-4 mb-2 w-56 rounded-2xl bg-[#0d1322]/95 backdrop-blur-2xl border border-slate-800 shadow-[0_18px_48px_rgba(0,0,0,0.8)] p-2 space-y-1 z-40">
+          <button type="button" onclick="triggerChatMediaUpload('image')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
+            <span class="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-300 flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </span>
+            <div>
+              <p class="font-bold text-white">Foto / GIF</p>
+              <p class="text-[10px] text-slate-400">unggah gambar maks 6 MB</p>
+            </div>
+          </button>
+
+          <button type="button" onclick="triggerChatMediaUpload('video')" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
+            <span class="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            </span>
+            <div>
+              <p class="font-bold text-white">Video</p>
+              <p class="text-[10px] text-slate-400">unggah klip MP4/WebM maks 14 MB</p>
+            </div>
+          </button>
+
+          <button type="button" onclick="openStickerBottomSheet()" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 flex items-center gap-3 text-xs font-semibold text-slate-100 transition-colors">
+            <span class="w-8 h-8 rounded-xl accent-soft-bg border accent-border accent-text flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </span>
+            <div>
+              <p class="font-bold text-white">Stiker</p>
+              <p class="text-[10px] text-slate-400">koleksi &amp; multi-select Supabase</p>
+            </div>
+          </button>
+        </div>
+
+        <!-- --- bilah input pesan berbentuk pil melayang ala referensi --- -->
+        <form onsubmit="submitActiveRoomMessageForm(event)" class="chat-glass-bar rounded-full border border-slate-800/90 px-2 py-1.5 flex items-center gap-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.5)]">
+          <button id="roomAttachBtn" type="button" onclick="toggleChatAttachMenu(event)" title="Lampiran Foto, Video & Stiker" aria-label="Lampiran" class="w-9 h-9 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center shrink-0 transition-all active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+          </button>
+
+          <input id="communityMessageInput" type="text" maxlength="600" autocomplete="off" placeholder="Ketik pesan..." class="flex-1 min-w-0 bg-transparent px-2 py-1.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none" />
+
+          <button id="roomStickerShortcutBtn" type="button" onclick="openStickerBottomSheet()" title="Buka Stiker" aria-label="Buka Stiker" class="w-9 h-9 rounded-full bg-slate-900/70 hover:bg-slate-800 border border-slate-800/80 text-slate-300 hover:text-amber-300 flex items-center justify-center shrink-0 transition-all active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </button>
+
+          <button id="roomSendSubmitBtn" type="submit" aria-label="Kirim Pesan" class="w-9 h-9 rounded-full accent-bg text-slate-950 flex items-center justify-center shrink-0 transition-all active:scale-90 accent-shadow disabled:opacity-60">
+            <svg class="w-4 h-4 translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          </button>
+        </form>
+      </footer>
+    </div>
 
   </div>
 
@@ -511,7 +503,7 @@
   <!-- --- popup floating emoji reaction & aksi hapus/sematkan di atas gelembung pesan --- -->
   <div id="floatingMessageActionOverlay" onclick="if (event.target === this) closeMessageActionPopup()" class="fixed inset-0 z-50 hidden bg-black/45 backdrop-blur-[2px]">
     <div id="floatingReactionBar" class="popup-enter fixed left-3 top-24 rounded-2xl bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_18px_48px_rgba(0,0,0,0.85)] p-2 space-y-2">
-      <div class="flex items-center justify-between gap-1 px-1">
+      <div id="floatingEmojiRow" class="flex items-center justify-between gap-1 px-1">
         <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">👍</button>
         <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">❤️</button>
         <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😂</button>
@@ -585,10 +577,27 @@
     </div>
   </div>
 
-  <!-- --- modal pratinjau media foto/video layar penuh --- -->
-  <div id="chatMediaLightboxModal" onclick="if (event.target === this) closeChatMediaLightbox()" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-md p-4">
-    <button type="button" onclick="closeChatMediaLightbox()" aria-label="Tutup Pratinjau" class="fixed top-4 right-4 w-10 h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-white flex items-center justify-center">✕</button>
-    <div id="chatMediaLightboxContent" class="flex items-center justify-center"></div>
+  <!-- --- modal pratinjau video & foto layar penuh dengan profil pengirim & tombol simpan --- -->
+  <div id="chatMediaLightboxModal" onclick="if (event.target === this) closeChatMediaLightbox()" class="fixed inset-0 z-50 hidden flex-col bg-black/95 backdrop-blur-md">
+    <div class="shrink-0 flex items-center justify-between gap-2 px-3.5 sm:px-5 py-3 bg-gradient-to-b from-black/90 to-transparent border-b border-white/10">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <button type="button" onclick="closeChatMediaLightbox()" aria-label="Tutup Pratinjau" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+        <img id="mediaLightboxAvatar" src="" alt="Pengirim" class="w-8 h-8 rounded-full object-cover border border-white/25 shrink-0" />
+        <div class="flex items-center gap-2 min-w-0">
+          <p id="mediaLightboxSenderName" class="text-xs sm:text-sm font-bold text-white truncate">Member</p>
+          <span id="mediaLightboxTime" class="text-[11px] font-mono-code text-slate-400 shrink-0">--:--</span>
+        </div>
+      </div>
+
+      <button id="mediaLightboxDownloadBtn" type="button" onclick="downloadActiveLightboxMedia()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full accent-bg text-slate-950 font-extrabold text-xs shrink-0 transition-all active:scale-95 accent-shadow disabled:opacity-60">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        <span>Simpan</span>
+      </button>
+    </div>
+
+    <div id="chatMediaLightboxContent" class="flex-1 min-h-0 flex items-center justify-center p-3 sm:p-6 overflow-hidden"></div>
   </div>
 
   <!-- --- modal settings profile & penutupan akun permanen sinkron dengan app-core.js --- -->

@@ -3585,6 +3585,15 @@ function setManagedUserFilter(filterKey) {
   renderManagedUsersTable();
 }
 
+// --- deteksi konsisten entri lid dari flag backend, akhiran @lid, maupun panjang digit lid ---
+function isManagedUserLid(userObj) {
+  if (!userObj) return false;
+  if (userObj.isLid === true) return true;
+  if (String(userObj.jid || '').endsWith('@lid')) return true;
+  const digits = String(userObj.number || '').replace(/\D/g, '');
+  return digits.length >= 14 && !digits.startsWith('62');
+}
+
 function getFilteredManagedUsers() {
   const query = String(getEl('manageUserSearchInput')?.value || '').toLowerCase();
   return managedUsersCache.filter((user) => {
@@ -3595,7 +3604,7 @@ function getFilteredManagedUsers() {
     if (!matchQuery) return false;
     if (managedUserFilter === 'premium') return Boolean(user.premium);
     if (managedUserFilter === 'banned') return Boolean(user.banned);
-    if (managedUserFilter === 'lid') return String(user.jid || '').endsWith('@lid');
+    if (managedUserFilter === 'lid') return isManagedUserLid(user);
     return true;
   });
 }
@@ -3649,7 +3658,7 @@ function renderManagedUsersTable() {
   }
 
   cardGrid.innerHTML = filtered.map((user) => {
-    const isLid = String(user.jid || '').endsWith('@lid');
+    const isLid = isManagedUserLid(user);
     const isSelected = selectedManagedUserJids.has(user.jid);
     const lidBadge = isLid ? '<span class="px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono-code text-[9px] font-bold">LID</span>' : '';
     const premiumBadgeClass = user.premium
@@ -4223,15 +4232,25 @@ function renderCommunityStickerGrid() {
   gridEl.innerHTML = `${createTileHtml}${stickerTilesHtml}`;
 }
 
-// --- kirim stiker ke ruang xu core community ---
+// --- kirim stiker ke ruang aktif (community atau dm xu core) ---
 function sendCommunityStickerMessage(stickerUrl) {
   if (!stickerUrl) return;
-  socketClient.emit('community:message:send', {
-    type: 'sticker',
-    mediaUrl: stickerUrl,
-    text: '',
-    replyTo: activeCommunityReplyTarget
-  });
+  if (activeChatRoomType === 'dm' && activeChatRoomTargetId) {
+    socketClient.emit('dm:send', {
+      peerUserId: activeChatRoomTargetId,
+      type: 'sticker',
+      mediaUrl: stickerUrl,
+      text: '',
+      replyTo: activeCommunityReplyTarget
+    });
+  } else {
+    socketClient.emit('community:message:send', {
+      type: 'sticker',
+      mediaUrl: stickerUrl,
+      text: '',
+      replyTo: activeCommunityReplyTarget
+    });
+  }
   clearCommunityReplyTarget();
   closeStickerBottomSheet();
 }
@@ -4395,12 +4414,22 @@ async function handleChatMediaFileSelected(event, mediaType) {
     }
 
     const optionalCaption = String(getEl('communityMessageInput')?.value || '').trim();
-    socketClient.emit('community:message:send', {
-      type: mediaType === 'video' ? 'video' : 'image',
-      mediaUrl: result.url,
-      text: optionalCaption,
-      replyTo: activeCommunityReplyTarget
-    });
+    if (activeChatRoomType === 'dm' && activeChatRoomTargetId) {
+      socketClient.emit('dm:send', {
+        peerUserId: activeChatRoomTargetId,
+        type: mediaType === 'video' ? 'video' : 'image',
+        mediaUrl: result.url,
+        text: optionalCaption,
+        replyTo: activeCommunityReplyTarget
+      });
+    } else {
+      socketClient.emit('community:message:send', {
+        type: mediaType === 'video' ? 'video' : 'image',
+        mediaUrl: result.url,
+        text: optionalCaption,
+        replyTo: activeCommunityReplyTarget
+      });
+    }
 
     if (getEl('communityMessageInput')) getEl('communityMessageInput').value = '';
     clearCommunityReplyTarget();
@@ -4797,31 +4826,414 @@ function buildMessageReactionBadgesHtml(msg) {
   `;
 }
 
-// --- render linimasa pesan xu core community ---
+// --- state beranda chat ala whatsapp, dm xu core, dan ruang aktif ---
+let activeChatRoomType = 'home';
+let activeChatRoomTargetId = '';
+let activeChatHomeFilter = 'all';
+let dmRoomsListCache = [];
+let activeDmMessagesCache = [];
+let activeLightboxMediaMeta = { type: 'image', url: '', senderName: 'Member' };
+
+// --- ubah filter pill di beranda chat ---
+function setChatHomeFilter(filterKey) {
+  activeChatHomeFilter = filterKey || 'all';
+  updateButtonGroupState(
+    '.chat-home-filter-btn',
+    'data-home-filter',
+    activeChatHomeFilter,
+    'chat-home-filter-btn px-3.5 py-1.5 rounded-full accent-bg text-slate-950 font-bold whitespace-nowrap transition-all',
+    'chat-home-filter-btn px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-semibold whitespace-nowrap transition-all'
+  );
+  renderChatHomeView();
+}
+
+// --- segarkan seluruh data beranda chat (komunitas, dm xu core, dan bot wa) ---
+function refreshAllChatHomeData() {
+  socketClient.emit('community:init');
+  socketClient.emit('dm:list');
+  socketClient.emit('inbox:list');
+  showCyberToast('Disegarkan', 'Daftar percakapan diperbarui.', 'info');
+}
+
+// --- kembali dari ruang chat ke beranda chat ---
+function backToChatHomeView() {
+  activeChatRoomType = 'home';
+  activeChatRoomTargetId = '';
+  clearCommunityReplyTarget();
+  closeChatAttachMenu();
+  closeMessageActionPopup();
+
+  getEl('chatRoomView')?.classList.add('hidden');
+  getEl('chatRoomView')?.classList.remove('flex');
+  getEl('chatHomeView')?.classList.remove('hidden');
+  getEl('chatHomeView')?.classList.add('flex');
+  renderChatHomeView();
+}
+
+// --- buka ruang chat aktif: community, dm akun xu core, atau bot/grup wa ---
+function openUnifiedChatRoom(roomType, targetId = '') {
+  activeChatRoomType = roomType;
+  activeChatRoomTargetId = targetId;
+  clearCommunityReplyTarget();
+  closeChatAttachMenu();
+
+  getEl('chatHomeView')?.classList.add('hidden');
+  getEl('chatHomeView')?.classList.remove('flex');
+  getEl('chatRoomView')?.classList.remove('hidden');
+  getEl('chatRoomView')?.classList.add('flex');
+
+  const isCommunity = roomType === 'community';
+  const isDm = roomType === 'dm';
+  const isWa = roomType === 'wa';
+
+  const titleEl = getEl('roomHeaderTitle');
+  const badgeEl = getEl('roomSourceBadge');
+  const subEl = getEl('roomHeaderSubtitle');
+  const avatarEl = getEl('roomHeaderAvatarImg');
+  const inputEl = getEl('communityMessageInput');
+
+  getEl('roomMembersDrawerBtn')?.classList.toggle('hidden', !isCommunity);
+  getEl('roomPinnedHeaderBtn')?.classList.toggle('hidden', !isCommunity);
+  getEl('roomAttachBtn')?.classList.toggle('hidden', isWa);
+  getEl('roomStickerShortcutBtn')?.classList.toggle('hidden', isWa);
+
+  if (isCommunity) {
+    avatarEl?.classList.add('hidden');
+    if (titleEl) titleEl.textContent = 'Xu Core Community';
+    if (badgeEl) {
+      badgeEl.textContent = 'Official';
+      badgeEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded-md accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0';
+    }
+    const onlineCount = communityMembersCache.filter((m) => m.isOnline).length;
+    if (subEl) subEl.innerHTML = `<span id="communityMembersCountLabel">${communityMembersCache.length} anggota</span> • <span id="communityOnlineCountLabel" class="text-emerald-400">${onlineCount} online</span>`;
+    if (inputEl) inputEl.placeholder = 'Ketik pesan ke Xu Core Community...';
+    renderCommunityPinnedBar();
+    renderCommunityMessagesTimeline(true);
+    return;
+  }
+
+  getEl('communityPinnedBar')?.classList.add('hidden');
+
+  if (isDm) {
+    const peerMember =
+      communityMembersCache.find((m) => m.userId === targetId) ||
+      dmRoomsListCache.find((r) => r.peerUserId === targetId) ||
+      {};
+    const peerName = peerMember.displayName || peerMember.name || 'Member';
+    const peerAvatar = peerMember.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(peerName)}&background=0f172a&color=38bdf8`;
+
+    if (avatarEl) {
+      avatarEl.src = peerAvatar;
+      avatarEl.classList.remove('hidden');
+    }
+    if (titleEl) titleEl.textContent = peerName;
+    if (badgeEl) {
+      badgeEl.textContent = 'AKUN XU CORE';
+      badgeEl.className = 'inline-flex items-center px-1.5 py-0.5 rounded-md bg-violet-500/20 border border-violet-500/40 text-violet-300 font-mono-code text-[9px] font-bold uppercase shrink-0';
+    }
+    if (subEl) subEl.textContent = peerMember.isOnline ? 'Online • Chat Pribadi Xu Core' : 'Offline • Chat Pribadi Xu Core';
+    if (inputEl) inputEl.placeholder = `Kirim pesan ke ${peerName}...`;
+
+    activeDmMessagesCache = [];
+    if (getEl('communityMessagesContainer')) {
+      getEl('communityMessagesContainer').innerHTML = '<div class="py-10 text-center text-xs font-mono-code text-slate-500">Memuat percakapan pribadi...</div>';
+    }
+    socketClient.emit('dm:open', { peerUserId: targetId });
+    return;
+  }
+
+  if (isWa) {
+    activeWaInboxJid = targetId;
+    const waChat = waLiveInboxCache.find((c) => c.jid === targetId);
+    const isGroupWa = Boolean(waChat?.isGroup || String(targetId).endsWith('@g.us'));
+    const chatTitle = waChat?.name || String(targetId).split('@')[0];
+
+    if (avatarEl) {
+      avatarEl.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(chatTitle)}&background=064e3b&color=6ee7b7`;
+      avatarEl.classList.remove('hidden');
+    }
+    if (titleEl) titleEl.textContent = chatTitle;
+    if (badgeEl) {
+      badgeEl.textContent = isGroupWa ? 'GRUP BOT WA' : 'USER BOT WA';
+      badgeEl.className = isGroupWa
+        ? 'inline-flex items-center px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono-code text-[9px] font-bold uppercase shrink-0'
+        : 'inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono-code text-[9px] font-bold uppercase shrink-0';
+    }
+    if (subEl) subEl.textContent = formatCleanWhatsappSubtitle(targetId);
+    if (inputEl) inputEl.placeholder = isGroupWa ? 'Kirim pesan ke grup WhatsApp via Bot...' : 'Balas pesan WhatsApp via Bot...';
+
+    socketClient.emit('inbox:read', { chatJid: targetId });
+    renderActiveWaRoomTimeline(true);
+  }
+}
+
+// --- render daftar percakapan beranda chat ala whatsapp dengan pembeda visual jelas ---
+function renderChatHomeView() {
+  const listEl = getEl('chatHomeActiveList');
+  const membersListEl = getEl('chatHomeMembersList');
+  if (!listEl) return;
+
+  const query = String(getEl('chatHomeSearchInput')?.value || '').trim().toLowerCase();
+  const rows = [];
+
+  // --- 1. kartu utama xu core community ---
+  const lastCommunityMsg = communityMessagesCache.length > 0
+    ? communityMessagesCache[communityMessagesCache.length - 1]
+    : null;
+  const communityPreview = lastCommunityMsg
+    ? `${lastCommunityMsg.name || 'Bot'}: ${lastCommunityMsg.text || (lastCommunityMsg.type === 'sticker' ? '[Stiker]' : '[Media]')}`
+    : 'Ruang obrolan resmi seluruh pengguna Xu Core';
+
+  rows.push({
+    roomType: 'community',
+    targetId: 'community',
+    title: 'Xu Core Community',
+    subtitle: communityPreview,
+    timestamp: Number(lastCommunityMsg?.timestamp || Date.now()),
+    unreadCount: 0,
+    isGroup: true,
+    sourceKind: 'community',
+    avatarHtml: '<div class="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 via-cyan-500 to-violet-500 flex items-center justify-center font-heading-modern font-extrabold text-sm text-slate-950 shrink-0 shadow-lg">XC</div>',
+    sourceBadgeHtml: '<span class="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono-code text-[9px] font-bold">OFFICIAL</span>'
+  });
+
+  // --- 2. kartu percakapan dm sesama akun xu core ---
+  for (const dmRoom of dmRoomsListCache) {
+    const avatarUrl = dmRoom.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(dmRoom.name || 'M')}&background=1e1b4b&color=c4b5fd`;
+    rows.push({
+      roomType: 'dm',
+      targetId: dmRoom.peerUserId,
+      title: dmRoom.name || 'Member',
+      subtitle: dmRoom.lastMessage || 'Mulai percakapan pribadi',
+      timestamp: Number(dmRoom.lastTimestamp || 0),
+      unreadCount: Number(dmRoom.unreadCount || 0),
+      isGroup: false,
+      sourceKind: 'xucore',
+      avatarHtml: `
+        <div class="relative shrink-0">
+          <img src="${escapeHtmlString(avatarUrl)}" alt="${escapeHtmlString(dmRoom.name)}" class="w-12 h-12 rounded-full object-cover border border-violet-500/45" />
+          <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#050810] ${dmRoom.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+        </div>`,
+      sourceBadgeHtml: '<span class="px-1.5 py-0.5 rounded bg-violet-500/15 border border-violet-500/35 text-violet-300 font-mono-code text-[9px] font-bold">XU CORE</span>'
+    });
+  }
+
+  // --- 3. kartu percakapan masuk dari bot whatsapp (user pribadi & grup wa) ---
+  for (const waChat of waLiveInboxCache) {
+    const isGroupWa = Boolean(waChat.isGroup || String(waChat.jid || '').endsWith('@g.us'));
+    const displayTitle = waChat.name || String(waChat.jid || '').split('@')[0];
+    const cleanNumberSub = formatCleanWhatsappSubtitle(waChat.jid);
+    const waIconBg = isGroupWa
+      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+      : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300';
+
+    rows.push({
+      roomType: 'wa',
+      targetId: waChat.jid,
+      title: displayTitle,
+      subtitle: `${cleanNumberSub} • ${waChat.lastMessage || '-'}`,
+      timestamp: Number(waChat.lastTimestamp || 0),
+      unreadCount: Number(waChat.unreadCount || 0),
+      isGroup: isGroupWa,
+      sourceKind: 'bot',
+      avatarHtml: `
+        <div class="w-12 h-12 rounded-full border ${waIconBg} flex items-center justify-center font-heading-modern font-extrabold text-sm shrink-0">
+          ${escapeHtmlString(displayTitle.charAt(0).toUpperCase() || 'W')}
+        </div>`,
+      sourceBadgeHtml: isGroupWa
+        ? '<span class="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-amber-300 font-mono-code text-[9px] font-bold">GRUP WA</span>'
+        : '<span class="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-mono-code text-[9px] font-bold">BOT WA</span>'
+    });
+  }
+
+  const filteredRows = rows.filter((row) => {
+    if (query) {
+      const hay = `${row.title} ${row.subtitle} ${row.targetId}`.toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
+    if (activeChatHomeFilter === 'unread') return row.unreadCount > 0;
+    if (activeChatHomeFilter === 'group') return row.isGroup;
+    if (activeChatHomeFilter === 'bot') return row.sourceKind === 'bot';
+    if (activeChatHomeFilter === 'xucore') return row.sourceKind === 'xucore' || row.sourceKind === 'community';
+    return true;
+  });
+
+  if (filteredRows.length === 0) {
+    listEl.innerHTML = '<div class="rounded-3xl bg-slate-900/50 border border-dashed border-slate-800 py-8 text-center text-xs font-mono-code text-slate-500">Tidak ada percakapan pada filter ini.</div>';
+  } else {
+    listEl.innerHTML = filteredRows.map((row) => {
+      const unreadPill = row.unreadCount > 0
+        ? `<span class="min-w-[20px] h-5 px-1.5 rounded-full accent-bg text-slate-950 font-mono-code text-[10px] font-extrabold flex items-center justify-center shrink-0">${row.unreadCount > 99 ? '99+' : row.unreadCount}</span>`
+        : '';
+      return `
+        <button type="button" onclick="openUnifiedChatRoom('${escapeHtmlString(row.roomType)}', '${escapeHtmlString(row.targetId)}')" class="w-full text-left rounded-3xl bg-slate-900/70 hover:bg-slate-900 border border-slate-800/85 hover:border-slate-700 px-3.5 py-3 flex items-center gap-3 transition-all active:scale-[0.99]">
+          ${row.avatarHtml}
+          <div class="min-w-0 flex-1 space-y-0.5">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <p class="text-sm font-bold text-white truncate">${escapeHtmlString(row.title)}</p>
+                ${row.sourceBadgeHtml}
+              </div>
+              <span class="text-[10px] font-mono-code text-slate-500 shrink-0">${row.timestamp ? escapeHtmlString(formatWibTimeOnly(row.timestamp)) : ''}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-slate-400 truncate">${escapeHtmlString(row.subtitle)}</p>
+              ${unreadPill}
+            </div>
+          </div>
+        </button>
+      `;
+    }).join('');
+  }
+
+  // --- render bagian mulai percakapan (daftar akun xu core lain) ---
+  if (membersListEl) {
+    const otherMembers = communityMembersCache.filter((member) => {
+      if (!member.userId || member.userId === currentGoogleUserId) return false;
+      if (!query) return true;
+      return `${member.displayName || ''} ${member.handle || ''}`.toLowerCase().includes(query);
+    });
+
+    if (otherMembers.length === 0) {
+      membersListEl.innerHTML = '<div class="rounded-3xl bg-slate-900/40 border border-dashed border-slate-800 py-5 text-center text-xs font-mono-code text-slate-500">Belum ada anggota lain yang tersedia.</div>';
+    } else {
+      membersListEl.innerHTML = otherMembers.map((member) => {
+        const displayName = member.displayName || 'Member';
+        const isDev = String(member.role || '').toUpperCase() === 'DEVELOPER' || Boolean(member.isAdmin);
+        const avatarUrl = member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0f172a&color=10b981`;
+        const roleHex = isDev
+          ? '<span class="role-hex-badge role-hex-developer"><span class="w-1.5 h-1.5 rounded-full bg-white"></span>DEVELOPER</span>'
+          : '<span class="role-hex-badge role-hex-member">MEMBER</span>';
+
+        return `
+          <button type="button" onclick="openUnifiedChatRoom('dm', '${escapeHtmlString(member.userId)}')" class="w-full text-left rounded-3xl bg-slate-900/60 hover:bg-slate-900 border border-slate-800/80 px-3.5 py-2.5 flex items-center justify-between gap-3 transition-all active:scale-[0.99]">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="relative shrink-0">
+                <img src="${escapeHtmlString(avatarUrl)}" alt="${escapeHtmlString(displayName)}" class="w-11 h-11 rounded-full object-cover border border-slate-700" />
+                <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#050810] ${member.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+              </div>
+              <div class="min-w-0 space-y-1">
+                <div class="flex items-center gap-1.5">
+                  <p class="text-xs sm:text-sm font-bold text-white truncate">${escapeHtmlString(displayName)}</p>
+                  <span class="px-1.5 py-0.5 rounded bg-violet-500/15 border border-violet-500/30 text-violet-300 font-mono-code text-[8px] font-bold shrink-0">XU CORE</span>
+                </div>
+                <div class="flex items-center gap-1.5">${roleHex}</div>
+              </div>
+            </div>
+            <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// --- render ruang chat whatsapp bot (pribadi & grup wa) dengan bubble kompak grouped ---
+function renderActiveWaRoomTimeline(shouldScrollBottom = true) {
+  const viewport = getEl('communityMessagesContainer');
+  if (!viewport || activeChatRoomType !== 'wa') return;
+
+  const activeChat = waLiveInboxCache.find((chat) => chat.jid === activeChatRoomTargetId);
+  const msgs = Array.isArray(activeChat?.messages) ? activeChat.messages : [];
+
+  if (msgs.length === 0) {
+    viewport.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada pesan di percakapan WhatsApp ini.</div>';
+    return;
+  }
+
+  let prevSenderKey = '';
+  viewport.innerHTML = msgs.map((msg) => {
+    const isMine = Boolean(msg.fromMe);
+    const senderName = msg.senderName || (isMine ? 'Bot WA' : 'User WA');
+    const currentSenderKey = `${isMine ? 'me' : 'other'}:${senderName}`;
+    const isGrouped = currentSenderKey === prevSenderKey;
+    prevSenderKey = currentSenderKey;
+
+    return `
+      <div class="flex ${isMine ? 'justify-end' : 'justify-start'} ${isGrouped ? 'mt-0.5' : 'mt-2.5'}">
+        <div class="max-w-[78%] sm:max-w-[65%] w-fit rounded-2xl px-3 py-1.5 text-xs ${isMine ? 'bg-emerald-500/20 border border-emerald-500/35 text-slate-100 rounded-tr-sm' : 'bg-slate-900/95 border border-slate-800 text-slate-200 rounded-tl-sm'}">
+          ${!isGrouped ? `<p class="text-[10px] font-bold mb-0.5 ${isMine ? 'text-emerald-300' : 'text-sky-300'}">${escapeHtmlString(senderName)}</p>` : ''}
+          <p class="text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text || '')}</p>
+          <p class="text-[9px] font-mono-code text-slate-400 text-right mt-0.5">${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (shouldScrollBottom) viewport.scrollTop = viewport.scrollHeight;
+}
+
+// --- pengirim pesan terpadu sesuai ruang aktif (community, dm xu core, atau wa bot) ---
+function submitActiveRoomMessageForm(event) {
+  if (event) event.preventDefault();
+  const inputEl = getEl('communityMessageInput');
+  const messageText = String(inputEl?.value || '').trim();
+  if (!messageText) return;
+
+  if (activeChatRoomType === 'wa') {
+    if (!activeChatRoomTargetId) return;
+    const sendBtn = getEl('roomSendSubmitBtn');
+    if (sendBtn) sendBtn.disabled = true;
+    socketClient.emit('inbox:reply', { chatJid: activeChatRoomTargetId, message: messageText });
+    if (inputEl) inputEl.value = '';
+    return;
+  }
+
+  if (activeChatRoomType === 'dm') {
+    if (!activeChatRoomTargetId) return;
+    socketClient.emit('dm:send', {
+      peerUserId: activeChatRoomTargetId,
+      type: 'text',
+      text: messageText,
+      replyTo: activeCommunityReplyTarget
+    });
+    if (inputEl) inputEl.value = '';
+    clearCommunityReplyTarget();
+    return;
+  }
+
+  socketClient.emit('community:message:send', {
+    type: 'text',
+    text: messageText,
+    replyTo: activeCommunityReplyTarget
+  });
+  if (inputEl) inputEl.value = '';
+  clearCommunityReplyTarget();
+}
+
+// --- render linimasa pesan kompak dengan pengelompokan pesan berurutan dan kartu video modern ---
 function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport) return;
+  if (activeChatRoomType === 'wa') {
+    renderActiveWaRoomTimeline(shouldScrollBottom);
+    return;
+  }
 
-  if (communityMessagesCache.length === 0) {
-    viewport.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada percakapan di Xu Core Community. Mulai sapa anggota lain!</div>';
+  const sourceList = activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
+  if (sourceList.length === 0) {
+    viewport.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada percakapan. Mulai kirim pesan sekarang!</div>';
     return;
   }
 
   let lastDayLabel = '';
+  let previousNormalMsg = null;
   const blocks = [];
 
-  for (const msg of communityMessagesCache) {
+  for (const msg of sourceList) {
     const dayLabel = getCommunityDayDividerLabel(msg.timestamp);
     if (dayLabel !== lastDayLabel) {
       lastDayLabel = dayLabel;
+      previousNormalMsg = null;
       blocks.push(`
-        <div class="flex justify-center my-3">
+        <div class="flex justify-center my-2.5">
           <span class="px-3 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-[10px] font-mono-code font-semibold text-slate-400 shadow-sm">${escapeHtmlString(dayLabel)}</span>
         </div>
       `);
     }
 
     if (msg.type === 'welcome' || msg.isWelcome) {
+      previousNormalMsg = null;
       const targetName = msg.welcomeTargetName || msg.name || 'Anggota Baru';
       const targetAvatar = msg.welcomeTargetAvatar || msg.avatarUrl || '';
       const reactionHtml = buildMessageReactionBadgesHtml(msg);
@@ -4830,7 +5242,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
         <div data-community-msg-id="${escapeHtmlString(msg.id)}" class="max-w-md mx-auto my-3 select-none">
           <div class="rounded-2xl overflow-hidden bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 shadow-[0_14px_38px_rgba(0,0,0,0.55)]">
             <canvas data-welcome-canvas="1" data-welcome-name="${escapeHtmlString(targetName)}" data-welcome-avatar="${escapeHtmlString(targetAvatar)}" class="w-full h-auto block aspect-[640/310]"></canvas>
-            <div class="p-3.5 space-y-2 bg-slate-950/75 border-t border-slate-800/80">
+            <div class="p-3 space-y-1.5 bg-slate-950/75 border-t border-slate-800/80">
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
                   <span class="w-6 h-6 rounded-full accent-soft-bg border accent-border flex items-center justify-center text-[10px] font-extrabold accent-text shrink-0">XC</span>
@@ -4840,7 +5252,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
                 <span class="text-[10px] font-mono-code text-slate-500 shrink-0">${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</span>
               </div>
               <p class="text-xs text-slate-300 leading-relaxed">${escapeHtmlString(msg.text || `${targetName} baru saja mendarat di Xu Core Community! Yuk sapa dia.`)}</p>
-              <div class="flex items-center justify-between pt-1">
+              <div class="flex items-center justify-between pt-0.5">
                 <div>${reactionHtml}</div>
                 <button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="openMessageActionPopup(this.dataset.msgId, this, event)" title="Reaksi & Opsi" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -4853,12 +5265,16 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       continue;
     }
 
+    const isConsecutiveSameUser = Boolean(previousNormalMsg && previousNormalMsg.userId === msg.userId);
+    previousNormalMsg = msg;
+
     const isMine = msg.userId === currentGoogleUserId;
     const isDev = Boolean(msg.isAdmin) || String(msg.role || '').toUpperCase() === 'DEVELOPER';
     const senderName = msg.name || 'Member';
     const senderAvatar =
       msg.avatarUrl ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=0f172a&color=10b981`;
+    const timeLabel = formatWibTimeOnly(msg.timestamp);
     const handleHtml = msg.handle
       ? `<span class="text-[10px] font-mono-code text-slate-400 truncate">${escapeHtmlString(msg.handle.startsWith('@') ? msg.handle : `@${msg.handle}`)}</span>`
       : '';
@@ -4866,68 +5282,83 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       ? '<span class="role-hex-badge role-hex-developer"><span class="w-1.5 h-1.5 rounded-full bg-white"></span>DEVELOPER</span>'
       : '<span class="role-hex-badge role-hex-member">MEMBER</span>';
 
-    // --- tampilkan blok kutipan balasan secara konsisten di pengirim maupun penerima ---
     const hasValidReply = Boolean(msg.replyTo && (msg.replyTo.id || msg.replyTo.text));
-    const replyAuthorLabel = msg.replyTo?.userId === currentGoogleUserId
-      ? 'Kamu'
-      : (msg.replyTo?.name || 'Member');
+    const replyAuthorLabel = msg.replyTo?.userId === currentGoogleUserId ? 'Kamu' : (msg.replyTo?.name || 'Member');
     const replyQuoteHtml = hasValidReply
       ? `
-        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-2 pl-2.5 py-1.5 pr-2.5 rounded-lg bg-black/35 hover:bg-black/50 border-l-2 border-[var(--accent-main)] text-[11px] cursor-pointer transition-colors">
-          <p class="font-bold accent-text text-[10px] truncate">${escapeHtmlString(replyAuthorLabel)}</p>
+        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-1.5 pl-2 py-1 pr-2 rounded-lg bg-black/35 border-l-2 border-[var(--accent-main)] text-[10px] cursor-pointer">
+          <p class="font-bold accent-text truncate">${escapeHtmlString(replyAuthorLabel)}</p>
           <p class="text-slate-300 truncate">${escapeHtmlString(msg.replyTo.text || '[Pesan]')}</p>
         </div>
       `
       : '';
 
     let bodyContentHtml = '';
-    // --- stiker kompak ala whatsapp yang dapat diklik untuk disimpan ke favorit ---
+    const isMediaOnlyCard = (msg.type === 'video' || msg.type === 'image') && Boolean(msg.mediaUrl);
+
     if (msg.type === 'sticker' && msg.mediaUrl) {
       bodyContentHtml = `
         <div class="py-0.5">
-          <img
-            src="${escapeHtmlString(msg.mediaUrl)}"
-            alt="Stiker"
-            loading="lazy"
-            onclick="openStickerFavoriteSheet('${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', event)"
-            class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none cursor-pointer hover:scale-105 active:scale-95 transition-transform drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]"
-          />
+          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Stiker" loading="lazy" onclick="openStickerFavoriteSheet('${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', event)" class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none cursor-pointer hover:scale-105 active:scale-95 transition-transform drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]" />
         </div>
       `;
     } else if (msg.type === 'image' && msg.mediaUrl) {
       bodyContentHtml = `
-        <div class="space-y-1.5">
-          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Foto" loading="lazy" onclick="openChatMediaLightbox('image', '${escapeHtmlString(msg.mediaUrl)}')" class="max-h-64 w-auto rounded-xl object-cover border border-slate-800 cursor-zoom-in" />
-          ${msg.text ? `<p class="text-xs sm:text-[13px] text-slate-100 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text)}</p>` : ''}
+        <div class="space-y-1">
+          <div onclick="openChatMediaLightbox('image', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative max-w-[230px] sm:max-w-[260px] rounded-2xl overflow-hidden border border-slate-800/90 cursor-zoom-in shadow-lg">
+            <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Foto" loading="lazy" class="w-full max-h-72 object-cover block" />
+          </div>
+          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${escapeHtmlString(msg.text)}</p>` : ''}
         </div>
       `;
     } else if (msg.type === 'video' && msg.mediaUrl) {
       bodyContentHtml = `
-        <div class="space-y-1.5">
-          <video src="${escapeHtmlString(msg.mediaUrl)}" controls playsinline preload="metadata" class="max-h-64 w-full rounded-xl bg-black border border-slate-800"></video>
-          ${msg.text ? `<p class="text-xs sm:text-[13px] text-slate-100 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text)}</p>` : ''}
+        <div class="space-y-1">
+          <div onclick="openChatMediaLightbox('video', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative max-w-[230px] sm:max-w-[260px] rounded-2xl overflow-hidden bg-black border border-slate-800/90 cursor-pointer group/vid shadow-lg">
+            <video src="${escapeHtmlString(msg.mediaUrl)}" muted playsinline preload="metadata" class="w-full max-h-72 object-cover block pointer-events-none"></video>
+            <div class="absolute inset-0 bg-black/25 group-hover/vid:bg-black/35 flex items-center justify-center transition-colors">
+              <span class="w-12 h-12 rounded-full bg-black/65 backdrop-blur-md border border-white/25 text-white flex items-center justify-center shadow-xl group-hover/vid:scale-110 transition-transform">
+                <svg class="w-5 h-5 translate-x-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </div>
+          </div>
+          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${escapeHtmlString(msg.text)}</p>` : ''}
         </div>
       `;
     } else {
-      bodyContentHtml = `<p class="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text || '')}</p>`;
+      bodyContentHtml = `<p class="text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text || '')}</p>`;
     }
 
-    const reactionBadgeHtml = buildMessageReactionBadgesHtml(msg);
-    const bubbleClass = msg.type === 'sticker'
-      ? 'bg-transparent p-1'
+    const reactionBadgeHtml = activeChatRoomType === 'community' ? buildMessageReactionBadgesHtml(msg) : '';
+    const bubbleClass = msg.type === 'sticker' || isMediaOnlyCard
+      ? 'bg-transparent p-0'
       : (isMine
-        ? 'bg-emerald-500/15 border border-emerald-500/30 text-slate-100 rounded-2xl rounded-tr-sm px-3.5 py-2.5 shadow-md'
-        : 'bg-slate-900/90 border border-slate-800/95 text-slate-100 rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-md');
+        ? `w-fit bg-emerald-500/18 border border-emerald-500/30 text-slate-100 rounded-2xl ${isConsecutiveSameUser ? 'rounded-tr-md' : 'rounded-tr-sm'} px-3 py-1.5 shadow-sm`
+        : `w-fit bg-slate-900/90 border border-slate-800/95 text-slate-100 rounded-2xl ${isConsecutiveSameUser ? 'rounded-tl-md' : 'rounded-tl-sm'} px-3 py-1.5 shadow-sm`);
+
+    const avatarSlotHtml = isConsecutiveSameUser
+      ? '<div class="w-8 shrink-0"></div>'
+      : `<img src="${escapeHtmlString(senderAvatar)}" alt="${escapeHtmlString(senderName)}" class="w-8 h-8 rounded-full object-cover border ${isDev ? 'border-rose-500/60' : 'border-slate-700'} shrink-0 mt-0.5 shadow-sm" />`;
+
+    const senderHeaderHtml = isConsecutiveSameUser
+      ? ''
+      : `
+        <div class="flex flex-wrap items-center gap-1.5 mb-1 ${isMine ? 'justify-end' : 'justify-start'}">
+          <span class="text-[11px] font-bold ${isMine ? 'text-emerald-300' : 'text-white'}">${escapeHtmlString(senderName)}</span>
+          ${handleHtml}
+          ${roleBadgeHtml}
+        </div>
+      `;
+
+    const reactBtnHtml = activeChatRoomType === 'community'
+      ? `<button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="openMessageActionPopup(this.dataset.msgId, this, event)" title="Reaksi / Opsi" class="p-0.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-white transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></button>`
+      : '';
 
     blocks.push(`
-      <div data-community-msg-id="${escapeHtmlString(msg.id)}" class="flex items-start gap-2.5 ${isMine ? 'flex-row-reverse' : ''} group/msg">
-        <img src="${escapeHtmlString(senderAvatar)}" alt="${escapeHtmlString(senderName)}" class="w-9 h-9 rounded-full object-cover border ${isDev ? 'border-rose-500/60' : 'border-slate-700'} shrink-0 mt-1 shadow-md" />
-        <div class="max-w-[82%] sm:max-w-[70%] flex flex-col ${isMine ? 'items-end' : 'items-start'}">
-          <div class="flex flex-wrap items-center gap-1.5 mb-1 ${isMine ? 'justify-end' : 'justify-start'}">
-            <span class="text-xs font-bold ${isMine ? 'text-emerald-300' : 'text-white'}">${escapeHtmlString(senderName)}</span>
-            ${handleHtml}
-            ${roleBadgeHtml}
-          </div>
+      <div data-community-msg-id="${escapeHtmlString(msg.id)}" class="flex items-start gap-2 ${isMine ? 'flex-row-reverse' : ''} ${isConsecutiveSameUser ? 'mt-0.5' : 'mt-2.5'} group/msg">
+        ${avatarSlotHtml}
+        <div class="max-w-[78%] sm:max-w-[66%] flex flex-col ${isMine ? 'items-end' : 'items-start'}">
+          ${senderHeaderHtml}
 
           <div
             data-bubble-msg-id="${escapeHtmlString(msg.id)}"
@@ -4939,18 +5370,16 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
             ${replyQuoteHtml}
             ${bodyContentHtml}
 
-            <div class="flex items-center justify-end gap-2 mt-1.5 text-[10px] font-mono-code text-slate-400">
-              <span>${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</span>
-              <button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="openMessageActionPopup(this.dataset.msgId, this, event)" title="Reaksi / Opsi" class="p-0.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-white transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              </button>
+            <div class="flex items-center justify-end gap-1.5 mt-1 text-[10px] font-mono-code text-slate-400 ${isMediaOnlyCard ? 'px-1' : ''}">
+              <span>${escapeHtmlString(timeLabel)}</span>
+              ${reactBtnHtml}
               <button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="setCommunityReplyTarget(this.dataset.msgId)" title="Balas Pesan" class="p-0.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-white transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
               </button>
             </div>
           </div>
 
-          ${reactionBadgeHtml ? `<div class="-mt-2.5 relative z-10 px-1.5">${reactionBadgeHtml}</div>` : ''}
+          ${reactionBadgeHtml ? `<div class="-mt-2 relative z-10 px-1">${reactionBadgeHtml}</div>` : ''}
         </div>
       </div>
     `);
@@ -4959,9 +5388,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   viewport.innerHTML = blocks.join('');
   hydrateAllWelcomeCanvases();
 
-  if (shouldScrollBottom) {
-    viewport.scrollTop = viewport.scrollHeight;
-  }
+  if (shouldScrollBottom) viewport.scrollTop = viewport.scrollHeight;
 }
 
 // --- long-press mobile, popup floating emoji reaction, pin admin, dan hapus pesan ---
@@ -4979,25 +5406,36 @@ function cancelMessageLongPress() {
   }
 }
 
+// --- ambil daftar pesan sesuai ruang yang sedang dibuka (dm atau community) ---
+function getActiveRoomMessagesList() {
+  return activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
+}
+
+// --- buka popup opsi pesan (reaksi, balas, pin, hapus) untuk community maupun dm ---
 function openMessageActionPopup(messageId, anchorEl, event) {
   if (event) {
     if (typeof event.preventDefault === 'function') event.preventDefault();
     if (typeof event.stopPropagation === 'function') event.stopPropagation();
   }
 
-  const targetMsg = communityMessagesCache.find((msg) => msg.id === messageId);
+  const activeList = getActiveRoomMessagesList();
+  const targetMsg = activeList.find((msg) => msg.id === messageId);
   if (!targetMsg) return;
 
   activeFloatingMessageId = messageId;
   const overlay = getEl('floatingMessageActionOverlay');
   const reactionBar = getEl('floatingReactionBar');
+  const emojiRow = getEl('floatingEmojiRow');
   const pinBtn = getEl('floatingPinActionBtn');
   const deleteBtn = getEl('floatingDeleteActionBtn');
 
   if (!overlay || !reactionBar) return;
 
+  const isCommunityRoom = activeChatRoomType === 'community';
   const canDeleteMessage = isCurrentUserAdmin || targetMsg.userId === currentGoogleUserId;
-  if (pinBtn) pinBtn.classList.toggle('hidden', !isCurrentUserAdmin);
+
+  if (emojiRow) emojiRow.classList.toggle('hidden', !isCommunityRoom);
+  if (pinBtn) pinBtn.classList.toggle('hidden', !isCommunityRoom || !isCurrentUserAdmin);
   if (deleteBtn) deleteBtn.classList.toggle('hidden', !canDeleteMessage);
 
   const anchorRect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
@@ -5052,8 +5490,10 @@ function sendCommunityReaction(messageId, emojiChar) {
   });
 }
 
+// --- hapus pesan sesuai ruang aktif (dm atau community) ---
 function deleteCommunityMessage(messageId) {
-  const targetMsg = communityMessagesCache.find((msg) => msg.id === messageId);
+  const activeList = getActiveRoomMessagesList();
+  const targetMsg = activeList.find((msg) => msg.id === messageId);
   if (!targetMsg) return;
 
   const isAuthorized = isCurrentUserAdmin || targetMsg.userId === currentGoogleUserId;
@@ -5062,7 +5502,14 @@ function deleteCommunityMessage(messageId) {
     return;
   }
 
-  socketClient.emit('community:message:delete', { messageId });
+  if (activeChatRoomType === 'dm' && activeChatRoomTargetId) {
+    socketClient.emit('dm:delete', {
+      peerUserId: activeChatRoomTargetId,
+      messageId
+    });
+  } else {
+    socketClient.emit('community:message:delete', { messageId });
+  }
   closeReactionDetailSheet();
 }
 
@@ -5168,9 +5615,10 @@ function renderReactionDetailSheetContent() {
   }).join('');
 }
 
-// --- siapkan target balasan kutipan beserta id pengirim asli ---
+// --- siapkan kutipan balasan pesan sesuai ruang aktif (dm atau community) ---
 function setCommunityReplyTarget(messageId) {
-  const foundMsg = communityMessagesCache.find((msg) => msg.id === messageId);
+  const activeList = getActiveRoomMessagesList();
+  const foundMsg = activeList.find((msg) => msg.id === messageId);
   if (!foundMsg) return;
 
   const fallbackPreview = foundMsg.type === 'sticker'
@@ -5212,6 +5660,23 @@ function scrollToRepliedCommunityMessage(targetMsgId) {
   setTimeout(() => targetRow.classList.remove('ring-2', 'ring-emerald-400/60', 'rounded-2xl'), 1400);
 }
 
+// --- tampilkan tombol scroll ke bawah saat user menggulir riwayat chat ke atas ---
+function handleChatScrollVisibility() {
+  const viewport = getEl('communityMessagesContainer');
+  const scrollBtn = getEl('chatScrollBottomBtn');
+  if (!viewport || !scrollBtn) return;
+
+  const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+  scrollBtn.classList.toggle('hidden', distanceFromBottom < 140);
+  scrollBtn.classList.toggle('flex', distanceFromBottom >= 140);
+}
+
+function scrollActiveChatToBottom() {
+  const viewport = getEl('communityMessagesContainer');
+  if (!viewport) return;
+  viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+}
+
 function submitCommunityChatForm(event) {
   if (event) event.preventDefault();
   const inputEl = getEl('communityMessageInput');
@@ -5228,20 +5693,66 @@ function submitCommunityChatForm(event) {
   clearCommunityReplyTarget();
 }
 
-function openChatMediaLightbox(mediaType, mediaUrl) {
+// --- buka pratinjau video/foto layar penuh lengkap dengan profil, nama, waktu & tombol simpan ---
+function openChatMediaLightbox(mediaType, mediaUrl, senderName = 'Member', senderAvatar = '', timeLabel = '') {
   const modal = getEl('chatMediaLightboxModal');
   const content = getEl('chatMediaLightboxContent');
   if (!modal || !content || !mediaUrl) return;
 
+  activeLightboxMediaMeta = { type: mediaType, url: mediaUrl, senderName: senderName || 'Member' };
+
+  const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName || 'M')}&background=0f172a&color=10b981`;
+  if (getEl('mediaLightboxAvatar')) getEl('mediaLightboxAvatar').src = senderAvatar || fallbackAvatar;
+  if (getEl('mediaLightboxSenderName')) getEl('mediaLightboxSenderName').textContent = senderName || 'Member';
+  if (getEl('mediaLightboxTime')) getEl('mediaLightboxTime').textContent = timeLabel || '';
+
   content.innerHTML = mediaType === 'video'
-    ? `<video src="${escapeHtmlString(mediaUrl)}" controls autoplay class="max-h-[82vh] max-w-[92vw] rounded-2xl shadow-2xl"></video>`
-    : `<img src="${escapeHtmlString(mediaUrl)}" alt="Media" class="max-h-[82vh] max-w-[92vw] rounded-2xl object-contain shadow-2xl" />`;
+    ? `<video src="${escapeHtmlString(mediaUrl)}" controls autoplay playsinline class="max-h-[82vh] max-w-[96vw] rounded-2xl shadow-2xl bg-black"></video>`
+    : `<img src="${escapeHtmlString(mediaUrl)}" alt="Media" class="max-h-[82vh] max-w-[96vw] rounded-2xl object-contain shadow-2xl" />`;
   toggleModalVisibility('chatMediaLightboxModal', true);
 }
 
 function closeChatMediaLightbox() {
   toggleModalVisibility('chatMediaLightboxModal', false);
   if (getEl('chatMediaLightboxContent')) getEl('chatMediaLightboxContent').innerHTML = '';
+}
+
+// --- unduh video atau foto dari lightbox ke perangkat user ---
+async function downloadActiveLightboxMedia() {
+  const { type, url, senderName } = activeLightboxMediaMeta || {};
+  if (!url) return;
+
+  const btn = getEl('mediaLightboxDownloadBtn');
+  if (btn) btn.disabled = true;
+
+  const safePrefix = String(senderName || 'xucore').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || 'xucore';
+  const ext = type === 'video' ? 'mp4' : 'jpg';
+  const fileName = `${safePrefix}-${Date.now()}.${ext}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Direct download fallback');
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+    showCyberToast('Tersimpan', `${type === 'video' ? 'Video' : 'Foto'} berhasil diunduh.`, 'success');
+  } catch {
+    const fallbackLink = document.createElement('a');
+    fallbackLink.href = url;
+    fallbackLink.download = fileName;
+    fallbackLink.target = '_blank';
+    document.body.appendChild(fallbackLink);
+    fallbackLink.click();
+    fallbackLink.remove();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // --- seluruh listener event socket.io untuk dashboard.html dan chat.html ---
@@ -5276,14 +5787,16 @@ socketClient.on('public:chat:message', (msg) => {
   if (getEl('publicChatMessagesList')) renderPublicChatMessages();
 });
 
+// --- sinkronkan wa bot inbox di beranda chat maupun saat ruang wa terbuka ---
 socketClient.on('inbox:update', (list) => {
   waLiveInboxCache = Array.isArray(list) ? list : [];
-  if (getEl('waInboxChatList')) renderWaLiveInboxUI();
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
+  if (activeChatRoomType === 'wa') renderActiveWaRoomTimeline(true);
 });
 
 socketClient.on('inbox:reply:result', (res) => {
-  const btn = getEl('waInboxReplyBtn');
-  if (btn) btn.disabled = false;
+  const sendBtn = getEl('roomSendSubmitBtn') || getEl('waInboxReplyBtn');
+  if (sendBtn) sendBtn.disabled = false;
   if (!res?.isSuccess) {
     showCyberToast('Balasan Gagal', res?.errorMessage || 'Pastikan bot sedang ONLINE.', 'danger');
   }
@@ -5297,7 +5810,7 @@ socketClient.on('connect', () => {
   }
 });
 
-// --- listener khusus ruang xu core community (chat.html) ---
+// --- listener inisialisasi beranda chat & komunitas ---
 socketClient.on('community:ready', (payload) => {
   if (!payload) return;
 
@@ -5313,20 +5826,66 @@ socketClient.on('community:ready', (payload) => {
   communityMessagesCache = Array.isArray(payload.messages) ? payload.messages : [];
   communityPinnedCache = Array.isArray(payload.pinnedMessages) ? payload.pinnedMessages : [];
   communityMembersCache = Array.isArray(payload.members) ? payload.members : [];
+  if (Array.isArray(payload.dmRooms)) dmRoomsListCache = payload.dmRooms;
+  if (Array.isArray(payload.waInbox)) waLiveInboxCache = payload.waInbox;
 
-  renderCommunityPinnedBar();
   renderCommunityMembersDrawer();
-  renderCommunityMessagesTimeline(true);
+  renderChatHomeView();
+
+  if (activeChatRoomType === 'community') {
+    renderCommunityPinnedBar();
+    renderCommunityMessagesTimeline(true);
+  } else if (activeChatRoomType === 'wa') {
+    renderActiveWaRoomTimeline(true);
+  }
 
   const serverStickers = Array.isArray(payload.stickers) ? payload.stickers : [];
   syncStickersFromSupabaseToLocal(currentGoogleUserId, serverStickers);
 });
 
+// --- listener dm sesama akun xu core ---
+socketClient.on('dm:list:data', (roomsList) => {
+  dmRoomsListCache = Array.isArray(roomsList) ? roomsList : [];
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
+});
+
+socketClient.on('dm:messages', (payload) => {
+  if (!payload || payload.peerUserId !== activeChatRoomTargetId) return;
+  activeDmMessagesCache = Array.isArray(payload.messages) ? payload.messages : [];
+  if (activeChatRoomType === 'dm') renderCommunityMessagesTimeline(true);
+});
+
+socketClient.on('dm:message:new', (newMsg) => {
+  if (!newMsg?.id) return;
+  const isCurrentDmPeer =
+    activeChatRoomType === 'dm' &&
+    (newMsg.userId === activeChatRoomTargetId || newMsg.toUserId === activeChatRoomTargetId);
+
+  if (isCurrentDmPeer && !activeDmMessagesCache.some((m) => m.id === newMsg.id)) {
+    activeDmMessagesCache = [...activeDmMessagesCache, newMsg].slice(-80);
+    renderCommunityMessagesTimeline(true);
+    if (newMsg.userId === activeChatRoomTargetId) {
+      socketClient.emit('dm:open', { peerUserId: activeChatRoomTargetId });
+    }
+  }
+});
+
+socketClient.on('dm:message:deleted', (payload) => {
+  if (!payload?.messageId) return;
+  if (activeChatRoomType === 'dm' && payload.peerUserId === activeChatRoomTargetId) {
+    activeDmMessagesCache = activeDmMessagesCache.filter((m) => m.id !== payload.messageId);
+    renderCommunityMessagesTimeline(false);
+  }
+});
+
+// --- terima pesan komunitas baru dan perbarui beranda maupun ruang komunitas ---
 socketClient.on('community:message:new', (newMessage) => {
   if (!newMessage?.id) return;
   if (communityMessagesCache.some((existing) => existing.id === newMessage.id)) return;
   communityMessagesCache = [...communityMessagesCache, newMessage].slice(-120);
-  if (getEl('communityMessagesContainer')) {
+
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
+  if (activeChatRoomType === 'community' && getEl('communityMessagesContainer')) {
     renderCommunityMessagesTimeline(true);
   }
 });
@@ -5369,9 +5928,11 @@ socketClient.on('community:pins:update', (pinnedList) => {
   renderCommunityPinnedBar();
 });
 
+// --- terima pembaruan daftar anggota online/offline lalu render drawer & beranda ---
 socketClient.on('community:members:update', (membersList) => {
   communityMembersCache = Array.isArray(membersList) ? membersList : [];
   renderCommunityMembersDrawer();
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
 });
 
 socketClient.on('community:error', (payload) => {
