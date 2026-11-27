@@ -590,11 +590,12 @@ export function appendCommunityChatMessage({
   if (normalizedType === 'text' && !cleanText) return null;
   if (normalizedType !== 'text' && !cleanMediaUrl) return null;
 
-  const cleanReplyTo = replyTo && typeof replyTo === 'object' && replyTo.id
+  const cleanReplyTo = replyTo && typeof replyTo === 'object' && String(replyTo.id || '').trim()
     ? {
         id: String(replyTo.id).trim().slice(0, 80),
+        userId: String(replyTo.userId || '').trim().slice(0, 80),
         name: String(replyTo.name || 'Member').trim().slice(0, 48),
-        text: String(replyTo.text || '').trim().slice(0, 140)
+        text: String(replyTo.text || '[Pesan]').trim().slice(0, 140) || '[Pesan]'
       }
     : null;
 

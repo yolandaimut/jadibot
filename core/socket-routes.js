@@ -1244,13 +1244,10 @@ export function registerSocketHandlers(io, coreModules) {
     syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser);
 
     // --- sinkronisasi profil komunitas, status online, dan auto-welcome anggota baru ---
+    // --- sinkronisasi profil komunitas dan status online anggota ---
     try {
-      const userCommunityProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+      getOrSyncUserProfile(sessionUser, isAdmin);
       onlineCommunityUserIds.add(authenticatedGoogleId);
-      const welcomeMessage = createAutoWelcomeIfFirstVisit(userCommunityProfile);
-      if (welcomeMessage) {
-        io.emit('community:message:new', welcomeMessage);
-      }
       io.emit('community:members:update', getCommunityMembersList(onlineCommunityUserIds));
     } catch (communityInitErr) {
       console.error('[COMMUNITY SYNC ERROR]', communityInitErr.message);
@@ -1268,16 +1265,25 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim payload inisialisasi ruang xu core community saat halaman chat.html dibuka ---
+    // --- kirim payload inisialisasi ruang xu core community dan siarkan auto-welcome ke semua user ---
     clientSocket.on('community:init', () => {
       try {
+        clientSocket.join('community_room');
         const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const welcomeMessage = createAutoWelcomeIfFirstVisit(latestProfile);
+        const latestMembers = getCommunityMembersList(onlineCommunityUserIds);
+
+        if (welcomeMessage) {
+          clientSocket.broadcast.emit('community:message:new', welcomeMessage);
+          io.emit('community:members:update', latestMembers);
+        }
+
         clientSocket.emit('community:ready', {
           profile: latestProfile,
           isAdmin,
           messages: getPublicChatMessages(),
           pinnedMessages: getPinnedCommunityMessages(),
-          members: getCommunityMembersList(onlineCommunityUserIds),
+          members: latestMembers,
           stickers: getUserStickerUrls(authenticatedGoogleId)
         });
       } catch (initErr) {
@@ -1285,7 +1291,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim pesan teks, foto, video, atau stiker ke ruang xu core community ---
+    // --- kirim pesan teks, foto, video, stiker, atau balasan ke seluruh user komunitas ---
     clientSocket.on('community:message:send', (payload) => {
       try {
         const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
@@ -1301,7 +1307,7 @@ export function registerSocketHandlers(io, coreModules) {
           mediaUrl: payload?.mediaUrl || '',
           replyTo: payload?.replyTo || null
         });
-        if (added) {
+        if (added?.item) {
           io.emit('community:message:new', added.item);
         }
       } catch (sendErr) {
