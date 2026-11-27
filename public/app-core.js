@@ -852,9 +852,9 @@ function clearPublicChatAdmin() {
   showCyberToast('Public Chat', 'Seluruh pesan ruang obrolan publik dibersihkan.', 'info');
 }
 
-// --- arahkan pembukaan live chat langsung menuju halaman /chat ---
-function openLiveChatFullscreen() {
-  window.location.href = '/chat';
+// --- arahkan pembukaan live chat langsung menuju /chat sesuai tab ---
+function openLiveChatFullscreen(defaultMode = 'community') {
+  window.location.href = defaultMode === 'inbox' ? '/chat?tab=inbox' : '/chat';
 }
 
 function closeLiveChatFullscreen() {
@@ -901,15 +901,29 @@ function switchLiveChatMode(mode) {
   else renderWaLiveInboxUI();
 }
 
+// --- perbarui lencana jumlah pesan whatsapp belum dibaca ---
 function syncChatUnreadIndicator() {
-  const badge = getEl('floatingChatUnreadBadge');
-  if (!badge) return;
   const totalUnread = waLiveInboxCache.reduce((sum, chat) => sum + Number(chat.unreadCount || 0), 0);
-  if (totalUnread > 0 && !isLiveChatFullscreenOpen) {
-    badge.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
-    badge.classList.remove('hidden');
-  } else {
-    badge.classList.add('hidden');
+  const unreadLabel = totalUnread > 99 ? '99+' : String(totalUnread);
+
+  const fabBadge = getEl('floatingChatUnreadBadge');
+  if (fabBadge) {
+    if (totalUnread > 0 && !isLiveChatFullscreenOpen) {
+      fabBadge.textContent = unreadLabel;
+      fabBadge.classList.remove('hidden');
+    } else {
+      fabBadge.classList.add('hidden');
+    }
+  }
+
+  const chatTabUnreadBadge = getEl('chatPageInboxUnreadBadge');
+  if (chatTabUnreadBadge) {
+    if (totalUnread > 0 && activeChatPageSection !== 'inbox') {
+      chatTabUnreadBadge.textContent = unreadLabel;
+      chatTabUnreadBadge.classList.remove('hidden');
+    } else {
+      chatTabUnreadBadge.classList.add('hidden');
+    }
   }
 }
 
@@ -919,6 +933,81 @@ function formatCleanWhatsappSubtitle(jid) {
   if (raw.endsWith('@g.us')) return `Grup • ${raw.split('@')[0]}`;
   if (raw.endsWith('@s.whatsapp.net')) return `+${raw.split('@')[0]}`;
   return raw;
+}
+
+// --- state & pengalih section community / wa bot inbox di halaman chat.html ---
+let activeChatPageSection = 'community';
+
+function switchChatPageSection(targetSection) {
+  activeChatPageSection = targetSection === 'inbox' ? 'inbox' : 'community';
+  const isInbox = activeChatPageSection === 'inbox';
+
+  const communityTabBtn = getEl('chatPageTabCommunityBtn');
+  const inboxTabBtn = getEl('chatPageTabInboxBtn');
+  const communityMessagesEl = getEl('communityMessagesContainer');
+  const communityStatusWrap = getEl('communityStatusBarsWrap');
+  const communityFooterEl = getEl('communityInputFooter');
+  const inboxPanelEl = getEl('chatPageWaInboxPanel');
+
+  const headerTitleEl = getEl('chatRoomHeaderTitle');
+  const headerBadgeEl = getEl('chatRoomHeaderBadge');
+  const communityMetaEl = getEl('communityHeaderMeta');
+  const inboxMetaEl = getEl('waInboxHeaderMeta');
+  const membersBtnEl = getEl('communityMembersDrawerBtn');
+  const pinnedBtnEl = getEl('communityPinnedHeaderBtn');
+  const refreshInboxBtnEl = getEl('waInboxRefreshHeaderBtn');
+
+  const activeTabCls = 'py-1.5 px-3 rounded-lg font-bold accent-bg text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-sm';
+  const inactiveTabCls = 'py-1.5 px-3 rounded-lg font-semibold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1.5';
+
+  if (communityTabBtn) communityTabBtn.className = isInbox ? inactiveTabCls : activeTabCls;
+  if (inboxTabBtn) inboxTabBtn.className = isInbox ? activeTabCls : inactiveTabCls;
+
+  communityMessagesEl?.classList.toggle('hidden', isInbox);
+  communityStatusWrap?.classList.toggle('hidden', isInbox);
+  communityFooterEl?.classList.toggle('hidden', isInbox);
+
+  if (inboxPanelEl) {
+    inboxPanelEl.classList.toggle('hidden', !isInbox);
+    inboxPanelEl.classList.toggle('grid', isInbox);
+  }
+
+  if (headerTitleEl) headerTitleEl.textContent = isInbox ? 'WA Bot Inbox' : 'Xu Core Community';
+  if (headerBadgeEl) headerBadgeEl.textContent = isInbox ? 'LIVE BOT' : 'Official';
+
+  if (communityMetaEl) {
+    communityMetaEl.classList.toggle('hidden', isInbox);
+    communityMetaEl.classList.toggle('flex', !isInbox);
+  }
+  if (inboxMetaEl) {
+    inboxMetaEl.classList.toggle('hidden', !isInbox);
+    inboxMetaEl.classList.toggle('flex', isInbox);
+  }
+
+  membersBtnEl?.classList.toggle('hidden', isInbox);
+  pinnedBtnEl?.classList.toggle('hidden', isInbox);
+  if (refreshInboxBtnEl) {
+    refreshInboxBtnEl.classList.toggle('hidden', !isInbox);
+    refreshInboxBtnEl.classList.toggle('flex', isInbox);
+  }
+
+  renderCommunityPinnedBar();
+
+  if (isInbox) {
+    closeChatAttachMenu();
+    closeMessageActionPopup();
+    socketClient.emit('inbox:list');
+    renderWaLiveInboxUI();
+  } else {
+    renderCommunityMessagesTimeline(false);
+  }
+
+  syncChatUnreadIndicator();
+}
+
+function refreshWaLiveInbox() {
+  socketClient.emit('inbox:list');
+  showCyberToast('WA Bot Inbox', 'Menyegarkan daftar percakapan WhatsApp...', 'info');
 }
 
 function renderWaLiveInboxUI() {
@@ -1336,7 +1425,7 @@ function getCommandPaletteActions() {
     { id: 'tab-manage', group: 'Navigasi', title: 'Buka Tab Kelola Bot & Config', desc: 'Auto-Reply, Pesan Sistem, Prefix, Menu, Limit & User', run: () => switchWorkspaceTab('manage') },
     { id: 'go-community', group: 'Komunitas', title: 'Buka Xu Core Community (/chat)', desc: 'Ruang live chat komunitas, stiker Supabase & reaksi emoji', run: () => { window.location.href = '/chat'; } },
     { id: 'open-profile', group: 'Akun', title: 'Buka Settings Profile', desc: 'Ubah nama akun, foto profil, atau tutup akun', run: () => openProfileSettingsModal() },
-    { id: 'open-wa-inbox', group: 'Live Chat', title: 'Buka WA Live Chat Inbox (Layar Penuh)', desc: 'Pantau dan balas pesan WhatsApp langsung dari browser', run: () => openLiveChatFullscreen() },
+    { id: 'open-wa-inbox', group: 'Live Chat', title: 'Buka WA Live Chat Inbox (Layar Penuh)', desc: 'Pantau dan balas pesan WhatsApp langsung dari browser', run: () => openLiveChatFullscreen('community') },
     { id: 'tab-api', group: 'Navigasi', title: 'Buka Tab API Gateway & Webhook', desc: 'Kelola API Key, Webhook Forwarder & Delivery Logs', run: () => switchWorkspaceTab('gateway') }
   ];
 
@@ -4105,7 +4194,7 @@ async function deleteCommunityStickerItem(stickerId, event) {
   }
 }
 
-// --- render grid stiker pada bottom sheet chat.html ---
+// --- render grid stiker pada bottom sheet chat.html dengan dimensi persegi terkunci ---
 function renderCommunityStickerGrid() {
   const gridEl = getEl('stickerGridContainer');
   const countEl = getEl('stickerCountBadge');
@@ -4113,16 +4202,16 @@ function renderCommunityStickerGrid() {
   if (!gridEl) return;
 
   const createTileHtml = `
-    <button type="button" onclick="getEl('stickerMultiFileInput')?.click()" class="aspect-square rounded-2xl bg-slate-900/90 hover:bg-slate-800 border-2 border-dashed border-slate-700 hover:border-[var(--accent-main)] flex flex-col items-center justify-center gap-1.5 text-slate-300 hover:text-white transition-all active:scale-95">
+    <button type="button" onclick="getEl('stickerMultiFileInput')?.click()" class="w-full aspect-square min-w-0 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border-2 border-dashed border-slate-700 hover:border-[var(--accent-main)] flex flex-col items-center justify-center gap-1.5 text-slate-300 hover:text-white transition-all active:scale-95">
       <svg class="w-6 h-6 accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/></svg>
       <span class="text-[11px] font-bold">Buat</span>
     </button>
   `;
 
   const stickerTilesHtml = communityStickersCache.map((stickerItem) => `
-    <div onclick="sendCommunityStickerMessage('${escapeHtmlString(stickerItem.url)}')" role="button" tabindex="0" class="group relative aspect-square rounded-2xl bg-slate-900/75 hover:bg-slate-800/90 border border-slate-800 hover:border-[var(--accent-border)] p-1.5 flex items-center justify-center cursor-pointer transition-all active:scale-95 overflow-hidden">
-      <img src="${escapeHtmlString(stickerItem.url)}" alt="Stiker" loading="lazy" class="w-full h-full object-contain rounded-xl select-none pointer-events-none" />
-      <button type="button" data-sticker-id="${escapeHtmlString(stickerItem.id || '')}" onclick="deleteCommunityStickerItem(this.dataset.stickerId, event)" title="Hapus Stiker" aria-label="Hapus Stiker" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-950/90 hover:bg-rose-500 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-[10px] opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+    <div onclick="sendCommunityStickerMessage('${escapeHtmlString(stickerItem.url)}')" role="button" tabindex="0" class="group relative w-full aspect-square min-w-0 rounded-2xl bg-slate-900/75 hover:bg-slate-800/90 border border-slate-800 hover:border-[var(--accent-border)] p-1.5 flex items-center justify-center cursor-pointer transition-all active:scale-95 overflow-hidden">
+      <img src="${escapeHtmlString(stickerItem.url)}" alt="Stiker" loading="lazy" class="w-full h-full max-w-full max-h-full object-contain rounded-xl select-none pointer-events-none" />
+      <button type="button" data-sticker-id="${escapeHtmlString(stickerItem.id || '')}" onclick="deleteCommunityStickerItem(this.dataset.stickerId, event)" title="Hapus Stiker" aria-label="Hapus Stiker" class="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full bg-slate-950/90 hover:bg-rose-500 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-[10px] opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
         ✕
       </button>
     </div>
@@ -4314,7 +4403,7 @@ function renderCommunityPinnedBar() {
   }
 
   if (barEl) {
-    if (communityPinnedCache.length === 0) {
+    if (communityPinnedCache.length === 0 || activeChatPageSection === 'inbox') {
       barEl.classList.add('hidden');
     } else {
       barEl.classList.remove('hidden');
@@ -4700,10 +4789,11 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       : '';
 
     let bodyContentHtml = '';
+    // --- ukuran stiker kompak setara tampilan whatsapp ---
     if (msg.type === 'sticker' && msg.mediaUrl) {
       bodyContentHtml = `
         <div class="py-0.5">
-          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Stiker" loading="lazy" class="w-36 h-36 sm:w-40 sm:h-40 object-contain rounded-xl select-none drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
+          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Stiker" loading="lazy" class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]" />
         </div>
       `;
     } else if (msg.type === 'image' && msg.mediaUrl) {
@@ -5101,10 +5191,11 @@ socketClient.on('inbox:reply:result', (res) => {
   }
 });
 
-// --- sinkronkan ulang ruang komunitas setiap kali socket tersambung atau reconnect ---
+// --- sinkronkan ulang komunitas dan wa inbox setiap kali socket tersambung ---
 socketClient.on('connect', () => {
   if (activePageName === 'chat' || getEl('communityMessagesContainer')) {
     socketClient.emit('community:init');
+    socketClient.emit('inbox:list');
   }
 });
 
@@ -5629,6 +5720,12 @@ function initXuCoreUnifiedPage(requestedPage) {
     if (activePageName === 'chat') {
       fetchCurrentProfileSettings();
       socketClient.emit('community:init');
+      socketClient.emit('inbox:list');
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('tab') === 'inbox') {
+        switchChatPageSection('inbox');
+      }
     }
 
     document.addEventListener('visibilitychange', () => {
