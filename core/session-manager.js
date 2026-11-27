@@ -1,4 +1,4 @@
-// --- manajer sesi baileys, auto-connect, multi-media, webhook logs, branding profil, grup visual, ai persona, spintax, clear pre-keys, dan auto-backup ---
+// --- manajer sesi baileys, auto-connect, multi-media, wa live inbox, webhook logs, branding avatar, reset limit, ai persona, spintax, clear pre-keys, dan auto-backup ---
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
@@ -29,6 +29,8 @@ import {
   getGlobalAnnouncement,
   getGlobalAnnouncements,
   getGlobalPlatformStatistics,
+  getJakartaDateKey,
+  getPublicChatMessages,
   getUserSessionFolderPath,
   incrementDailyTrafficRecord,
   isPlatformAdminById,
@@ -51,6 +53,7 @@ const extraInstance = new Extra();
 
 export const activeBotSessions = new Map();
 export const userTerminalLogsCache = new Map();
+export const userLiveInboxCache = new Map();
 const silentLogger = pino({ level: 'silent' });
 let schedulerWorkerInterval = null;
 let lastExpiryReminderCheckMs = 0;
@@ -61,6 +64,8 @@ const aiReplyCooldownMap = new Map();
 const AI_REPLY_COOLDOWN_MS = 3500;
 const EXPIRY_REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const AUTO_BACKUP_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+const MAX_INBOX_CHATS_PER_USER = 30;
+const MAX_INBOX_MESSAGES_PER_CHAT = 40;
 
 // --- pelacak velocity request real-time & top active endpoints tanpa data palsu ---
 const VELOCITY_BUCKET_SECONDS = 3;
@@ -113,6 +118,121 @@ export function getRealtimeTrafficSnapshot() {
     topEndpoints,
     timestamp: Date.now()
   };
+}
+
+// --- catat pesan masuk atau keluar ke cache wa live chat inbox per user ---
+export function recordLiveInboxMessage(io, googleUserId, {
+  chatJid = '',
+  chatName = '',
+  senderName = '',
+  fromMe = false,
+  text = '',
+  timestamp = Date.now()
+} = {}) {
+  const cleanJid = String(chatJid || '').trim();
+  const cleanText = String(text || '').trim().slice(0, 1000);
+  if (!googleUserId || !cleanJid || !cleanText || cleanJid === 'status@broadcast') return;
+
+  if (!userLiveInboxCache.has(googleUserId)) {
+    userLiveInboxCache.set(googleUserId, new Map());
+  }
+
+  const chatsMap = userLiveInboxCache.get(googleUserId);
+  const isGroup = cleanJid.endsWith('@g.us');
+  const existing = chatsMap.get(cleanJid) || {
+    jid: cleanJid,
+    name: chatName || cleanJid.split('@')[0],
+    isGroup,
+    lastMessage: '',
+    lastTimestamp: 0,
+    unreadCount: 0,
+    messages: []
+  };
+
+  if (chatName && chatName !== cleanJid.split('@')[0]) {
+    existing.name = chatName;
+  }
+
+  const msgEntry = {
+    id: `inb_${timestamp}_${Math.random().toString(36).slice(2, 6)}`,
+    fromMe: Boolean(fromMe),
+    senderName: String(senderName || (fromMe ? 'Bot' : existing.name)).slice(0, 60),
+    text: cleanText,
+    timestamp: Number(timestamp || Date.now())
+  };
+
+  existing.messages = [...existing.messages, msgEntry].slice(-MAX_INBOX_MESSAGES_PER_CHAT);
+  existing.lastMessage = cleanText;
+  existing.lastTimestamp = msgEntry.timestamp;
+  if (!fromMe) {
+    existing.unreadCount = Number(existing.unreadCount || 0) + 1;
+  }
+
+  chatsMap.set(cleanJid, existing);
+
+  if (chatsMap.size > MAX_INBOX_CHATS_PER_USER) {
+    const sortedEntries = Array.from(chatsMap.entries()).sort((a, b) => b[1].lastTimestamp - a[1].lastTimestamp);
+    const trimmedMap = new Map(sortedEntries.slice(0, MAX_INBOX_CHATS_PER_USER));
+    userLiveInboxCache.set(googleUserId, trimmedMap);
+  }
+
+  if (io) {
+    io.to(`user_${googleUserId}`).emit('inbox:update', getLiveInboxSnapshot(googleUserId));
+  }
+}
+
+// --- ambil daftar percakapan wa live chat inbox terurut dari terbaru ---
+export function getLiveInboxSnapshot(googleUserId) {
+  const chatsMap = userLiveInboxCache.get(googleUserId);
+  if (!chatsMap) return [];
+  return Array.from(chatsMap.values()).sort((a, b) => Number(b.lastTimestamp || 0) - Number(a.lastTimestamp || 0));
+}
+
+// --- tandai percakapan inbox sebagai sudah dibaca ---
+export function markLiveInboxChatRead(io, googleUserId, chatJid) {
+  const chatsMap = userLiveInboxCache.get(googleUserId);
+  if (!chatsMap || !chatsMap.has(chatJid)) return;
+  const target = chatsMap.get(chatJid);
+  target.unreadCount = 0;
+  chatsMap.set(chatJid, target);
+  if (io) {
+    io.to(`user_${googleUserId}`).emit('inbox:update', getLiveInboxSnapshot(googleUserId));
+  }
+}
+
+// --- reset limit seluruh user di global.db secara massal (1-klik maupun otomatis harian) ---
+export function resetAllUsersLimit(io, googleUserId, coreModules = {}, targetLimit = null) {
+  const userDb = readBotDatabase(googleUserId);
+  const resolvedLimit = Math.max(1, Math.min(10000, parseInt(targetLimit ?? userDb.settings?.limitConfig?.defaultLimit ?? 25, 10) || 25));
+
+  global.db = global.db || {};
+  global.db.users = global.db.users || {};
+
+  let affectedCount = 0;
+  for (const [jid, entry] of Object.entries(global.db.users)) {
+    if (!entry || typeof entry !== 'object') continue;
+    entry.limit = resolvedLimit;
+    global.db.users[jid] = entry;
+    affectedCount += 1;
+  }
+
+  if (coreModules?.multidb && typeof coreModules.multidb.save === 'function') {
+    coreModules.multidb.save();
+  }
+
+  userDb.settings.limitConfig = {
+    ...(userDb.settings.limitConfig || {}),
+    defaultLimit: resolvedLimit,
+    lastResetDate: getJakartaDateKey(new Date())
+  };
+  writeBotDatabaseAtomic(googleUserId, userDb);
+
+  if (io) {
+    emitTerminalLog(io, googleUserId, 'SUCCESS', `Limit ${affectedCount} user berhasil direset ke ${resolvedLimit}.`);
+    emitUserStatsSnapshot(io, googleUserId, userDb);
+  }
+
+  return { isSuccess: true, affectedCount, defaultLimit: resolvedLimit };
 }
 
 // --- pancarkan pembaruan statistik user & global secara terpusat ---
@@ -508,7 +628,6 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
               author: botDatabase?.settings?.author || 'Xu Core'
             });
             recordRealtimeActivityHit('POST', payload.sourceRoute || '/api/whatsapp/direct-send');
-            if (io && io.engine.clientsCount > 0) io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
             emitLog(googleUserId, 'SUCCESS', `Pesan [STICKER] terkirim ke [${targetJid.split('@')[0]}].`);
             return { isSuccess: true, targetJid, messageId: null };
           }
@@ -566,10 +685,15 @@ export async function sendDirectWhatsAppMessage(io, googleUserId, payload = {}) 
   try {
     const sentMsg = await client.sendMessage(targetJid, messageContent);
     recordRealtimeActivityHit('POST', payload.sourceRoute || '/api/whatsapp/direct-send');
-    if (io && io.engine.clientsCount > 0) {
-      io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
-    }
     const shortTarget = targetJid.split('@')[0];
+    recordLiveInboxMessage(io, googleUserId, {
+      chatJid: targetJid,
+      chatName: global.db?.metadata?.[targetJid]?.subject || global.db?.users?.[targetJid]?.name || shortTarget,
+      senderName: botDatabase?.settings?.botName || 'Bot',
+      fromMe: true,
+      text: formattedCaption || `[${mediaType.toUpperCase()}]`,
+      timestamp: Date.now()
+    });
     emitLog(
       googleUserId,
       'SUCCESS',
@@ -881,22 +1005,36 @@ async function processSubscriptionExpiryReminders(io, nowMs) {
   }
 }
 
-// --- worker latar belakang untuk jadwal pesan, notifikasi h-3/h-1, dan auto-backup zip ---
-export function startMessageSchedulerWorker(io) {
+// --- worker latar belakang untuk jadwal pesan, auto-reset limit harian, notifikasi h-3/h-1, dan auto-backup zip ---
+export function startMessageSchedulerWorker(io, coreModules = {}) {
   if (schedulerWorkerInterval) return;
 
   schedulerWorkerInterval = setInterval(async () => {
     try {
       const nowMs = Date.now();
+      const nowJakartaDate = getJakartaDateKey(new Date(nowMs));
+      const jakartaHour = parseInt(
+        new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', hour12: false }).format(new Date(nowMs)),
+        10
+      );
       const masterDb = readMasterDatabaseFile();
 
       for (const googleUserId of Object.keys(masterDb.users || {})) {
+        const userDatabase = readBotDatabase(googleUserId);
+        const limitCfg = userDatabase.settings?.limitConfig || {};
+        if (
+          limitCfg.autoResetEnabled &&
+          jakartaHour >= Number(limitCfg.resetHourWib ?? 0) &&
+          limitCfg.lastResetDate !== nowJakartaDate
+        ) {
+          resetAllUsersLimit(io, googleUserId, coreModules, limitCfg.defaultLimit ?? 25);
+        }
+
         const activeSession = activeBotSessions.get(googleUserId);
         if (!activeSession || activeSession.status !== 'CONNECTED' || !activeSession.socketInstance) {
           continue;
         }
 
-        const userDatabase = readBotDatabase(googleUserId);
         if (isBotSubscriptionExpired(googleUserId, userDatabase)) continue;
 
         const schedules = Array.isArray(userDatabase.scheduledMessages) ? userDatabase.scheduledMessages : [];
@@ -983,7 +1121,7 @@ export function isBotSubscriptionExpired(googleUserId, botDatabase) {
   return Date.now() > expiresAt;
 }
 
-// --- sinkronkan pengaturan dashboard dan daftar owner ke global.db.setting ---
+// --- sinkronkan pengaturan dashboard, menu kustom, dan daftar owner ke global.db.setting ---
 export function syncBotSettingsToGlobalDb(botJid, settingsObject) {
   if (!botJid || !settingsObject) return;
   global.db = global.db || {};
@@ -999,6 +1137,9 @@ export function syncBotSettingsToGlobalDb(botJid, settingsObject) {
     botName: settingsObject.botName || CONFIG.platformName,
     packname: settingsObject.packname || CONFIG.platformName,
     author: settingsObject.author || 'Surya Core',
+    header: settingsObject.menuConfig?.header || CONFIG.header,
+    footer: settingsObject.menuConfig?.footer || CONFIG.footer,
+    thumbnailUrl: settingsObject.menuConfig?.thumbnailUrl || '',
     isNoPrefix: settingsObject.isNoPrefix ?? true,
     allowedPc: settingsObject.allowedPc ?? true,
     isAiEnabled: Boolean(settingsObject.isAiEnabled),
@@ -1129,8 +1270,8 @@ function cloneSafeObject(sourceObject) {
   return { ...sourceObject };
 }
 
-// --- serialisasi pesan menggunakan system/serialize.js atau serializer bawaan aman ---
-async function serializeIncomingMessage(coreModules, client, rawMessage) {
+// --- serialisasi pesan menggunakan system/serialize.js atau serializer bawaan aman dengan prefix kustom ---
+async function serializeIncomingMessage(coreModules, client, rawMessage, customPrefixesStr = '') {
   if (typeof coreModules.serialize === 'function') {
     try {
       const serialized = await coreModules.serialize(client, rawMessage, coreModules.store);
@@ -1167,7 +1308,11 @@ async function serializeIncomingMessage(coreModules, client, rawMessage) {
 
   const trimmedBody = body.trim();
   let matchedPrefix = '';
-  if (CONFIG.prefixes instanceof RegExp) {
+  const cleanCustomPrefixes = String(customPrefixesStr || '').trim();
+  if (cleanCustomPrefixes) {
+    const allowedPrefixChars = cleanCustomPrefixes.split('');
+    matchedPrefix = allowedPrefixChars.find((p) => trimmedBody.startsWith(p)) || '';
+  } else if (CONFIG.prefixes instanceof RegExp) {
     const regexMatch = trimmedBody.match(CONFIG.prefixes);
     matchedPrefix = regexMatch ? regexMatch[0] : '';
   } else if (Array.isArray(CONFIG.prefixes)) {
@@ -1382,9 +1527,6 @@ export async function startWhatsAppSession(
     client.sendMessage = async (recipientJid, messageContent, messageOptions = {}) => {
       const sendResult = await originalSendMessage(recipientJid, messageContent, messageOptions);
       recordRealtimeActivityHit('POST', '/api/whatsapp/send');
-      if (io.engine.clientsCount > 0) {
-        io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
-      }
       const latestDatabase = readBotDatabase(googleUserId);
       latestDatabase.totalMessagesSent += 1;
       incrementDailyTrafficRecord(latestDatabase, 'out');
@@ -1566,7 +1708,7 @@ export async function startWhatsAppSession(
       }
     });
 
-    // --- router pesan masuk menuju webhook, moderasi grup, auto-reply media, plugin, dan ai persona ---
+    // --- router pesan masuk menuju wa live inbox, webhook, moderasi grup, auto-reply media, plugin, dan ai persona ---
     client.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
 
@@ -1605,13 +1747,15 @@ export async function startWhatsAppSession(
           }
         }
 
-        const m = await serializeIncomingMessage(coreModules, client, messageItem);
+        const m = await serializeIncomingMessage(
+          coreModules,
+          client,
+          messageItem,
+          currentDatabase.settings?.prefixConfig?.prefixes || ''
+        );
 
         if (!m.fromMe) {
           recordRealtimeActivityHit(m.command ? 'CMD' : 'MSG', m.command ? `/cmd/${m.command}` : '/api/whatsapp/incoming');
-          if (io.engine.clientsCount > 0) {
-            io.emit('traffic:velocity', getRealtimeTrafficSnapshot());
-          }
           currentDatabase.totalMessagesReceived += 1;
           incrementDailyTrafficRecord(currentDatabase, 'in');
           const cleanSenderNumber = m.sender.split('@')[0];
@@ -1633,6 +1777,21 @@ export async function startWhatsAppSession(
         if (m.body) {
           emitLog(googleUserId, 'MSG', `${m.fromMe ? '[OUT]' : '[IN]'} ${m.sender.split('@')[0]}: ${m.body.slice(0, 80)}`);
 
+          const isGroupChat = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
+          const resolvedChatName = isGroupChat
+            ? (global.db?.metadata?.[remoteJid]?.subject || remoteJid.split('@')[0])
+            : (m.pushname || m.sender.split('@')[0]);
+
+          // --- rekam pesan ke wa live chat inbox real-time ---
+          recordLiveInboxMessage(io, googleUserId, {
+            chatJid: remoteJid,
+            chatName: resolvedChatName,
+            senderName: m.fromMe ? (currentDatabase.settings?.botName || 'Bot') : (m.pushname || m.sender.split('@')[0]),
+            fromMe: Boolean(m.fromMe),
+            text: m.body,
+            timestamp: Date.now()
+          });
+
           // --- teruskan pesan masuk ke webhook url user jika dikonfigurasi ---
           if (!m.fromMe && currentDatabase.settings.webhookUrl) {
             forwardIncomingToUserWebhook(
@@ -1643,7 +1802,7 @@ export async function startWhatsAppSession(
                 chat: m.chat,
                 sender: m.sender,
                 pushName: m.pushname || '',
-                isGroup: Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us')),
+                isGroup: isGroupChat,
                 messageType: m.mtype || 'text',
                 text: m.body,
                 timestamp: Date.now()
@@ -1654,7 +1813,6 @@ export async function startWhatsAppSession(
           }
 
           // --- moderasi grup visual (anti-link & anti-toxic per grup) ---
-          const isGroupChat = Boolean(m.isGc || m.isGroup || remoteJid?.endsWith('@g.us'));
           const groupCfg = isGroupChat ? currentDatabase.settings.groupConfigs?.[remoteJid] : null;
           if (!m.fromMe && groupCfg) {
             const hasWhatsappLink = /(https?:\/\/)?(chat\.whatsapp\.com|wa\.me|t\.me|bit\.ly)\/[^\s]+/i.test(m.body);
@@ -2070,7 +2228,7 @@ export function restoreExistingSessionsOnBoot(io, coreModules) {
   }
 }
 
-// --- sinkronisasi state sesi, jadwal pesan, analitik, pengumuman, ai, gateway, dan live traffic ---
+// --- sinkronisasi state sesi, jadwal pesan, live inbox, public chat, analitik, pengumuman, ai, gateway, dan live traffic ---
 export async function syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser) {
   const googleUserId = sessionUser.googleId;
   const isAdmin = isPlatformAdminUser(sessionUser);
@@ -2100,6 +2258,8 @@ export async function syncSessionStateToSocket(io, coreModules, clientSocket, se
     apiKey: userDatabase.apiKey || null,
     apiKeyStats: userDatabase.apiKeyStats || { createdAt: 0, lastUsedAt: 0, totalCalls: 0 },
     schedules: userDatabase.scheduledMessages || [],
+    liveInbox: getLiveInboxSnapshot(googleUserId),
+    publicChatMessages: getPublicChatMessages(),
     globalStats: getGlobalPlatformStatistics(activeBotSessions),
     trafficSeries: buildLast7DaysTrafficSeries(userDatabase.trafficHistory),
     trafficVelocity: isAdmin

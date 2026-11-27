@@ -1,4 +1,4 @@
-// --- registrasi route express, api gateway, otp password, voucher, qris, webhook logs, branding bot, monitor admin, dan socket.io ---
+// --- registrasi route express, api gateway, otp password, voucher, qris, webhook logs, branding bot, wa inbox, public chat, dan socket.io ---
 import express from 'express';
 import fs from 'fs';
 import os from 'os';
@@ -21,15 +21,19 @@ import {
 } from './auth.js';
 import {
   addGlobalAnnouncement,
+  appendPublicChatMessage,
   appendWebhookDeliveryLog,
   calculateDirectorySizeBytes,
   changeLocalAccountPassword,
   clearAllGlobalAnnouncements,
+  clearPublicChatMessages,
   clearWebhookDeliveryLogs,
   createPasswordResetOtp,
   createVoucher,
   deleteGlobalAnnouncementById,
+  deletePublicChatMessage,
   deleteVoucher,
+  exportUserBotConfig,
   extendUserSubscriptionAtomic,
   findAuthAccountByEmail,
   findUserByApiKey,
@@ -38,6 +42,8 @@ import {
   getAllUsersGlobalMonitorSnapshot,
   getGlobalAnnouncement,
   getGlobalAnnouncements,
+  getPublicChatMessages,
+  importUserBotConfig,
   isPlatformAdminUser,
   listVouchers,
   readBotDatabase,
@@ -66,9 +72,12 @@ import {
   emitAdminGlobalSessionsSnapshot,
   emitTerminalLog,
   emitUserStatsSnapshot,
+  getLiveInboxSnapshot,
   getRealtimeTrafficSnapshot,
   isBotSubscriptionExpired,
+  markLiveInboxChatRead,
   recordRealtimeActivityHit,
+  resetAllUsersLimit,
   resolveTargetWhatsappJid,
   restartWhatsAppSession,
   sendDirectWhatsAppMessage,
@@ -87,6 +96,7 @@ import {
   listUserQrisOrders,
   markOrderPaidAndExtend
 } from './qris-checkout.js';
+import { runScheduledBackupNow } from './auto-backup.js';
 
 let systemMetricsInterval = null;
 let trafficVelocityInterval = null;
@@ -221,7 +231,7 @@ function buildManagedEntitiesPayload(googleUserId) {
       jid,
       number: cleanNum,
       name: dbEntry.name || cleanNum,
-      limit: Number(dbEntry.limit ?? 25),
+      limit: Number(dbEntry.limit ?? botDb.settings?.limitConfig?.defaultLimit ?? 25),
       premium: Boolean(dbEntry.premium),
       banned: Boolean(dbEntry.banned)
     });
@@ -234,7 +244,7 @@ function buildManagedEntitiesPayload(googleUserId) {
       jid,
       number: cleanNum,
       name: dbEntry?.name || cleanNum,
-      limit: Number(dbEntry?.limit ?? 25),
+      limit: Number(dbEntry?.limit ?? botDb.settings?.limitConfig?.defaultLimit ?? 25),
       premium: Boolean(dbEntry?.premium),
       banned: Boolean(dbEntry?.banned)
     });
@@ -874,6 +884,12 @@ export function registerHttpRoutes(app) {
     }
   });
 
+  // --- picu pengiriman auto-backup zip ke whatsapp admin secara manual ---
+  app.post('/api/admin/backup/run', requireExclusiveAdminApi, async (_request, response) => {
+    const result = await runScheduledBackupNow();
+    return response.status(result.isSuccess ? 200 : 500).json(result);
+  });
+
   // --- endpoint admin: ambil daftar pengumuman global ---
   app.get('/api/admin/announcements', requireExclusiveAdminApi, (_request, response) => {
     return response.status(200).json({
@@ -1007,7 +1023,7 @@ export function registerSocketHandlers(io, coreModules) {
   const emitLog = (uid, level, msg) => emitTerminalLog(io, uid, level, msg);
 
   startRealtimeSystemBroadcaster(io);
-  startMessageSchedulerWorker(io);
+  startMessageSchedulerWorker(io, coreModules);
 
   io.on('connection', (clientSocket) => {
     const sessionUser = getSessionUserFromCookieHeader(clientSocket.handshake.headers.cookie);
@@ -1179,7 +1195,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- perbarui konfigurasi bot, daftar owner, ai persona, kategori nonaktif, dan auto-reply ---
+    // --- perbarui konfigurasi bot lengkap termasuk pesan sistem, prefix, cooldown, menu, limit, dan auto-reply ---
     clientSocket.on('settings:update', (payload) => {
       const currentDatabase = readBotDatabase(authenticatedGoogleId);
       const nextSettings = { ...currentDatabase.settings };
@@ -1257,6 +1273,43 @@ export function registerSocketHandlers(io, coreModules) {
           .slice(0, 30);
       }
 
+      if (payload?.customMessages && typeof payload.customMessages === 'object') {
+        const allowedKeys = ['wait', 'limit', 'premium', 'owner', 'group', 'private', 'admin', 'botAdmin'];
+        nextSettings.customMessages = { ...(nextSettings.customMessages || {}) };
+        for (const key of allowedKeys) {
+          if (typeof payload.customMessages[key] === 'string') {
+            nextSettings.customMessages[key] = payload.customMessages[key].trim().slice(0, 300);
+          }
+        }
+      }
+
+      if (payload?.prefixConfig && typeof payload.prefixConfig === 'object') {
+        const rawPrefixes = String(payload.prefixConfig.prefixes ?? nextSettings.prefixConfig?.prefixes ?? '.!/#').trim().slice(0, 20);
+        nextSettings.prefixConfig = {
+          prefixes: rawPrefixes || '.!/#',
+          cooldownSeconds: Math.max(0, Math.min(60, Number(payload.prefixConfig.cooldownSeconds ?? 3) || 0)),
+          spamLimit: Math.max(2, Math.min(30, Number(payload.prefixConfig.spamLimit ?? 5) || 5)),
+          spamCooldownSeconds: Math.max(5, Math.min(300, Number(payload.prefixConfig.spamCooldownSeconds ?? 15) || 15))
+        };
+      }
+
+      if (payload?.menuConfig && typeof payload.menuConfig === 'object') {
+        nextSettings.menuConfig = {
+          header: String(payload.menuConfig.header ?? nextSettings.menuConfig?.header ?? '').trim().slice(0, 200),
+          footer: String(payload.menuConfig.footer ?? nextSettings.menuConfig?.footer ?? '').trim().slice(0, 200),
+          thumbnailUrl: String(payload.menuConfig.thumbnailUrl ?? nextSettings.menuConfig?.thumbnailUrl ?? '').trim().slice(0, 400)
+        };
+      }
+
+      if (payload?.limitConfig && typeof payload.limitConfig === 'object') {
+        nextSettings.limitConfig = {
+          ...(nextSettings.limitConfig || {}),
+          defaultLimit: Math.max(1, Math.min(10000, parseInt(payload.limitConfig.defaultLimit ?? 25, 10) || 25)),
+          resetHourWib: Math.max(0, Math.min(23, parseInt(payload.limitConfig.resetHourWib ?? 0, 10) || 0)),
+          autoResetEnabled: Boolean(payload.limitConfig.autoResetEnabled ?? true)
+        };
+      }
+
       currentDatabase.settings = nextSettings;
       writeBotDatabaseAtomic(authenticatedGoogleId, currentDatabase);
 
@@ -1269,6 +1322,96 @@ export function registerSocketHandlers(io, coreModules) {
       emitUserStatsSnapshot(io, authenticatedGoogleId, currentDatabase);
       clientSocket.emit('settings:saved', { isSuccess: true, settings: nextSettings });
       emitLog(authenticatedGoogleId, 'SUCCESS', 'Konfigurasi bot berhasil diperbarui dari dashboard.');
+    });
+
+    // --- ekspor & impor konfigurasi bot milik user dalam format json ---
+    clientSocket.on('config:export', () => {
+      const exported = exportUserBotConfig(authenticatedGoogleId);
+      clientSocket.emit('config:export:result', { isSuccess: true, data: exported });
+    });
+
+    clientSocket.on('config:import', (payload) => {
+      try {
+        const updatedDb = importUserBotConfig(authenticatedGoogleId, payload?.config || payload);
+        const activeSession = activeBotSessions.get(authenticatedGoogleId);
+        const activeBotJid = activeSession?.socketInstance?.user?.jid;
+        if (activeBotJid) {
+          syncBotSettingsToGlobalDb(activeBotJid, updatedDb.settings);
+        }
+        emitUserStatsSnapshot(io, authenticatedGoogleId, updatedDb);
+        clientSocket.emit('config:import:result', { isSuccess: true, settings: updatedDb.settings });
+        emitLog(authenticatedGoogleId, 'SUCCESS', 'Konfigurasi bot berhasil diimpor dari file JSON.');
+      } catch (err) {
+        clientSocket.emit('config:import:result', { isSuccess: false, errorMessage: err.message });
+      }
+    });
+
+    // --- reset limit seluruh user 1-klik dari dashboard ---
+    clientSocket.on('manage:users:resetLimit', (payload) => {
+      const result = resetAllUsersLimit(io, authenticatedGoogleId, coreModules, payload?.defaultLimit);
+      io.to(`user_${authenticatedGoogleId}`).emit('manage:data', buildManagedEntitiesPayload(authenticatedGoogleId));
+      clientSocket.emit('manage:users:resetLimit:result', result);
+    });
+
+    // --- wa live chat inbox: muat daftar chat, tandai baca, dan balas langsung dari browser ---
+    clientSocket.on('inbox:list', () => {
+      clientSocket.emit('inbox:update', getLiveInboxSnapshot(authenticatedGoogleId));
+    });
+
+    clientSocket.on('inbox:read', (payload) => {
+      if (payload?.chatJid) {
+        markLiveInboxChatRead(io, authenticatedGoogleId, String(payload.chatJid));
+      }
+    });
+
+    clientSocket.on('inbox:reply', async (payload) => {
+      const targetJid = String(payload?.chatJid || '').trim();
+      const text = String(payload?.message || '').trim();
+      if (!targetJid || !text) {
+        clientSocket.emit('inbox:reply:result', { isSuccess: false, errorMessage: 'Tujuan dan isi pesan wajib diisi.' });
+        return;
+      }
+      const result = await sendDirectWhatsAppMessage(io, authenticatedGoogleId, {
+        targetJid,
+        mediaType: 'text',
+        message: text,
+        sourceRoute: '/api/whatsapp/live-inbox'
+      });
+      clientSocket.emit('inbox:reply:result', result);
+    });
+
+    // --- public live chat: ruang obrolan real-time antar seluruh user xu core ---
+    clientSocket.on('public:chat:list', () => {
+      clientSocket.emit('public:chat:history', getPublicChatMessages());
+    });
+
+    clientSocket.on('public:chat:send', (payload) => {
+      const cleanText = String(payload?.text || '').trim();
+      if (!cleanText) return;
+      const added = appendPublicChatMessage({
+        userId: authenticatedGoogleId,
+        name: sessionUser.givenName || sessionUser.fullName || 'User',
+        avatarUrl: sessionUser.pictureUrl || '',
+        isAdmin,
+        text: cleanText
+      });
+      if (added) {
+        io.emit('public:chat:message', added.item);
+      }
+    });
+
+    clientSocket.on('public:chat:delete', (payload) => {
+      if (!isAdmin) return;
+      const updated = deletePublicChatMessage(payload?.id);
+      if (updated) {
+        io.emit('public:chat:history', updated);
+      }
+    });
+
+    clientSocket.on('public:chat:clear', () => {
+      if (!isAdmin) return;
+      const empty = clearPublicChatMessages();
+      io.emit('public:chat:history', empty);
     });
 
     // --- toggle kategori fitur khusus untuk bot milik pengguna ---
