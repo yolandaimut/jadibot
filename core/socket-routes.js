@@ -21,17 +21,23 @@ import {
 } from './auth.js';
 import {
   addGlobalAnnouncement,
+  addPinnedCommunityMessage,
+  appendCommunityChatMessage,
   appendPublicChatMessage,
+  appendUserStickerUrls,
   appendWebhookDeliveryLog,
   calculateDirectorySizeBytes,
   changeLocalAccountPassword,
   clearAllGlobalAnnouncements,
   clearPublicChatMessages,
   clearWebhookDeliveryLogs,
+  createAutoWelcomeIfFirstVisit,
   createPasswordResetOtp,
   createVoucher,
+  deleteCommunityMessageAuthorized,
   deleteGlobalAnnouncementById,
   deletePublicChatMessage,
+  deleteUserAccountPermanently,
   deleteVoucher,
   exportUserBotConfig,
   extendUserSubscriptionAtomic,
@@ -40,16 +46,24 @@ import {
   formatBytesReadable,
   generateUserApiKey,
   getAllUsersGlobalMonitorSnapshot,
+  getCommunityMembersList,
   getGlobalAnnouncement,
   getGlobalAnnouncements,
+  getOrSyncUserProfile,
+  getPinnedCommunityMessages,
   getPublicChatMessages,
+  getUserStickerUrls,
   importUserBotConfig,
   isPlatformAdminUser,
   listVouchers,
   readBotDatabase,
   recordApiKeyUsage,
   redeemVoucherForUser,
+  removePinnedCommunityMessage,
+  removeUserStickerUrl,
   revokeUserApiKey,
+  toggleCommunityMessageReaction,
+  updateUserProfileAtomic,
   updateVoucher,
   verifyAndResetPasswordWithOtp,
   writeBotDatabaseAtomic
@@ -96,6 +110,10 @@ import {
   listUserQrisOrders,
   markOrderPaidAndExtend
 } from './qris-checkout.js';
+import {
+  resolveLocalUploadFilePath,
+  uploadMediaToSupabaseStorage
+} from './supabase-storage.js';
 import { runScheduledBackupNow } from './auto-backup.js';
 
 let systemMetricsInterval = null;
@@ -105,6 +123,7 @@ let activeCoreModules = null;
 let cachedVolumeSizeBytes = 0;
 let lastVolumeScanTimestamp = 0;
 let lastImmediateVelocityEmitMs = 0;
+const onlineCommunityUserIds = new Set();
 
 // --- pancarkan pembaruan daftar pengumuman ke semua klien (format baru & lama) ---
 function broadcastAnnouncementsUpdate(ioServer, announcementsList) {
@@ -386,6 +405,7 @@ export function registerHttpRoutes(app) {
 
   // --- daftarkan semua halaman html wajib login (kecuali /login) ---
   const protectedHtmlPages = [
+    { route: '/chat', file: 'chat.html' },
     { route: '/sewa-beli-paket', file: 'sewa-beli-paket.html' },
     { route: '/dokumentasi', file: 'dokumentasi.html' },
     { route: '/tutorial', file: 'tutorial.html' },
@@ -1006,6 +1026,185 @@ export function registerHttpRoutes(app) {
     }
   });
 
+  // --- layani file fallback lokal jika supabase storage tidak dikonfigurasi ---
+  app.get('/api/uploads/:folder/:ownerId/:fileName', (request, response) => {
+    const resolvedFile = resolveLocalUploadFilePath(
+      request.params.folder,
+      request.params.ownerId,
+      request.params.fileName
+    );
+    if (!resolvedFile || !fs.existsSync(resolvedFile)) {
+      return response.status(404).end();
+    }
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return response.sendFile(resolvedFile);
+  });
+
+  // --- ambil data profil akun saat ini beserta daftar url stiker user ---
+  app.get('/api/profile/me', requireAuthenticatedUserApi, (request, response) => {
+    try {
+      const isAdmin = isExclusiveAdminSession(request.sessionUser);
+      const profile = getOrSyncUserProfile(request.sessionUser, isAdmin);
+      const stickers = getUserStickerUrls(request.sessionUser.googleId);
+      return response.status(200).json({ isSuccess: true, profile, stickers, isAdmin });
+    } catch (err) {
+      return response.status(500).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
+  // --- perbarui nama akun (maks 20 karakter), handle discord/sosmed, dan avatar ke supabase ---
+  app.post('/api/profile/update', requireAuthenticatedUserApi, async (request, response) => {
+    try {
+      const userId = request.sessionUser.googleId;
+      const displayName = String(request.body?.displayName || '').trim();
+      const handle = request.body?.handle;
+      const avatarDataUrl = String(request.body?.avatarBase64 || '').trim();
+
+      if (displayName && displayName.length > 20) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'Nama akun maksimal 20 karakter.' });
+      }
+
+      let uploadedAvatarUrl = undefined;
+      if (avatarDataUrl) {
+        const uploaded = await uploadMediaToSupabaseStorage({
+          folder: 'avatars',
+          ownerId: userId,
+          dataUrl: avatarDataUrl,
+          maxBytes: 5 * 1024 * 1024
+        });
+        uploadedAvatarUrl = uploaded.url;
+      }
+
+      const updatedProfile = updateUserProfileAtomic(userId, {
+        displayName: displayName || undefined,
+        handle: typeof handle === 'string' ? handle : undefined,
+        avatarUrl: uploadedAvatarUrl
+      });
+
+      // --- perbarui cookie sesi agar nama dan avatar baru langsung sinkron di seluruh halaman ---
+      const refreshedToken = createSignedSessionToken({
+        ...request.sessionUser,
+        fullName: updatedProfile.displayName,
+        givenName: updatedProfile.displayName,
+        pictureUrl: updatedProfile.avatarUrl || request.sessionUser.pictureUrl
+      });
+      setSessionCookie(request, response, refreshedToken);
+
+      if (activeSocketIoServer) {
+        activeSocketIoServer.emit('community:members:update', getCommunityMembersList(onlineCommunityUserIds));
+      }
+
+      return response.status(200).json({ isSuccess: true, profile: updatedProfile });
+    } catch (err) {
+      return response.status(400).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
+  // --- hapus akun permanen dengan validasi dinamis persis format confirm ${sessionUser.fullName} ---
+  app.post('/api/account/delete', requireAuthenticatedUserApi, async (request, response) => {
+    try {
+      const sessionUser = request.sessionUser;
+      const isAdmin = isExclusiveAdminSession(sessionUser);
+      const currentProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+
+      const expectedSessionName = String(sessionUser.fullName || sessionUser.givenName || 'User').trim();
+      const expectedProfileName = String(currentProfile?.displayName || expectedSessionName).trim();
+      const validExpectedPhrases = new Set([
+        `confirm ${expectedSessionName}`,
+        `confirm ${expectedProfileName}`
+      ]);
+
+      const providedDynamicPhrase = String(
+        request.body?.verifiedDynamicPhrase || request.body?.confirmationText || ''
+      ).trim();
+
+      if (!validExpectedPhrases.has(providedDynamicPhrase)) {
+        return response.status(400).json({
+          isSuccess: false,
+          errorMessage: `Konfirmasi tidak cocok. Ketik persis: confirm ${expectedProfileName}`
+        });
+      }
+
+      const targetUserId = sessionUser.googleId;
+      await destroyBotSession(activeSocketIoServer, activeCoreModules || {}, targetUserId, true, 'ACCOUNT_DELETED');
+      deleteUserAccountPermanently(targetUserId);
+      onlineCommunityUserIds.delete(targetUserId);
+      clearSessionCookie(request, response);
+
+      if (activeSocketIoServer) {
+        activeSocketIoServer.to(`user_${targetUserId}`).emit('auth:expired', {
+          errorMessage: 'Akun Anda telah dihapus secara permanen.'
+        });
+        activeSocketIoServer.emit('community:members:update', getCommunityMembersList(onlineCommunityUserIds));
+      }
+
+      return response.status(200).json({ isSuccess: true, deleted: true });
+    } catch (err) {
+      return response.status(500).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
+  // --- unggah multi-stiker ke supabase storage dan simpan url saja di database.json ---
+  app.post('/api/stickers/upload', requireAuthenticatedUserApi, async (request, response) => {
+    try {
+      const items = Array.isArray(request.body?.stickers) ? request.body.stickers : [];
+      if (items.length === 0) {
+        return response.status(400).json({ isSuccess: false, errorMessage: 'Pilih minimal 1 gambar stiker.' });
+      }
+
+      const userId = request.sessionUser.googleId;
+      const uploadedStickers = [];
+
+      for (const rawDataUrl of items.slice(0, 12)) {
+        const uploaded = await uploadMediaToSupabaseStorage({
+          folder: 'stickers',
+          ownerId: userId,
+          dataUrl: rawDataUrl,
+          maxBytes: 4 * 1024 * 1024
+        });
+        uploadedStickers.push({ url: uploaded.url, createdAt: Date.now() });
+      }
+
+      const latestStickers = appendUserStickerUrls(userId, uploadedStickers);
+      return response.status(200).json({
+        isSuccess: true,
+        addedCount: uploadedStickers.length,
+        stickers: latestStickers
+      });
+    } catch (err) {
+      return response.status(400).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
+  // --- ambil daftar url stiker milik user untuk sinkronisasi lintas perangkat ---
+  app.get('/api/stickers/list', requireAuthenticatedUserApi, (request, response) => {
+    const stickers = getUserStickerUrls(request.sessionUser.googleId);
+    return response.status(200).json({ isSuccess: true, stickers });
+  });
+
+  // --- hapus stiker berdasarkan id dari koleksi user ---
+  app.delete('/api/stickers/:id', requireAuthenticatedUserApi, (request, response) => {
+    const stickers = removeUserStickerUrl(request.sessionUser.googleId, request.params.id);
+    return response.status(200).json({ isSuccess: true, stickers });
+  });
+
+  // --- unggah foto atau video lampiran room chat ke supabase storage ---
+  app.post('/api/chat/media/upload', requireAuthenticatedUserApi, async (request, response) => {
+    try {
+      const mediaType = request.body?.mediaType === 'video' ? 'video' : 'image';
+      const maxBytes = mediaType === 'video' ? 14 * 1024 * 1024 : 6 * 1024 * 1024;
+      const uploaded = await uploadMediaToSupabaseStorage({
+        folder: mediaType === 'video' ? 'chat-videos' : 'chat-images',
+        ownerId: request.sessionUser.googleId,
+        dataUrl: request.body?.dataUrl,
+        maxBytes
+      });
+      return response.status(200).json({ isSuccess: true, mediaType, url: uploaded.url });
+    } catch (err) {
+      return response.status(400).json({ isSuccess: false, errorMessage: err.message });
+    }
+  });
+
   app.get('/health', (_request, response) => {
     response.status(200).json({
       status: 'ok',
@@ -1043,6 +1242,145 @@ export function registerSocketHandlers(io, coreModules) {
     }
 
     syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser);
+
+    // --- sinkronisasi profil komunitas, status online, dan auto-welcome anggota baru ---
+    try {
+      const userCommunityProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+      onlineCommunityUserIds.add(authenticatedGoogleId);
+      const welcomeMessage = createAutoWelcomeIfFirstVisit(userCommunityProfile);
+      if (welcomeMessage) {
+        io.emit('community:message:new', welcomeMessage);
+      }
+      io.emit('community:members:update', getCommunityMembersList(onlineCommunityUserIds));
+    } catch (communityInitErr) {
+      console.error('[COMMUNITY SYNC ERROR]', communityInitErr.message);
+    }
+
+    clientSocket.on('disconnect', () => {
+      try {
+        const roomSockets = io.sockets.adapter.rooms.get(`user_${authenticatedGoogleId}`);
+        if (!roomSockets || roomSockets.size === 0) {
+          onlineCommunityUserIds.delete(authenticatedGoogleId);
+          io.emit('community:members:update', getCommunityMembersList(onlineCommunityUserIds));
+        }
+      } catch {
+        // --- abaikan error pembersihan status online ---
+      }
+    });
+
+    // --- kirim payload inisialisasi ruang xu core community saat halaman chat.html dibuka ---
+    clientSocket.on('community:init', () => {
+      try {
+        const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        clientSocket.emit('community:ready', {
+          profile: latestProfile,
+          isAdmin,
+          messages: getPublicChatMessages(),
+          pinnedMessages: getPinnedCommunityMessages(),
+          members: getCommunityMembersList(onlineCommunityUserIds),
+          stickers: getUserStickerUrls(authenticatedGoogleId)
+        });
+      } catch (initErr) {
+        clientSocket.emit('community:error', { errorMessage: initErr.message || 'Gagal memuat ruang komunitas.' });
+      }
+    });
+
+    // --- kirim pesan teks, foto, video, atau stiker ke ruang xu core community ---
+    clientSocket.on('community:message:send', (payload) => {
+      try {
+        const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const added = appendCommunityChatMessage({
+          userId: authenticatedGoogleId,
+          name: latestProfile?.displayName || sessionUser.givenName || 'Member',
+          handle: latestProfile?.handle || '',
+          avatarUrl: latestProfile?.avatarUrl || sessionUser.pictureUrl || '',
+          role: latestProfile?.role || (isAdmin ? 'DEVELOPER' : 'MEMBER'),
+          isAdmin,
+          type: payload?.type || 'text',
+          text: payload?.text || '',
+          mediaUrl: payload?.mediaUrl || '',
+          replyTo: payload?.replyTo || null
+        });
+        if (added) {
+          io.emit('community:message:new', added.item);
+        }
+      } catch (sendErr) {
+        clientSocket.emit('community:error', { errorMessage: sendErr.message || 'Gagal mengirim pesan komunitas.' });
+      }
+    });
+
+    // --- toggle emoji reaction pada pesan komunitas secara real-time ---
+    clientSocket.on('community:message:react', (payload) => {
+      try {
+        const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const updatedMsg = toggleCommunityMessageReaction(
+          String(payload?.messageId || '').trim(),
+          String(payload?.emoji || '').trim(),
+          latestProfile
+        );
+        if (updatedMsg) {
+          io.emit('community:message:reacted', {
+            messageId: updatedMsg.id,
+            reactions: updatedMsg.reactions
+          });
+        }
+      } catch (reactErr) {
+        clientSocket.emit('community:error', { errorMessage: reactErr.message || 'Gagal memperbarui reaksi.' });
+      }
+    });
+
+    // --- hapus pesan live chat real-time (member: milik sendiri, admin: full override) ---
+    clientSocket.on('community:message:delete', (payload) => {
+      try {
+        const result = deleteCommunityMessageAuthorized(
+          payload?.messageId,
+          authenticatedGoogleId,
+          isAdmin
+        );
+        if (!result.isSuccess) {
+          clientSocket.emit('community:error', { errorMessage: result.errorMessage });
+          return;
+        }
+        io.emit('community:message:deleted', {
+          messageId: result.deletedId,
+          pinnedMessages: result.pinnedMessages
+        });
+      } catch (delErr) {
+        clientSocket.emit('community:error', { errorMessage: delErr.message || 'Gagal menghapus pesan.' });
+      }
+    });
+
+    // --- sematkan atau lepas pesan disematkan (dikunci ketat khusus peran admin) ---
+    clientSocket.on('community:pin:add', (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('community:error', { errorMessage: 'Akses ditolak: hanya Admin yang dapat menyematkan pesan.' });
+        return;
+      }
+      try {
+        const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const pinnedMessages = addPinnedCommunityMessage({
+          messageId: payload?.messageId || '',
+          text: payload?.text || '',
+          pinnedBy: latestProfile?.displayName || 'Admin'
+        });
+        io.emit('community:pins:update', pinnedMessages);
+      } catch (err) {
+        clientSocket.emit('community:error', { errorMessage: err.message });
+      }
+    });
+
+    clientSocket.on('community:pin:remove', (payload) => {
+      if (!isAdmin) {
+        clientSocket.emit('community:error', { errorMessage: 'Akses ditolak: hanya Admin yang dapat melepas sematan.' });
+        return;
+      }
+      try {
+        const pinnedMessages = removePinnedCommunityMessage(String(payload?.pinId || '').trim());
+        io.emit('community:pins:update', pinnedMessages);
+      } catch (err) {
+        clientSocket.emit('community:error', { errorMessage: err.message });
+      }
+    });
 
     clientSocket.on('session:sync', () => {
       recordRealtimeActivityHit('WS', '/socket/session-sync');

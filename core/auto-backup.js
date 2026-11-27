@@ -1,1 +1,162 @@
-import e from"fs";import t from"path";import n from"archiver";import{PLUGINS_ROOT_DIR as s,SESSIONS_VOLUME_ROOT as i}from"./config.js";import{activeBotSessions as o}from"./session-manager.js";const a=Math.max(1,Number(process.env.AUTO_BACKUP_INTERVAL_HOURS||24)),r=String(process.env.ADMIN_WA_NUMBER||"62895415497664").replace(/\D/g,""),c=t.join(i,"_auto_backups");let l=null;export async function runScheduledBackupNow(){try{const{fileName:a,outputPath:l}=await async function(){e.existsSync(c)||e.mkdirSync(c,{recursive:!0});const o=`xu-core-autobackup-${(new Date).toISOString().replace(/[:.]/g,"-").slice(0,19)}.zip`,a=t.join(c,o);return await new Promise((o,r)=>{const c=e.createWriteStream(a),l=n("zip",{zlib:{level:6}});if(c.on("close",o),l.on("error",r),l.pipe(c),e.existsSync(s)&&l.directory(s,"plugins"),e.existsSync(i)){const n=e.readdirSync(i,{withFileTypes:!0});for(const s of n){if(!s.isDirectory()||s.name.startsWith("_"))continue;const n=t.join(i,s.name,"database.json");e.existsSync(n)&&l.file(n,{name:`databases/${s.name}/database.json`})}}l.finalize()}),{fileName:o,outputPath:a}}(),u=e.readFileSync(l),m=(u.length/1024).toFixed(1);let p=null;for(const e of o.values())if("CONNECTED"===e?.status&&e?.socketInstance){p=e.socketInstance;break}if(p&&r){const e=`${r}@s.whatsapp.net`;await p.sendMessage(e,{document:u,fileName:a,mimetype:"application/zip",caption:`Auto-Backup Xu Core berhasil (${m} KB).`}),console.log(`[AUTO-BACKUP] Arsip ${a} (${m} KB) terkirim ke WA Admin.`)}else console.log(`[AUTO-BACKUP] Arsip ${a} (${m} KB) tersimpan lokal (belum ada sesi WA online).`);return function(){try{if(!e.existsSync(c))return;const n=e.readdirSync(c).filter(e=>e.endsWith(".zip")).map(n=>({name:n,fullPath:t.join(c,n),mtime:e.statSync(t.join(c,n)).mtimeMs})).sort((e,t)=>t.mtime-e.mtime);for(const t of n.slice(3))e.unlinkSync(t.fullPath)}catch{}}(),{isSuccess:!0,fileName:a,sizeKb:m}}catch(e){return console.error(`[AUTO-BACKUP ERROR] ${e.message}`),{isSuccess:!1,errorMessage:e.message}}}export function startAutoBackupWorker(){l||(l=setInterval(()=>{runScheduledBackupNow().catch(()=>{})},60*a*60*1e3),"function"==typeof l.unref&&l.unref(),console.log(`[AUTO-BACKUP] Worker aktif setiap ${a} jam.`))}
+// --- worker auto-backup terjadwal (database.json & plugins) ke whatsapp admin ---
+import fs from 'fs';
+import path from 'path';
+import {
+  ADMIN_WA_NUMBER,
+  MAIN_DATABASE_FILE_PATH,
+  PLUGINS_ROOT_DIR,
+  SESSIONS_VOLUME_ROOT
+} from './config.js';
+import { scanPluginFilesRecursive } from './plugin-manager.js';
+import { activeBotSessions } from './session-manager.js';
+
+const DEFAULT_BACKUP_INTERVAL_HOURS = Math.max(1, Number(process.env.AUTO_BACKUP_INTERVAL_HOURS || 24));
+const CHECK_TICK_INTERVAL_MS = 30 * 60 * 1000;
+const BACKUP_TMP_DIR = path.join(SESSIONS_VOLUME_ROOT, '_auto_backups');
+const LAST_RUN_FILE_PATH = path.join(BACKUP_TMP_DIR, '.last_backup_at');
+
+let autoBackupTimerRef = null;
+let isBackupRunning = false;
+
+// --- baca timestamp backup terakhir agar jadwal tidak ter-reset saat server restart ---
+function readLastBackupTimestamp() {
+  try {
+    if (!fs.existsSync(LAST_RUN_FILE_PATH)) return 0;
+    return Number(fs.readFileSync(LAST_RUN_FILE_PATH, 'utf-8').trim()) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+// --- simpan timestamp backup terakhir secara persisten ---
+function writeLastBackupTimestamp(timestampMs) {
+  fs.mkdirSync(BACKUP_TMP_DIR, { recursive: true });
+  fs.writeFileSync(LAST_RUN_FILE_PATH, String(timestampMs), 'utf-8');
+}
+
+// --- bersihkan arsip backup lama agar hanya menyimpan 3 file terbaru ---
+function pruneOldBackupFiles() {
+  try {
+    if (!fs.existsSync(BACKUP_TMP_DIR)) return;
+    const files = fs
+      .readdirSync(BACKUP_TMP_DIR)
+      .filter((file) => file.endsWith('.zip'))
+      .map((file) => {
+        const fullPath = path.join(BACKUP_TMP_DIR, file);
+        return { name: file, fullPath, mtime: fs.statSync(fullPath).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+
+    for (const stale of files.slice(3)) {
+      fs.unlinkSync(stale.fullPath);
+    }
+  } catch {
+    // --- abaikan error pembersihan file lama ---
+  }
+}
+
+// --- buat arsip zip berisi database.json dan seluruh plugins menggunakan fflate ---
+async function buildPlatformBackupArchiveBuffer() {
+  const { zipSync } = await import('fflate');
+  const zipEntries = {};
+
+  if (fs.existsSync(MAIN_DATABASE_FILE_PATH)) {
+    zipEntries['database.json'] = new Uint8Array(fs.readFileSync(MAIN_DATABASE_FILE_PATH));
+  }
+
+  const pluginFiles = scanPluginFilesRecursive(PLUGINS_ROOT_DIR);
+  for (const relativePath of pluginFiles) {
+    const fullPluginPath = path.join(PLUGINS_ROOT_DIR, relativePath);
+    if (fs.existsSync(fullPluginPath)) {
+      zipEntries[`plugins/${relativePath}`] = new Uint8Array(fs.readFileSync(fullPluginPath));
+    }
+  }
+
+  const archiveBuffer = Buffer.from(zipSync(zipEntries, { level: 6 }));
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const fileName = `xu-core-autobackup-${stamp}.zip`;
+
+  fs.mkdirSync(BACKUP_TMP_DIR, { recursive: true });
+  fs.writeFileSync(path.join(BACKUP_TMP_DIR, fileName), archiveBuffer);
+
+  return { fileName, archiveBuffer, pluginCount: pluginFiles.length };
+}
+
+// --- jalankan satu siklus backup dan kirim dokumen zip ke whatsapp admin ---
+export async function runScheduledBackupNow() {
+  if (isBackupRunning) {
+    return { isSuccess: false, errorMessage: 'Proses backup sedang berjalan.' };
+  }
+
+  isBackupRunning = true;
+  try {
+    const { fileName, archiveBuffer, pluginCount } = await buildPlatformBackupArchiveBuffer();
+    const sizeKb = (archiveBuffer.length / 1024).toFixed(1);
+    const adminNumber = String(process.env.ADMIN_WA_NUMBER || ADMIN_WA_NUMBER || '').replace(/\D/g, '');
+
+    let senderClient = null;
+    for (const session of activeBotSessions.values()) {
+      if (session?.status === 'CONNECTED' && session?.socketInstance) {
+        senderClient = session.socketInstance;
+        break;
+      }
+    }
+
+    if (!senderClient) {
+      console.log(`[AUTO-BACKUP] Arsip ${fileName} (${sizeKb} KB) tersimpan lokal (belum ada sesi WA online).`);
+      pruneOldBackupFiles();
+      return { isSuccess: true, sentToWhatsapp: false, fileName, sizeKb };
+    }
+
+    if (!adminNumber) {
+      return { isSuccess: false, errorMessage: 'Nomor WhatsApp admin belum dikonfigurasi.' };
+    }
+
+    const targetJid = `${adminNumber}@s.whatsapp.net`;
+    await senderClient.sendMessage(targetJid, {
+      document: archiveBuffer,
+      fileName,
+      mimetype: 'application/zip',
+      caption: `Auto-Backup Xu Core berhasil.\nFile: ${fileName}\nPlugin: ${pluginCount} file\nUkuran: ${sizeKb} KB`
+    });
+
+    writeLastBackupTimestamp(Date.now());
+    pruneOldBackupFiles();
+    console.log(`[AUTO-BACKUP] Arsip ${fileName} (${sizeKb} KB) terkirim ke WA Admin (${adminNumber}).`);
+
+    return { isSuccess: true, sentToWhatsapp: true, fileName, sizeKb };
+  } catch (err) {
+    console.error(`[AUTO-BACKUP ERROR] ${err.message}`);
+    return { isSuccess: false, errorMessage: err.message };
+  } finally {
+    isBackupRunning = false;
+  }
+}
+
+// --- cek apakah sudah waktunya menjalankan auto-backup terjadwal ---
+async function checkAndRunBackupIfDue() {
+  const intervalMs = DEFAULT_BACKUP_INTERVAL_HOURS * 60 * 60 * 1000;
+  const lastRunAt = readLastBackupTimestamp();
+  if (Date.now() - lastRunAt < intervalMs) return;
+  await runScheduledBackupNow();
+}
+
+// --- mulai interval worker auto-backup yang tahan terhadap restart server ---
+export function startAutoBackupWorker() {
+  if (autoBackupTimerRef) return;
+
+  // --- cek pertama 60 detik setelah boot agar sesi whatsapp sempat terkoneksi dulu ---
+  setTimeout(() => {
+    checkAndRunBackupIfDue().catch(() => {});
+  }, 60 * 1000).unref();
+
+  autoBackupTimerRef = setInterval(() => {
+    checkAndRunBackupIfDue().catch(() => {});
+  }, CHECK_TICK_INTERVAL_MS);
+
+  if (typeof autoBackupTimerRef.unref === 'function') {
+    autoBackupTimerRef.unref();
+  }
+
+  console.log(`[AUTO-BACKUP] Worker aktif (interval ${DEFAULT_BACKUP_INTERVAL_HOURS} jam, cek tiap 30 menit).`);
+}

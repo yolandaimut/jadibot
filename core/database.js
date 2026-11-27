@@ -15,7 +15,9 @@ import {
 const ALLOWED_ANNOUNCEMENT_CATEGORIES = ['INFO', 'SUCCESS', 'WARN', 'DANGER'];
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
-const MAX_PUBLIC_CHAT_HISTORY = 80;
+const MAX_PUBLIC_CHAT_HISTORY = 120;
+const MAX_STICKERS_PER_USER = 60;
+const MAX_PINNED_MESSAGES = 10;
 
 // --- format ukuran byte ke satuan mudah dibaca ---
 export function formatBytesReadable(bytes) {
@@ -109,6 +111,9 @@ export function readMasterDatabaseFile() {
     vouchers: {},
     passwordOtps: {},
     publicChatMessages: [],
+    pinnedMessages: [],
+    userProfiles: {},
+    communityWelcomedIds: [],
     announcement: { text: '', level: 'info', updatedAt: 0 },
     announcements: []
   };
@@ -139,6 +144,15 @@ export function readMasterDatabaseFile() {
       publicChatMessages: Array.isArray(parsedContent.publicChatMessages)
         ? parsedContent.publicChatMessages.slice(-MAX_PUBLIC_CHAT_HISTORY)
         : [],
+      pinnedMessages: Array.isArray(parsedContent.pinnedMessages)
+        ? parsedContent.pinnedMessages.slice(0, MAX_PINNED_MESSAGES)
+        : [],
+      userProfiles: parsedContent.userProfiles && typeof parsedContent.userProfiles === 'object'
+        ? parsedContent.userProfiles
+        : {},
+      communityWelcomedIds: Array.isArray(parsedContent.communityWelcomedIds)
+        ? parsedContent.communityWelcomedIds
+        : [],
       announcement: parsedContent.announcement && typeof parsedContent.announcement === 'object'
         ? parsedContent.announcement
         : defaultMaster.announcement,
@@ -157,7 +171,7 @@ export function writeMasterDatabaseFileAtomic(masterDatabaseObject) {
   fs.renameSync(tempFilePath, MAIN_DATABASE_FILE_PATH);
 }
 
-// --- manajemen ruang public live chat untuk seluruh user xu core ---
+// --- manajemen ruang public live chat & komunitas xu core ---
 export function getPublicChatMessages() {
   const masterDb = readMasterDatabaseFile();
   return Array.isArray(masterDb.publicChatMessages)
@@ -182,9 +196,15 @@ export function appendPublicChatMessage({
     id: `pub_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     userId: String(userId).trim(),
     name: String(name || 'User').trim().slice(0, 48),
-    avatarUrl: String(avatarUrl || '').trim().slice(0, 320),
+    handle: '',
+    avatarUrl: String(avatarUrl || '').trim().slice(0, 400),
+    role: isAdmin ? 'DEVELOPER' : 'MEMBER',
     isAdmin: Boolean(isAdmin),
+    type: 'text',
     text: cleanText,
+    mediaUrl: '',
+    replyTo: null,
+    reactions: [],
     timestamp: Date.now()
   };
 
@@ -212,6 +232,520 @@ export function clearPublicChatMessages() {
   masterDb.publicChatMessages = [];
   writeMasterDatabaseFileAtomic(masterDb);
   return [];
+}
+
+// --- sinkronisasi & manajemen profil akun user untuk settings profile dan komunitas ---
+export function getOrSyncUserProfile(sessionUser, isAdmin = false) {
+  const userId = String(sessionUser?.googleId || '').trim();
+  if (!userId) return null;
+
+  const masterDb = readMasterDatabaseFile();
+  masterDb.userProfiles = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+
+  const existingProfile = masterDb.userProfiles[userId];
+  const resolvedRole = isAdmin ? 'DEVELOPER' : 'MEMBER';
+  const sessionEmail = String(sessionUser?.email || '').trim().toLowerCase();
+  const sessionFullName = String(sessionUser?.fullName || sessionUser?.givenName || 'Member').trim().slice(0, 60);
+  const defaultDisplayName = String(sessionUser?.givenName || sessionFullName || 'Member').trim().slice(0, 20);
+  const sessionAvatar = String(sessionUser?.pictureUrl || '').trim().slice(0, 400);
+
+  if (!existingProfile) {
+    const newProfile = {
+      userId,
+      email: sessionEmail,
+      fullName: sessionFullName,
+      displayName: defaultDisplayName,
+      handle: '',
+      avatarUrl: sessionAvatar,
+      role: resolvedRole,
+      isAdmin: Boolean(isAdmin),
+      stickers: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    masterDb.userProfiles[userId] = newProfile;
+    writeMasterDatabaseFileAtomic(masterDb);
+    return newProfile;
+  }
+
+  let hasProfileChanges = false;
+  const nextProfile = {
+    ...existingProfile,
+    userId,
+    stickers: Array.isArray(existingProfile.stickers) ? existingProfile.stickers : []
+  };
+
+  if (nextProfile.isAdmin !== Boolean(isAdmin) || nextProfile.role !== resolvedRole) {
+    nextProfile.isAdmin = Boolean(isAdmin);
+    nextProfile.role = resolvedRole;
+    hasProfileChanges = true;
+  }
+  if (!nextProfile.email && sessionEmail) {
+    nextProfile.email = sessionEmail;
+    hasProfileChanges = true;
+  }
+  if (!nextProfile.fullName && sessionFullName) {
+    nextProfile.fullName = sessionFullName;
+    hasProfileChanges = true;
+  }
+  if (!nextProfile.displayName) {
+    nextProfile.displayName = defaultDisplayName;
+    hasProfileChanges = true;
+  }
+  if (!nextProfile.avatarUrl && sessionAvatar) {
+    nextProfile.avatarUrl = sessionAvatar;
+    hasProfileChanges = true;
+  }
+
+  if (hasProfileChanges) {
+    nextProfile.updatedAt = Date.now();
+    masterDb.userProfiles[userId] = nextProfile;
+    writeMasterDatabaseFileAtomic(masterDb);
+  }
+
+  return nextProfile;
+}
+
+// --- perbarui nama akun (maks 20 karakter), handle discord/sosmed, dan url avatar secara atomic ---
+export function updateUserProfileAtomic(userId, { displayName, handle, avatarUrl } = {}) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) {
+    throw new Error('User ID tidak valid.');
+  }
+
+  const masterDb = readMasterDatabaseFile();
+  masterDb.userProfiles = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+
+  const existingProfile = masterDb.userProfiles[cleanUserId] || {
+    userId: cleanUserId,
+    email: '',
+    fullName: 'Member',
+    displayName: 'Member',
+    handle: '',
+    avatarUrl: '',
+    role: isPlatformAdminById(cleanUserId) ? 'DEVELOPER' : 'MEMBER',
+    isAdmin: isPlatformAdminById(cleanUserId),
+    stickers: [],
+    createdAt: Date.now()
+  };
+
+  const nextProfile = {
+    ...existingProfile,
+    stickers: Array.isArray(existingProfile.stickers) ? existingProfile.stickers : []
+  };
+
+  if (typeof displayName === 'string' && displayName.trim()) {
+    const cleanDisplayName = displayName.trim();
+    if (cleanDisplayName.length > 20) {
+      throw new Error('Nama akun maksimal 20 karakter.');
+    }
+    nextProfile.displayName = cleanDisplayName;
+    nextProfile.fullName = cleanDisplayName;
+  }
+
+  if (typeof handle === 'string') {
+    const sanitizedHandle = handle.trim().replace(/\s+/g, '').slice(0, 32);
+    nextProfile.handle = sanitizedHandle;
+  }
+
+  if (typeof avatarUrl === 'string' && avatarUrl.trim()) {
+    nextProfile.avatarUrl = avatarUrl.trim().slice(0, 450);
+  }
+
+  nextProfile.updatedAt = Date.now();
+  masterDb.userProfiles[cleanUserId] = nextProfile;
+
+  // --- sinkronkan juga nama terbaru ke akun lokal jika terdaftar di authAccounts ---
+  if (nextProfile.email && masterDb.authAccounts?.[nextProfile.email]) {
+    masterDb.authAccounts[nextProfile.email] = {
+      ...masterDb.authAccounts[nextProfile.email],
+      fullName: nextProfile.displayName,
+      givenName: nextProfile.displayName
+    };
+  }
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return nextProfile;
+}
+
+// --- hapus seluruh data akun user secara permanen dari database.json ---
+export function deleteUserAccountPermanently(userId) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return false;
+
+  const masterDb = readMasterDatabaseFile();
+
+  if (masterDb.users && masterDb.users[cleanUserId]) {
+    delete masterDb.users[cleanUserId];
+  }
+  if (masterDb.userProfiles && masterDb.userProfiles[cleanUserId]) {
+    delete masterDb.userProfiles[cleanUserId];
+  }
+
+  if (masterDb.authAccounts && typeof masterDb.authAccounts === 'object') {
+    for (const [emailKey, accountObj] of Object.entries(masterDb.authAccounts)) {
+      if (accountObj?.userId === cleanUserId) {
+        delete masterDb.authAccounts[emailKey];
+      }
+    }
+  }
+
+  if (masterDb.passwordOtps && typeof masterDb.passwordOtps === 'object') {
+    for (const [emailKey, otpObj] of Object.entries(masterDb.passwordOtps)) {
+      if (otpObj?.userId === cleanUserId) {
+        delete masterDb.passwordOtps[emailKey];
+      }
+    }
+  }
+
+  if (Array.isArray(masterDb.platformAdmins)) {
+    masterDb.platformAdmins = masterDb.platformAdmins.filter((id) => id !== cleanUserId);
+  }
+  if (Array.isArray(masterDb.communityWelcomedIds)) {
+    masterDb.communityWelcomedIds = masterDb.communityWelcomedIds.filter((id) => id !== cleanUserId);
+  }
+
+  if (Array.isArray(masterDb.publicChatMessages)) {
+    masterDb.publicChatMessages = masterDb.publicChatMessages.map((msg) => {
+      if (!Array.isArray(msg?.reactions)) return msg;
+      return {
+        ...msg,
+        reactions: msg.reactions.filter((reaction) => reaction.userId !== cleanUserId)
+      };
+    });
+  }
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return true;
+}
+
+// --- manajemen koleksi url stiker hibrida per user (hanya simpan string url supabase) ---
+export function getUserStickerUrls(userId) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return [];
+  const masterDb = readMasterDatabaseFile();
+  const stickers = masterDb.userProfiles?.[cleanUserId]?.stickers;
+  return Array.isArray(stickers) ? stickers : [];
+}
+
+export function appendUserStickerUrls(userId, newStickersList = []) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return [];
+
+  const masterDb = readMasterDatabaseFile();
+  masterDb.userProfiles = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+
+  const existingProfile = masterDb.userProfiles[cleanUserId] || {
+    userId: cleanUserId,
+    displayName: 'Member',
+    fullName: 'Member',
+    role: isPlatformAdminById(cleanUserId) ? 'DEVELOPER' : 'MEMBER',
+    isAdmin: isPlatformAdminById(cleanUserId),
+    stickers: []
+  };
+
+  const currentStickers = Array.isArray(existingProfile.stickers) ? existingProfile.stickers : [];
+  const existingUrlsSet = new Set(currentStickers.map((entry) => entry.url));
+
+  const validIncoming = (Array.isArray(newStickersList) ? newStickersList : [])
+    .filter((item) => item && typeof item.url === 'string' && item.url.trim() && !existingUrlsSet.has(item.url.trim()))
+    .map((item) => ({
+      id: String(item.id || `stk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
+      url: item.url.trim().slice(0, 500),
+      createdAt: Number(item.createdAt || Date.now())
+    }));
+
+  const mergedStickers = [...validIncoming, ...currentStickers].slice(0, MAX_STICKERS_PER_USER);
+  masterDb.userProfiles[cleanUserId] = {
+    ...existingProfile,
+    stickers: mergedStickers,
+    updatedAt: Date.now()
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return mergedStickers;
+}
+
+export function removeUserStickerUrl(userId, stickerId) {
+  const cleanUserId = String(userId || '').trim();
+  const targetStickerId = String(stickerId || '').trim();
+  if (!cleanUserId) return [];
+
+  const masterDb = readMasterDatabaseFile();
+  const existingProfile = masterDb.userProfiles?.[cleanUserId];
+  if (!existingProfile || !Array.isArray(existingProfile.stickers)) return [];
+
+  const nextStickers = existingProfile.stickers.filter((item) => item.id !== targetStickerId);
+  masterDb.userProfiles[cleanUserId] = {
+    ...existingProfile,
+    stickers: nextStickers,
+    updatedAt: Date.now()
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return nextStickers;
+}
+
+// --- susun daftar anggota komunitas lengkap dengan status online dan peran ---
+export function getCommunityMembersList(onlineUserIdsSet = new Set()) {
+  const masterDb = readMasterDatabaseFile();
+  const profilesMap = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+
+  const members = Object.values(profilesMap)
+    .filter((profile) => profile && profile.userId)
+    .map((profile) => ({
+      userId: profile.userId,
+      displayName: profile.displayName || profile.fullName || 'Member',
+      handle: profile.handle || '',
+      avatarUrl: profile.avatarUrl || '',
+      role: profile.isAdmin || String(profile.role || '').toUpperCase() === 'DEVELOPER' ? 'DEVELOPER' : 'MEMBER',
+      isAdmin: Boolean(profile.isAdmin || String(profile.role || '').toUpperCase() === 'DEVELOPER'),
+      isOnline: onlineUserIdsSet instanceof Set ? onlineUserIdsSet.has(profile.userId) : false
+    }));
+
+  members.sort((a, b) => {
+    if (a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1;
+    if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+    return String(a.displayName).localeCompare(String(b.displayName));
+  });
+
+  return members;
+}
+
+// --- buat kartu ucapan selamat datang otomatis saat anggota pertama kali mengunjungi komunitas ---
+export function createAutoWelcomeIfFirstVisit(userProfile) {
+  const userId = String(userProfile?.userId || '').trim();
+  if (!userId) return null;
+
+  const masterDb = readMasterDatabaseFile();
+  const welcomedList = Array.isArray(masterDb.communityWelcomedIds) ? masterDb.communityWelcomedIds : [];
+  if (welcomedList.includes(userId)) {
+    return null;
+  }
+
+  const totalMembers = Math.max(1, Object.keys(masterDb.userProfiles || {}).length);
+  const targetName = String(userProfile.displayName || userProfile.fullName || 'Anggota Baru').trim().slice(0, 48);
+  const nowMs = Date.now();
+
+  const welcomeEntry = {
+    id: `wlc_${nowMs}_${Math.random().toString(36).slice(2, 7)}`,
+    userId: 'system_xucore_bot',
+    name: 'Xu Core Bot',
+    handle: '@xucore',
+    avatarUrl: '',
+    role: 'BOT',
+    isAdmin: true,
+    type: 'welcome',
+    isWelcome: true,
+    welcomeTargetUserId: userId,
+    welcomeTargetName: targetName,
+    welcomeTargetAvatar: String(userProfile.avatarUrl || '').trim().slice(0, 450),
+    text: `Halo ${targetName}, selamat bergabung di Xu Core Community! Sekarang kita ${totalMembers} anggota.`,
+    mediaUrl: '',
+    replyTo: null,
+    reactions: [],
+    timestamp: nowMs
+  };
+
+  masterDb.communityWelcomedIds = [...welcomedList, userId];
+  const currentMessages = Array.isArray(masterDb.publicChatMessages) ? masterDb.publicChatMessages : [];
+  masterDb.publicChatMessages = [...currentMessages, welcomeEntry].slice(-MAX_PUBLIC_CHAT_HISTORY);
+  writeMasterDatabaseFileAtomic(masterDb);
+
+  return welcomeEntry;
+}
+
+// --- tambahkan pesan teks, foto, video, atau stiker ke ruang xu core community ---
+export function appendCommunityChatMessage({
+  userId = '',
+  name = 'Member',
+  handle = '',
+  avatarUrl = '',
+  role = 'MEMBER',
+  isAdmin = false,
+  type = 'text',
+  text = '',
+  mediaUrl = '',
+  replyTo = null
+} = {}) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return null;
+
+  const allowedTypes = ['text', 'image', 'video', 'sticker'];
+  const normalizedType = allowedTypes.includes(String(type || 'text').toLowerCase())
+    ? String(type).toLowerCase()
+    : 'text';
+
+  const cleanText = String(text || '').trim().slice(0, 600);
+  const cleanMediaUrl = String(mediaUrl || '').trim().slice(0, 500);
+
+  if (normalizedType === 'text' && !cleanText) return null;
+  if (normalizedType !== 'text' && !cleanMediaUrl) return null;
+
+  const cleanReplyTo = replyTo && typeof replyTo === 'object' && replyTo.id
+    ? {
+        id: String(replyTo.id).trim().slice(0, 80),
+        name: String(replyTo.name || 'Member').trim().slice(0, 48),
+        text: String(replyTo.text || '').trim().slice(0, 140)
+      }
+    : null;
+
+  const masterDb = readMasterDatabaseFile();
+  const currentList = Array.isArray(masterDb.publicChatMessages) ? masterDb.publicChatMessages : [];
+
+  const chatEntry = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    userId: cleanUserId,
+    name: String(name || 'Member').trim().slice(0, 48),
+    handle: String(handle || '').trim().slice(0, 32),
+    avatarUrl: String(avatarUrl || '').trim().slice(0, 450),
+    role: isAdmin || String(role || '').toUpperCase() === 'DEVELOPER' ? 'DEVELOPER' : 'MEMBER',
+    isAdmin: Boolean(isAdmin),
+    type: normalizedType,
+    text: cleanText,
+    mediaUrl: cleanMediaUrl,
+    replyTo: cleanReplyTo,
+    reactions: [],
+    timestamp: Date.now()
+  };
+
+  masterDb.publicChatMessages = [...currentList, chatEntry].slice(-MAX_PUBLIC_CHAT_HISTORY);
+  writeMasterDatabaseFileAtomic(masterDb);
+  return { item: chatEntry, list: masterDb.publicChatMessages };
+}
+
+// --- toggle emoji reaction pada pesan komunitas (klik emoji sama untuk menghapus) ---
+export function toggleCommunityMessageReaction(messageId, emojiChar, actorProfile) {
+  const targetMessageId = String(messageId || '').trim();
+  const cleanEmoji = String(emojiChar || '').trim().slice(0, 16);
+  const actorUserId = String(actorProfile?.userId || '').trim();
+
+  if (!targetMessageId || !cleanEmoji || !actorUserId) return null;
+
+  const masterDb = readMasterDatabaseFile();
+  const messagesList = Array.isArray(masterDb.publicChatMessages) ? masterDb.publicChatMessages : [];
+  const targetIndex = messagesList.findIndex((msg) => msg?.id === targetMessageId);
+  if (targetIndex === -1) return null;
+
+  const targetMsg = messagesList[targetIndex];
+  const existingReactions = Array.isArray(targetMsg.reactions) ? [...targetMsg.reactions] : [];
+  const existingUserIndex = existingReactions.findIndex((r) => r.userId === actorUserId);
+
+  if (existingUserIndex !== -1 && existingReactions[existingUserIndex].emoji === cleanEmoji) {
+    existingReactions.splice(existingUserIndex, 1);
+  } else {
+    const newReaction = {
+      userId: actorUserId,
+      name: String(actorProfile.displayName || actorProfile.fullName || 'Member').trim().slice(0, 48),
+      avatarUrl: String(actorProfile.avatarUrl || '').trim().slice(0, 450),
+      emoji: cleanEmoji,
+      reactedAt: Date.now()
+    };
+
+    if (existingUserIndex !== -1) {
+      existingReactions[existingUserIndex] = newReaction;
+    } else {
+      existingReactions.push(newReaction);
+    }
+  }
+
+  const updatedMsg = {
+    ...targetMsg,
+    reactions: existingReactions
+  };
+  messagesList[targetIndex] = updatedMsg;
+  masterDb.publicChatMessages = messagesList;
+  writeMasterDatabaseFileAtomic(masterDb);
+
+  return updatedMsg;
+}
+
+// --- hapus pesan live chat berbasis peran (member: milik sendiri, admin: full override) ---
+export function deleteCommunityMessageAuthorized(messageId, actorUserId, isAdmin = false) {
+  const targetId = String(messageId || '').trim();
+  const cleanActorId = String(actorUserId || '').trim();
+  if (!targetId || !cleanActorId) {
+    return { isSuccess: false, errorMessage: 'ID pesan tidak valid.' };
+  }
+
+  const masterDb = readMasterDatabaseFile();
+  const messagesList = Array.isArray(masterDb.publicChatMessages) ? masterDb.publicChatMessages : [];
+  const targetMsg = messagesList.find((msg) => msg?.id === targetId);
+
+  if (!targetMsg) {
+    return { isSuccess: false, errorMessage: 'Pesan tidak ditemukan atau sudah dihapus.' };
+  }
+
+  const isOwnerOfMessage = targetMsg.userId === cleanActorId;
+  if (!isAdmin && !isOwnerOfMessage) {
+    return { isSuccess: false, errorMessage: 'Akses ditolak: Anda hanya dapat menghapus pesan Anda sendiri.' };
+  }
+
+  masterDb.publicChatMessages = messagesList.filter((msg) => msg?.id !== targetId);
+  masterDb.pinnedMessages = (Array.isArray(masterDb.pinnedMessages) ? masterDb.pinnedMessages : []).filter(
+    (pin) => pin?.messageId !== targetId
+  );
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return {
+    isSuccess: true,
+    deletedId: targetId,
+    pinnedMessages: masterDb.pinnedMessages
+  };
+}
+
+// --- manajemen daftar pesan disematkan komunitas (modifikasi khusus admin) ---
+export function getPinnedCommunityMessages() {
+  const masterDb = readMasterDatabaseFile();
+  return Array.isArray(masterDb.pinnedMessages)
+    ? masterDb.pinnedMessages.slice(0, MAX_PINNED_MESSAGES)
+    : [];
+}
+
+export function addPinnedCommunityMessage({ messageId = '', text = '', pinnedBy = 'Admin' } = {}) {
+  const cleanText = String(text || '').trim().slice(0, 400);
+  if (!cleanText) {
+    throw new Error('Isi pesan yang disematkan tidak boleh kosong.');
+  }
+
+  const cleanMessageId = String(messageId || '').trim().slice(0, 80);
+  const masterDb = readMasterDatabaseFile();
+  const currentPins = Array.isArray(masterDb.pinnedMessages) ? masterDb.pinnedMessages : [];
+
+  const filteredPins = cleanMessageId
+    ? currentPins.filter((pin) => pin?.messageId !== cleanMessageId)
+    : currentPins;
+
+  const newPinItem = {
+    id: `pin_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    messageId: cleanMessageId,
+    text: cleanText,
+    pinnedBy: String(pinnedBy || 'Admin').trim().slice(0, 48),
+    pinnedAt: Date.now()
+  };
+
+  masterDb.pinnedMessages = [newPinItem, ...filteredPins].slice(0, MAX_PINNED_MESSAGES);
+  writeMasterDatabaseFileAtomic(masterDb);
+  return masterDb.pinnedMessages;
+}
+
+export function removePinnedCommunityMessage(pinId) {
+  const targetPinId = String(pinId || '').trim();
+  const masterDb = readMasterDatabaseFile();
+  const currentPins = Array.isArray(masterDb.pinnedMessages) ? masterDb.pinnedMessages : [];
+  const nextPins = currentPins.filter((pin) => pin?.id !== targetPinId);
+
+  masterDb.pinnedMessages = nextPins;
+  writeMasterDatabaseFileAtomic(masterDb);
+  return nextPins;
 }
 
 // --- cari akun login lokal berdasarkan alamat email ---
