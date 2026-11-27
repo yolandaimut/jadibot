@@ -298,6 +298,27 @@
       }
     }
 
+    /* --- efek highlight visual sesaat pada bubble saat melompat dari pin atau kutipan --- */
+    @keyframes messageJumpGlow {
+      0% {
+        background-color: var(--accent-soft);
+        box-shadow: 0 0 0 2px var(--accent-border), 0 0 26px var(--accent-glow);
+      }
+      70% {
+        background-color: var(--accent-soft);
+        box-shadow: 0 0 0 2px var(--accent-border), 0 0 18px var(--accent-glow);
+      }
+      100% {
+        background-color: transparent;
+        box-shadow: none;
+      }
+    }
+
+    .message-jump-highlight {
+      border-radius: 1rem;
+      animation: messageJumpGlow 1.75s ease-out forwards;
+    }
+
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
@@ -403,8 +424,8 @@
           </div>
         </div>
 
-        <!-- --- bar pesan disematkan melayang --- -->
-        <div id="communityPinnedBar" onclick="cyclePinnedMessageBanner(event)" role="button" tabindex="0" class="hidden chat-glass-bar rounded-2xl border border-amber-500/30 hover:border-amber-400/50 px-3.5 py-2 flex items-center justify-between gap-2.5 cursor-pointer transition-all">
+        <!-- --- bar pesan disematkan melayang dengan lompatan instan ke pesan asli --- -->
+        <div id="communityPinnedBar" onclick="navigateToActivePinnedMessage(event)" role="button" tabindex="0" class="hidden chat-glass-bar rounded-2xl border border-amber-500/30 hover:border-amber-400/50 px-3 py-2 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.99]">
           <div class="flex items-center gap-2.5 min-w-0 flex-1">
             <div class="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center shrink-0">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
@@ -414,9 +435,15 @@
               <p id="communityPinnedPreviewText" class="text-xs text-slate-200 truncate mt-0.5">-</p>
             </div>
           </div>
-          <button type="button" onclick="event.stopPropagation(); openPinnedMessagesModal();" class="px-2.5 py-1 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code font-semibold text-slate-300 shrink-0">
-            Lihat
-          </button>
+
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="communityPinnedNextBtn" type="button" onclick="cyclePinnedMessageBanner(event)" title="Pesan disematkan berikutnya" aria-label="Pin Berikutnya" class="hidden w-7 h-7 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-amber-300 items-center justify-center transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <button type="button" onclick="event.stopPropagation(); openPinnedMessagesModal();" class="px-2.5 py-1 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono-code font-semibold text-slate-300 shrink-0">
+              Lihat
+            </button>
+          </div>
         </div>
       </header>
 
@@ -446,15 +473,20 @@
           <span id="chatMediaUploadStatusText" class="text-slate-200 font-mono-code text-[11px] truncate">Mengunggah media ke Supabase Storage...</span>
         </div>
 
-        <div id="communityReplyPreviewBar" class="hidden rounded-xl bg-slate-900/95 border border-slate-800 border-l-2 border-l-[var(--accent-main)] px-3 py-2 flex items-center justify-between gap-2 text-xs">
-          <div class="min-w-0 flex-1">
-            <p class="text-[10px] font-mono-code accent-text font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
-            <p id="communityReplyPreviewText" class="text-[11px] text-slate-400 truncate mt-0.5">-</p>
+        <!-- --- pratinjau kutipan balasan dengan thumbnail media mini di sisi kiri --- -->
+        <div id="communityReplyPreviewBar" class="hidden rounded-2xl bg-slate-900/95 border border-slate-800 border-l-2 border-l-[var(--accent-main)] px-2.5 py-2 flex items-center justify-between gap-2.5 text-xs">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <div id="communityReplyPreviewThumbWrap" class="hidden w-10 h-10 rounded-lg overflow-hidden border border-slate-700/80 bg-slate-950 shrink-0 relative"></div>
+            <div class="min-w-0 flex-1">
+              <p class="text-[10px] font-mono-code accent-text font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
+              <p id="communityReplyPreviewText" class="text-[11px] text-slate-300 truncate mt-0.5">-</p>
+            </div>
           </div>
-          <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
+          <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
+
       </div>
 
       <!-- --- area input pesan bawah beserta popup lampiran --- -->
@@ -626,34 +658,70 @@
     </div>
   </div>
 
-  <!-- --- popup floating emoji reaction & aksi hapus/sematkan di atas gelembung pesan --- -->
+  <!-- --- overlay mode seleksi pesan: top action bar dinamis & pill emoji ramping ala whatsapp --- -->
   <div id="floatingMessageActionOverlay" onclick="if (event.target === this) closeMessageActionPopup()" class="fixed inset-0 z-50 hidden bg-black/45 backdrop-blur-[2px]">
-    <div id="floatingReactionBar" class="popup-enter fixed left-3 top-24 rounded-2xl bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_18px_48px_rgba(0,0,0,0.85)] p-2 space-y-2">
-      <div id="floatingEmojiRow" class="flex items-center justify-between gap-1 px-1">
-        <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">👍</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">❤️</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😂</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('😮')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😮</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('😢')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😢</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('🙏')" class="w-10 h-10 rounded-xl hover:bg-slate-800 text-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-90">🙏</button>
+    <!-- --- top action bar dinamis saat pesan ditahan lama --- -->
+    <div id="floatingTopActionBar" onclick="event.stopPropagation()" class="fixed top-0 left-0 right-0 z-[52] w-full max-w-4xl mx-auto px-3 sm:px-4 pt-2.5">
+      <div class="chat-glass-bar rounded-full border border-slate-700/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2 shadow-[0_10px_32px_rgba(0,0,0,0.85)]">
+        <div class="flex items-center gap-2.5">
+          <button type="button" onclick="closeMessageActionPopup()" title="Batal Pilih" aria-label="Batal Pilih" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white flex items-center justify-center transition-all active:scale-90">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          </button>
+          <span class="text-sm font-heading-modern font-extrabold text-white select-none">1</span>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="triggerFloatingReplyAction()" title="Balas Pesan" aria-label="Balas Pesan" class="h-8 px-2.5 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+            <span class="hidden sm:inline">Balas</span>
+          </button>
+
+          <button id="floatingPinActionBtn" type="button" onclick="triggerFloatingPinToggleAction()" title="Sematkan Pesan" aria-label="Sematkan Pesan" class="hidden h-8 px-2.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90">
+            <svg id="floatingPinActionIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+            <span id="floatingPinActionLabel" class="text-[11px] font-bold">Sematkan</span>
+          </button>
+
+          <button id="floatingDeleteActionBtn" type="button" onclick="triggerFloatingDeleteAction()" title="Hapus Pesan" aria-label="Hapus Pesan" class="hidden h-8 px-2.5 rounded-full bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-300 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            <span class="hidden sm:inline">Hapus</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --- bar pil emoji cepat ramping, rapat, dengan tombol plus di ujung kanan --- -->
+    <div id="floatingReactionBar" onclick="event.stopPropagation()" class="popup-enter fixed left-3 top-24 z-[51] rounded-full bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_14px_38px_rgba(0,0,0,0.88)] px-1.5 py-1">
+      <div id="floatingEmojiRow" class="flex items-center justify-between gap-0.5">
+        <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">👍</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">❤️</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😂</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😮')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😮</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😢')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😢</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('🙏')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">🙏</button>
+        <button type="button" onclick="openExtendedEmojiPicker(event)" title="Pilih Emoji Lainnya" aria-label="Pilih Emoji Lainnya" class="w-8 h-8 ml-0.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center justify-center transition-all active:scale-90 shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M12 4v16m8-8H4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- bottom sheet pilih reaksi lengkap ala iphone dengan input keyboard hp & kategori --- -->
+  <div id="extendedEmojiPickerSheet" onclick="if (event.target === this) closeExtendedEmojiPicker()" class="fixed inset-0 z-[55] hidden items-end justify-center bg-black/70 backdrop-blur-sm">
+    <div class="sheet-enter w-full max-w-lg rounded-t-3xl bg-[#0b101d]/98 border-t border-x border-slate-800 p-4 sm:p-5 space-y-3 shadow-[0_-18px_50px_rgba(0,0,0,0.85)] max-h-[76vh] flex flex-col">
+      <div class="w-10 h-1 rounded-full bg-slate-700 mx-auto shrink-0"></div>
+
+      <div class="flex items-center justify-between gap-2 shrink-0">
+        <h3 class="font-heading-modern text-base sm:text-lg font-extrabold text-white">Pilih reaksi</h3>
+        <button type="button" onclick="closeExtendedEmojiPicker()" aria-label="Tutup Pemilih Emoji" class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-colors shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
       </div>
 
-      <div class="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800 text-xs">
-        <button type="button" onclick="triggerFloatingReplyAction()" class="flex-1 py-1.5 px-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-semibold flex items-center justify-center gap-1.5 transition-colors">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-          <span>Balas</span>
-        </button>
-
-        <button id="floatingPinActionBtn" type="button" onclick="triggerFloatingPinAction()" class="hidden flex-1 py-1.5 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-semibold flex items-center justify-center gap-1.5 transition-colors">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
-          <span>Sematkan</span>
-        </button>
-
-        <button id="floatingDeleteActionBtn" type="button" onclick="triggerFloatingDeleteAction()" class="hidden flex-1 py-1.5 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-semibold flex items-center justify-center gap-1.5 transition-colors">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          <span>Hapus</span>
-        </button>
+      <div class="shrink-0">
+        <input id="customKeyboardEmojiInput" oninput="handleCustomKeyboardEmojiInput(this)" type="text" autocomplete="off" placeholder="Ketik emoji dari keyboard HP..." class="w-full px-3.5 py-2.5 rounded-2xl bg-slate-900/95 border border-slate-800 focus:border-[var(--accent-main)] text-sm text-white placeholder-slate-500 focus:outline-none transition-colors" />
       </div>
+
+      <div id="extendedEmojiGridContainer" class="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]"></div>
     </div>
   </div>
 

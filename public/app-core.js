@@ -4511,11 +4511,78 @@ function renderCommunityMembersDrawer() {
   }).join('');
 }
 
+// --- periksa apakah objek pesan boleh disematkan (pengumuman admin atau media lampiran) ---
+function isMessageEligibleForPin(messageItem) {
+  if (!messageItem) return false;
+  const pinnableTypes = ['image', 'video', 'sticker', 'audio', 'document', 'announcement', 'welcome'];
+  const normalizedType = String(messageItem.type || '').trim().toLowerCase();
+  return (
+    pinnableTypes.includes(normalizedType) ||
+    Boolean(messageItem.mediaUrl) ||
+    Boolean(messageItem.isAnnouncement) ||
+    Boolean(messageItem.isWelcome)
+  );
+}
+
+// --- cari data pin aktif berdasarkan id pesan asli ---
+function findPinnedEntryByMessageId(messageId) {
+  if (!messageId) return null;
+  return communityPinnedCache.find((pinItem) => pinItem?.messageId === messageId) || null;
+}
+
+// --- lompat secara instan ke posisi pesan asli di linimasa dan tampilkan efek highlight ---
+function jumpToChatMessageInstant(targetMessageId) {
+  if (!targetMessageId) return false;
+  const targetRow = document.querySelector(`[data-community-msg-id="${CSS.escape(targetMessageId)}"]`);
+  if (!targetRow) return false;
+
+  targetRow.scrollIntoView({ behavior: 'instant', block: 'center' });
+  const bubbleTarget = targetRow.querySelector('[data-bubble-msg-id]') || targetRow;
+
+  bubbleTarget.classList.remove('message-jump-highlight');
+  void bubbleTarget.offsetWidth;
+  bubbleTarget.classList.add('message-jump-highlight');
+
+  setTimeout(() => {
+    bubbleTarget.classList.remove('message-jump-highlight');
+  }, 1800);
+
+  handleChatScrollVisibility();
+  return true;
+}
+
+// --- navigasi instan ke pesan asli saat bar pesan disematkan diklik ---
+function navigateToActivePinnedMessage(clickEvent) {
+  if (clickEvent) clickEvent.stopPropagation();
+  if (communityPinnedCache.length === 0) return;
+
+  const activePin = communityPinnedCache[activePinnedCarouselIndex] || communityPinnedCache[0];
+  if (activePin?.messageId) {
+    const isFoundInTimeline = jumpToChatMessageInstant(activePin.messageId);
+    if (isFoundInTimeline) return;
+  }
+
+  openPinnedMessagesModal();
+}
+
+// --- navigasi instan ke pesan asli dari daftar di dalam modal pesan disematkan ---
+function jumpToPinnedItemFromModal(messageId) {
+  if (!messageId) return;
+  closePinnedMessagesModal();
+  requestAnimationFrame(() => {
+    const isJumped = jumpToChatMessageInstant(messageId);
+    if (!isJumped) {
+      showCyberToast('Pesan Tidak Ditemukan', 'Pesan asli sudah berada di luar riwayat linimasa terbaru.', 'info');
+    }
+  });
+}
+
 // --- bar pesan disematkan di bawah header (dikunci ketat khusus admin) ---
 function renderCommunityPinnedBar() {
   const barEl = getEl('communityPinnedBar');
   const counterEl = getEl('communityPinnedCounter');
   const previewEl = getEl('communityPinnedPreviewText');
+  const nextBtnEl = getEl('communityPinnedNextBtn');
   const modalListEl = getEl('communityPinnedModalList');
   const adminFormEl = getEl('communityPinnedAdminForm');
 
@@ -4524,7 +4591,7 @@ function renderCommunityPinnedBar() {
   }
 
   if (barEl) {
-    if (communityPinnedCache.length === 0 || activeChatPageSection === 'inbox') {
+    if (communityPinnedCache.length === 0 || activeChatRoomType !== 'community') {
       barEl.classList.add('hidden');
     } else {
       barEl.classList.remove('hidden');
@@ -4538,6 +4605,11 @@ function renderCommunityPinnedBar() {
       if (previewEl) {
         previewEl.textContent = activePin?.text || '-';
       }
+      if (nextBtnEl) {
+        const hasMultiplePins = communityPinnedCache.length > 1;
+        nextBtnEl.classList.toggle('hidden', !hasMultiplePins);
+        nextBtnEl.classList.toggle('flex', hasMultiplePins);
+      }
     }
   }
 
@@ -4545,18 +4617,25 @@ function renderCommunityPinnedBar() {
     if (communityPinnedCache.length === 0) {
       modalListEl.innerHTML = '<p class="text-xs font-mono-code text-slate-500 text-center py-6">Belum ada pesan yang disematkan.</p>';
     } else {
-      modalListEl.innerHTML = communityPinnedCache.map((pinItem, idx) => {
+      modalListEl.innerHTML = communityPinnedCache.map((pinItem, pinIndex) => {
+        const hasTargetMsg = Boolean(pinItem.messageId);
+        const jumpAttr = hasTargetMsg
+          ? `onclick="jumpToPinnedItemFromModal('${escapeHtmlString(pinItem.messageId)}')"`
+          : '';
         const unpinBtnHtml = isCurrentUserAdmin
-          ? `<button type="button" data-pin-id="${escapeHtmlString(pinItem.id)}" onclick="unpinCommunityMessageAdmin(this.dataset.pinId)" class="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[10px] font-bold shrink-0 transition-colors">Lepas</button>`
+          ? `<button type="button" data-pin-id="${escapeHtmlString(pinItem.id)}" onclick="event.stopPropagation(); unpinCommunityMessageAdmin(this.dataset.pinId)" class="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[10px] font-bold shrink-0 transition-colors">Lepas</button>`
           : '';
         return `
-          <div class="rounded-xl bg-slate-950/90 border border-slate-800 p-3 space-y-1.5">
+          <div ${jumpAttr} class="rounded-xl bg-slate-950/90 border border-slate-800 ${hasTargetMsg ? 'hover:border-amber-500/40 cursor-pointer' : ''} p-3 space-y-1.5 transition-colors">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[10px] font-mono-code accent-text font-bold">#${idx + 1} • Disematkan oleh ${escapeHtmlString(pinItem.pinnedBy || 'Admin')}</span>
+              <span class="text-[10px] font-mono-code accent-text font-bold">#${pinIndex + 1} • Disematkan oleh ${escapeHtmlString(pinItem.pinnedBy || 'Admin')}</span>
               ${unpinBtnHtml}
             </div>
             <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap break-words">${escapeHtmlString(pinItem.text || '')}</p>
-            <p class="text-[9px] font-mono-code text-slate-500">${escapeHtmlString(formatWibDateTime(pinItem.pinnedAt))}</p>
+            <div class="flex items-center justify-between text-[9px] font-mono-code text-slate-500">
+              <span>${escapeHtmlString(formatWibDateTime(pinItem.pinnedAt))}</span>
+              ${hasTargetMsg ? '<span class="text-amber-300/90">Ketuk untuk lompat ke pesan</span>' : ''}
+            </div>
           </div>
         `;
       }).join('');
@@ -4564,10 +4643,10 @@ function renderCommunityPinnedBar() {
   }
 }
 
-function cyclePinnedMessageBanner(event) {
-  if (event) event.stopPropagation();
+function cyclePinnedMessageBanner(clickEvent) {
+  if (clickEvent) clickEvent.stopPropagation();
   if (communityPinnedCache.length <= 1) {
-    openPinnedMessagesModal();
+    navigateToActivePinnedMessage(clickEvent);
     return;
   }
   activePinnedCarouselIndex = (activePinnedCarouselIndex + 1) % communityPinnedCache.length;
@@ -4601,9 +4680,21 @@ function pinCommunityMessageAdmin(messageId) {
     showCyberToast('Akses Ditolak', 'Hanya Admin yang dapat menyematkan pesan.', 'danger');
     return;
   }
-  const targetMsg = communityMessagesCache.find((msg) => msg.id === messageId);
+  const targetMsg = communityMessagesCache.find((messageItem) => messageItem.id === messageId);
   if (!targetMsg) return;
-  const summaryText = targetMsg.text || (targetMsg.type === 'sticker' ? '[Stiker Komunitas]' : `[Media ${targetMsg.type}]`);
+  if (!isMessageEligibleForPin(targetMsg)) {
+    showCyberToast('Tidak Dapat Disematkan', 'Hanya pesan pengumuman admin atau media (foto, video, stiker) yang dapat disematkan.', 'info');
+    return;
+  }
+  const mediaLabelMap = {
+    video: '[Video]',
+    image: '[Foto]',
+    sticker: '[Stiker]',
+    welcome: `Welcome ${targetMsg.welcomeTargetName || 'Member'}`
+  };
+  const fallbackLabel = mediaLabelMap[targetMsg.type] || '[Media]';
+  const summaryText = targetMsg.text ? `${fallbackLabel} ${targetMsg.text}` : fallbackLabel;
+
   socketClient.emit('community:pin:add', {
     messageId: targetMsg.id,
     text: `${targetMsg.name || 'Member'}: ${summaryText}`
@@ -5339,7 +5430,7 @@ function submitActiveRoomMessageForm(event) {
   clearCommunityReplyTarget();
 }
 
-// --- render linimasa pesan kompak dengan pengelompokan pesan berurutan dan scroll instan akurat ---
+// --- render linimasa pesan kompak dengan thumbnail media pada kutipan balasan & scroll akurat ---
 function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport) return;
@@ -5378,7 +5469,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
 
       blocks.push(`
         <div data-community-msg-id="${escapeHtmlString(msg.id)}" class="max-w-md mx-auto my-3 select-none">
-          <div class="rounded-2xl overflow-hidden bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 shadow-[0_14px_38px_rgba(0,0,0,0.55)]">
+          <div data-bubble-msg-id="${escapeHtmlString(msg.id)}" class="rounded-2xl overflow-hidden bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 shadow-[0_14px_38px_rgba(0,0,0,0.55)]">
             <canvas data-welcome-canvas="1" data-welcome-name="${escapeHtmlString(targetName)}" data-welcome-avatar="${escapeHtmlString(targetAvatar)}" class="w-full h-auto block aspect-[640/310]"></canvas>
             <div class="p-3 space-y-1.5 bg-slate-950/75 border-t border-slate-800/80">
               <div class="flex items-center justify-between gap-2">
@@ -5422,11 +5513,21 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
 
     const hasValidReply = Boolean(msg.replyTo && (msg.replyTo.id || msg.replyTo.text));
     const replyAuthorLabel = msg.replyTo?.userId === currentGoogleUserId ? 'Kamu' : (msg.replyTo?.name || 'Member');
+    const resolvedReplyOrigin = hasValidReply && !msg.replyTo?.mediaUrl && msg.replyTo?.id
+      ? sourceList.find((candidateItem) => candidateItem.id === msg.replyTo.id)
+      : null;
+    const replyMediaType = msg.replyTo?.type || resolvedReplyOrigin?.type || 'text';
+    const replyMediaUrl = msg.replyTo?.mediaUrl || resolvedReplyOrigin?.mediaUrl || '';
+    const replyThumbHtml = hasValidReply ? buildQuotedReplyThumbHtml(replyMediaType, replyMediaUrl) : '';
+
     const replyQuoteHtml = hasValidReply
       ? `
-        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-1.5 pl-2 py-1 pr-2 rounded-lg bg-black/35 border-l-2 border-[var(--accent-main)] text-[10px] cursor-pointer">
-          <p class="font-bold accent-text truncate">${escapeHtmlString(replyAuthorLabel)}</p>
-          <p class="text-slate-300 truncate">${escapeHtmlString(msg.replyTo.text || '[Pesan]')}</p>
+        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-1.5 pl-2 py-1.5 pr-2.5 rounded-xl bg-black/35 hover:bg-black/50 border-l-2 border-[var(--accent-main)] flex items-center gap-2 text-[10px] cursor-pointer transition-colors">
+          ${replyThumbHtml}
+          <div class="min-w-0 flex-1">
+            <p class="font-bold accent-text truncate">${escapeHtmlString(replyAuthorLabel)}</p>
+            <p class="text-slate-300 truncate mt-0.5">${escapeHtmlString(msg.replyTo.text || '[Pesan]')}</p>
+          </div>
         </div>
       `
       : '';
@@ -5552,49 +5653,234 @@ function getActiveRoomMessagesList() {
   return activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
 }
 
-// --- buka popup opsi pesan (reaksi, balas, pin, hapus) untuk community maupun dm ---
-function openMessageActionPopup(messageId, anchorEl, event) {
-  if (event) {
-    if (typeof event.preventDefault === 'function') event.preventDefault();
-    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+// --- katalog kategori reaksi lengkap gaya apple / iphone ---
+const APPLE_REACTION_CATEGORIES = [
+  {
+    category: 'Wajah',
+    emojis: [
+      '😀', '😁', '😂', '😃', '😄', '😅', '😆', '😇', '😈', '😉', '😊', '😋', '😌', '😍',
+      '😎', '😏', '😐', '😑', '😒', '😓', '😔', '😕', '😖', '😗', '😘', '😙', '😚', '😛',
+      '😜', '😝', '😞', '😟', '😠', '😡', '😢', '😣', '😤', '😥', '😦', '😧', '😨', '😩',
+      '😪', '😫', '😬', '😭', '😮', '😯', '😰', '😱', '😲', '😳', '😴', '😵', '😶', '😷',
+      '😸', '😹', '😺', '😻', '😼', '😽', '😾', '😿', '🙀', '🙁', '🙂', '🙃', '🙄', '🙅',
+      '🙆', '🙇', '🙈', '🙉', '🙊', '🙋', '🙌', '🙍', '🙎', '🙏', '🤐', '🤑', '🤒', '🤓',
+      '🤔', '🤕', '🤖', '🤗', '🤘', '🤙', '🖐', '🤜', '🤛', '🤝', '🤞', '🤟', '🤠', '🤡',
+      '🤢', '🤣', '🤤', '🤥', '🤦', '🤧', '🤨', '🤩', '🤪', '🤫', '🤬', '🤭', '🤮', '🤯',
+      '🥰', '🥱', '🥲', '🥳', '🥴', '🥵', '🥶', '🥷', '🥸', '🥹', '🥲', '🧐'
+    ]
+  },
+  {
+    category: 'Tangan',
+    emojis: [
+      '✊', '✋', '👌', '👍', '👎', '👏', '👐', '🙌', '🙏', '🤘', '🤙', '🖐', '🤜', '🤛',
+      '🤝', '🤞', '🤟', '🤲', '🤌', '🫵', '🤍', '🤎', '🫲', '💪'
+    ]
+  },
+  {
+    category: 'Hati dan simbol',
+    emojis: [
+      '❤️', '🩷', '💔', '💕', '💖', '💗', '💘', '💙', '💚', '💛', '💜', '💝', '💞', '💟',
+      '🤍', '🤎', '🧡', '🔥', '✨', '💯', '💥', '🎉', '🎊', '👑'
+    ]
+  },
+  {
+    category: 'Hewan',
+    emojis: [
+      '🐀', '🐁', '🐂', '🐃', '🐄', '🐅', '🐆', '🐇', '🐈', '🐉', '🐊', '🐋', '🐌', '🐍'
+    ]
+  },
+  {
+    category: 'Makanan',
+    emojis: [
+      '🍅', '🍆', '🍇', '🍈', '🍉', '🍊', '🍋', '🍌', '🍍', '🍎', '🍏', '🍐', '🍑', '🍒',
+      '🍓', '🍔', '🍕', '🍖', '🍗', '🍱', '🍙', '🍚', '🍛', '🍜', '🍝', '🍞', '🍟', '🍠',
+      '🍡', '🍢', '🍣', '🍤', '🍥', '🍦', '🍧', '🍨', '🍩', '🍪', '🍫', '🍬', '🍭', '🍮',
+      '🍯', '🍰', '🍱', '🍲', '🍳', '🍴', '🍵', '🍶', '🍷', '🍸', '🍹', '🍺', '🍻', '🍼',
+      '🍾', '🍿'
+    ]
+  },
+  {
+    category: 'Aktivitas',
+    emojis: [
+      '🎀', '🎁', '🎂', '🎃', '🎄', '🎅', '🎆', '🎇', '🎈', '🎉', '🎊', '🎋', '🎌', '🎍',
+      '🎎', '🎏', '🎐', '🎑', '🎒', '🎓', '🎠', '🎡', '🎢', '🎣', '🎤', '🎥', '🎦', '🎧',
+      '🎨', '🎩', '🎪', '🎫', '🎬', '🎭', '🎮', '🎯', '🎰', '🎱', '🎲', '🎳', '🎴', '🎵',
+      '🎶', '🎷', '🎸', '🎹', '🎺', '🎻', '🎼', '🎽', '🎾', '🎿', '🏀', '🏁', '🏂', '🏃',
+      '🏄', '🏅', '🏆', '🏇', '🏈', '🏉', '🏊', '🏏', '⚽', '⚾'
+    ]
+  }
+];
+
+const EXTENDED_REACTION_EMOJIS = Array.from(
+  new Set(APPLE_REACTION_CATEGORIES.flatMap((group) => group.emojis))
+);
+
+// --- konversi karakter emoji ke kode hex apple-emoji-linux cdn dengan fallback unicode ---
+function buildAppleEmojiCodePoints(emojiChar) {
+  return Array.from(String(emojiChar || ''))
+    .map((ch) => ch.codePointAt(0))
+    .filter((cp) => typeof cp === 'number' && cp !== 0xfe0f)
+    .map((cp) => cp.toString(16).toLowerCase())
+    .join('-');
+}
+
+function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeClass = 'text-2xl') {
+  const cleanEmoji = String(emojiChar || '').trim();
+  if (!cleanEmoji) return '';
+  const hexCode = buildAppleEmojiCodePoints(cleanEmoji);
+  if (!hexCode) {
+    return `<span class="${textSizeClass} leading-none select-none">${escapeHtmlString(cleanEmoji)}</span>`;
+  }
+  const appleImgUrl = `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${hexCode}.png`;
+  return `
+    <span class="inline-flex items-center justify-center ${sizeClass} shrink-0 pointer-events-none select-none">
+      <img
+        src="https://em-content.zobj.net/source/apple/391/${cleanEmoji.codePointAt(0)?.toString(16)}_${cleanEmoji.codePointAt(0)?.toString(16)}.png"
+        data-fallback-src="${appleImgUrl}"
+        alt="${escapeHtmlString(cleanEmoji)}"
+        loading="lazy"
+        onerror="if (this.dataset.fallbackSrc && this.src !== this.dataset.fallbackSrc) { this.src = this.dataset.fallbackSrc; this.dataset.fallbackSrc = ''; } else { this.style.display='none'; this.nextElementSibling.classList.remove('hidden'); }"
+        class="w-full h-full object-contain"
+      />
+      <span class="hidden ${textSizeClass} leading-none">${escapeHtmlString(cleanEmoji)}</span>
+    </span>
+  `;
+}
+
+// --- render daftar kategori emoji ala iphone di dalam bottom sheet pilih reaksi ---
+function renderExtendedEmojiCategoriesGrid() {
+  const gridEl = getEl('extendedEmojiGridContainer');
+  if (!gridEl) return;
+
+  gridEl.innerHTML = APPLE_REACTION_CATEGORIES.map((group) => {
+    const uniqueGroupEmojis = Array.from(new Set(group.emojis));
+    const tilesHtml = uniqueGroupEmojis.map((emojiChar) => `
+      <button
+        type="button"
+        onclick="triggerFloatingEmojiReaction('${escapeHtmlString(emojiChar)}')"
+        class="aspect-square rounded-xl hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-115 active:scale-90"
+      >
+        ${renderAppleStyleEmojiHtml(emojiChar, 'w-7 h-7', 'text-2xl')}
+      </button>
+    `).join('');
+
+    return `
+      <section class="space-y-1.5">
+        <h4 class="text-xs font-bold text-slate-300 px-1 sticky top-0 py-1 bg-[#0b101d]/95 backdrop-blur-sm z-10">${escapeHtmlString(group.category)}</h4>
+        <div class="grid grid-cols-7 sm:grid-cols-8 gap-1">
+          ${tilesHtml}
+        </div>
+      </section>
+    `;
+  }).join('');
+}
+
+// --- tangani input emoji langsung dari keyboard bawaan hp ---
+function handleCustomKeyboardEmojiInput(inputEl) {
+  if (!inputEl || !activeFloatingMessageId) return;
+  const rawVal = String(inputEl.value || '').trim();
+  if (!rawVal) return;
+
+  const matchedEmoji = EXTENDED_REACTION_EMOJIS.find((em) => rawVal.includes(em)) || Array.from(rawVal)[0];
+  inputEl.value = '';
+  if (matchedEmoji) {
+    triggerFloatingEmojiReaction(matchedEmoji);
+  }
+}
+
+// --- buka bottom sheet pilih reaksi lengkap & fokuskan input keyboard hp ---
+function openExtendedEmojiPicker(clickEvent) {
+  if (clickEvent) clickEvent.stopPropagation();
+  renderExtendedEmojiCategoriesGrid();
+  const customInput = getEl('customKeyboardEmojiInput');
+  if (customInput) customInput.value = '';
+  toggleModalVisibility('extendedEmojiPickerSheet', true);
+  setTimeout(() => customInput?.focus(), 60);
+}
+
+function closeExtendedEmojiPicker() {
+  const customInput = getEl('customKeyboardEmojiInput');
+  if (customInput) customInput.value = '';
+  toggleModalVisibility('extendedEmojiPickerSheet', false);
+}
+
+// --- buka top action bar dinamis & pill emoji cepat ramping ala whatsapp ---
+function openMessageActionPopup(messageId, anchorEl, triggerEvent) {
+  if (triggerEvent) {
+    if (typeof triggerEvent.preventDefault === 'function') triggerEvent.preventDefault();
+    if (typeof triggerEvent.stopPropagation === 'function') triggerEvent.stopPropagation();
   }
 
   const activeList = getActiveRoomMessagesList();
-  const targetMsg = activeList.find((msg) => msg.id === messageId);
+  const targetMsg = activeList.find((messageItem) => messageItem.id === messageId);
   if (!targetMsg) return;
 
   activeFloatingMessageId = messageId;
   const overlay = getEl('floatingMessageActionOverlay');
   const reactionBar = getEl('floatingReactionBar');
-  const emojiRow = getEl('floatingEmojiRow');
   const pinBtn = getEl('floatingPinActionBtn');
+  const pinIcon = getEl('floatingPinActionIcon');
+  const pinLabel = getEl('floatingPinActionLabel');
   const deleteBtn = getEl('floatingDeleteActionBtn');
 
   if (!overlay || !reactionBar) return;
 
   const isCommunityRoom = activeChatRoomType === 'community';
   const canDeleteMessage = isCurrentUserAdmin || targetMsg.userId === currentGoogleUserId;
+  const existingPinEntry = isCommunityRoom ? findPinnedEntryByMessageId(targetMsg.id) : null;
+  const canShowPinButton = isCommunityRoom && isCurrentUserAdmin && (Boolean(existingPinEntry) || isMessageEligibleForPin(targetMsg));
 
-  if (emojiRow) emojiRow.classList.toggle('hidden', !isCommunityRoom);
-  if (pinBtn) pinBtn.classList.toggle('hidden', !isCommunityRoom || !isCurrentUserAdmin);
-  if (deleteBtn) deleteBtn.classList.toggle('hidden', !canDeleteMessage);
+  if (pinBtn) {
+    pinBtn.classList.toggle('hidden', !canShowPinButton);
+    pinBtn.classList.toggle('inline-flex', canShowPinButton);
 
-  const anchorRect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
+    if (existingPinEntry) {
+      pinBtn.title = 'Lepas Sematan';
+      pinBtn.setAttribute('aria-label', 'Lepas Sematan');
+      pinBtn.className = 'h-8 px-2.5 rounded-full bg-amber-500/25 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90';
+      if (pinLabel) pinLabel.textContent = 'Lepas Sematan';
+      if (pinIcon) {
+        pinIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4l16 16"/>';
+      }
+    } else {
+      pinBtn.title = 'Sematkan Pesan';
+      pinBtn.setAttribute('aria-label', 'Sematkan Pesan');
+      pinBtn.className = 'h-8 px-2.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 inline-flex items-center gap-1.5 text-xs font-semibold transition-all active:scale-90';
+      if (pinLabel) pinLabel.textContent = 'Sematkan';
+      if (pinIcon) {
+        pinIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>';
+      }
+    }
+  }
+
+  if (deleteBtn) {
+    deleteBtn.classList.toggle('hidden', !canDeleteMessage);
+    deleteBtn.classList.toggle('inline-flex', canDeleteMessage);
+  }
+
+  reactionBar.classList.toggle('hidden', !isCommunityRoom);
   overlay.classList.remove('hidden');
 
-  if (anchorRect) {
-    const popupWidth = Math.min(316, window.innerWidth - 24);
-    const idealLeft = Math.max(12, Math.min(window.innerWidth - popupWidth - 12, anchorRect.left + anchorRect.width / 2 - popupWidth / 2));
-    const idealTop = anchorRect.top > 120 ? anchorRect.top - 96 : Math.min(window.innerHeight - 130, anchorRect.bottom + 10);
+  if (isCommunityRoom) {
+    const anchorRect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
+    const pillWidth = Math.min(282, window.innerWidth - 20);
+    reactionBar.style.width = `${Math.round(pillWidth)}px`;
 
-    reactionBar.style.left = `${Math.round(idealLeft)}px`;
-    reactionBar.style.top = `${Math.round(idealTop)}px`;
-    reactionBar.style.width = `${Math.round(popupWidth)}px`;
+    if (anchorRect) {
+      const idealLeft = Math.max(10, Math.min(window.innerWidth - pillWidth - 10, anchorRect.left + anchorRect.width / 2 - pillWidth / 2));
+      const idealTop = anchorRect.top > 136 ? anchorRect.top - 58 : Math.min(window.innerHeight - 96, Math.max(76, anchorRect.bottom + 8));
+      reactionBar.style.left = `${Math.round(idealLeft)}px`;
+      reactionBar.style.top = `${Math.round(idealTop)}px`;
+    } else {
+      reactionBar.style.left = `${Math.round((window.innerWidth - pillWidth) / 2)}px`;
+      reactionBar.style.top = '88px';
+    }
   }
 }
 
 function closeMessageActionPopup() {
   activeFloatingMessageId = '';
+  closeExtendedEmojiPicker();
   getEl('floatingMessageActionOverlay')?.classList.add('hidden');
 }
 
@@ -5611,9 +5897,17 @@ function triggerFloatingReplyAction() {
   setCommunityReplyTarget(targetId);
 }
 
-function triggerFloatingPinAction() {
+function triggerFloatingPinToggleAction() {
   if (!activeFloatingMessageId) return;
-  pinCommunityMessageAdmin(activeFloatingMessageId);
+  const targetId = activeFloatingMessageId;
+  const existingPin = findPinnedEntryByMessageId(targetId);
+  if (existingPin) {
+    closeMessageActionPopup();
+    unpinCommunityMessageAdmin(existingPin.id);
+    showCyberToast('Sematan Dilepas', 'Pesan dilepas dari daftar Pesan Disematkan.', 'info');
+    return;
+  }
+  pinCommunityMessageAdmin(targetId);
 }
 
 function triggerFloatingDeleteAction() {
@@ -5786,26 +6080,71 @@ function renderReactionDetailSheetContent() {
   }).join('');
 }
 
-// --- siapkan kutipan balasan pesan sesuai ruang aktif (dm atau community) ---
+// --- bangun html thumbnail persegi mini untuk kutipan balasan video, foto, atau stiker ---
+function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
+  const cleanUrl = String(replyMediaUrl || '').trim();
+  const normalizedType = String(replyType || 'text').trim().toLowerCase();
+  if (!cleanUrl) return '';
+
+  if (normalizedType === 'video') {
+    return `
+      <div class="w-10 h-10 rounded-lg overflow-hidden bg-black border border-slate-700/80 shrink-0 relative">
+        <video src="${escapeHtmlString(cleanUrl)}" muted playsinline preload="metadata" class="w-full h-full object-cover pointer-events-none"></video>
+        <span class="absolute inset-0 bg-black/30 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </span>
+      </div>
+    `;
+  }
+
+  if (normalizedType === 'sticker') {
+    return `
+      <div class="w-10 h-10 rounded-lg overflow-hidden bg-slate-900/90 border border-slate-700/70 p-0.5 shrink-0 flex items-center justify-center">
+        <img src="${escapeHtmlString(cleanUrl)}" alt="Stiker" loading="lazy" class="w-full h-full object-contain" />
+      </div>
+    `;
+  }
+
+  if (normalizedType === 'image') {
+    return `
+      <div class="w-10 h-10 rounded-lg overflow-hidden bg-slate-950 border border-slate-700/80 shrink-0">
+        <img src="${escapeHtmlString(cleanUrl)}" alt="Foto" loading="lazy" class="w-full h-full object-cover" />
+      </div>
+    `;
+  }
+
+  return '';
+}
+
+// --- siapkan kutipan balasan pesan lengkap dengan thumbnail media untuk community atau dm ---
 function setCommunityReplyTarget(messageId) {
   const activeList = getActiveRoomMessagesList();
-  const foundMsg = activeList.find((msg) => msg.id === messageId);
+  const foundMsg = activeList.find((messageItem) => messageItem.id === messageId);
   if (!foundMsg) return;
 
-  const fallbackPreview = foundMsg.type === 'sticker'
-    ? '[Stiker]'
-    : (foundMsg.type === 'welcome' || foundMsg.isWelcome
-      ? `Welcome ${foundMsg.welcomeTargetName || 'Member'}`
-      : `[${foundMsg.type || 'Media'}]`);
+  const normalizedType = String(foundMsg.type || 'text').trim().toLowerCase();
+  const mediaLabelMap = {
+    video: 'Video',
+    image: 'Foto',
+    sticker: 'Stiker',
+    welcome: `Welcome ${foundMsg.welcomeTargetName || 'Member'}`
+  };
+  const cleanText = String(foundMsg.text || '').trim();
+  const summaryText = cleanText
+    ? (['video', 'image'].includes(normalizedType) ? `${mediaLabelMap[normalizedType]} • ${cleanText}` : cleanText)
+    : (mediaLabelMap[normalizedType] || `[${normalizedType || 'Media'}]`);
 
   activeCommunityReplyTarget = {
     id: foundMsg.id,
     userId: foundMsg.userId || '',
     name: foundMsg.name || 'Member',
-    text: String(foundMsg.text || '').trim() || fallbackPreview
+    type: normalizedType,
+    mediaUrl: String(foundMsg.mediaUrl || '').trim(),
+    text: summaryText
   };
 
   const barEl = getEl('communityReplyPreviewBar');
+  const thumbWrapEl = getEl('communityReplyPreviewThumbWrap');
   if (barEl) barEl.classList.remove('hidden');
   if (getEl('communityReplyPreviewAuthor')) {
     getEl('communityReplyPreviewAuthor').textContent = activeCommunityReplyTarget.name;
@@ -5813,22 +6152,35 @@ function setCommunityReplyTarget(messageId) {
   if (getEl('communityReplyPreviewText')) {
     getEl('communityReplyPreviewText').textContent = activeCommunityReplyTarget.text;
   }
+
+  if (thumbWrapEl) {
+    const thumbHtml = buildQuotedReplyThumbHtml(activeCommunityReplyTarget.type, activeCommunityReplyTarget.mediaUrl);
+    if (thumbHtml) {
+      thumbWrapEl.innerHTML = thumbHtml.replace('w-10 h-10 rounded-lg overflow-hidden', 'w-full h-full');
+      thumbWrapEl.classList.remove('hidden');
+    } else {
+      thumbWrapEl.innerHTML = '';
+      thumbWrapEl.classList.add('hidden');
+    }
+  }
+
   getEl('communityMessageInput')?.focus();
 }
 
 function clearCommunityReplyTarget() {
   activeCommunityReplyTarget = null;
   getEl('communityReplyPreviewBar')?.classList.add('hidden');
+  const thumbWrapEl = getEl('communityReplyPreviewThumbWrap');
+  if (thumbWrapEl) {
+    thumbWrapEl.innerHTML = '';
+    thumbWrapEl.classList.add('hidden');
+  }
 }
 
-// --- sorot pesan asli saat kutipan balasan diklik ---
+// --- lompat instan ke pesan asli saat kutipan balasan diklik ---
 function scrollToRepliedCommunityMessage(targetMsgId) {
   if (!targetMsgId) return;
-  const targetRow = document.querySelector(`[data-community-msg-id="${CSS.escape(targetMsgId)}"]`);
-  if (!targetRow) return;
-  targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  targetRow.classList.add('ring-2', 'ring-emerald-400/60', 'rounded-2xl');
-  setTimeout(() => targetRow.classList.remove('ring-2', 'ring-emerald-400/60', 'rounded-2xl'), 1400);
+  jumpToChatMessageInstant(targetMsgId);
 }
 
 // --- tampilkan tombol scroll ke bawah saat user menggulir riwayat chat ke atas ---
