@@ -58,17 +58,29 @@
       --grid-line: rgba(248, 250, 252, 0.035);
     }
 
+    /* --- standardisasi global font emoji gaya ios dan fallback lintas perangkat --- */
     html,
     body {
       width: 100%;
       height: 100%;
       max-width: 100vw;
       overflow: hidden;
-      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      font-family: 'Plus Jakarta Sans', 'Inter', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
       background-color: #050810;
       color: #f1f5f9;
       -webkit-tap-highlight-color: transparent;
       overscroll-behavior: none;
+    }
+
+    .emoji-ios {
+      font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+      font-variant-emoji: emoji;
+      line-height: 1;
+    }
+
+    .emoji-ios img {
+      display: inline-block;
+      vertical-align: -0.18em;
     }
 
     /* --- latar cyber mesh grid & cahaya aurora glassmorphism gelap --- */
@@ -467,18 +479,18 @@
           <span id="chatMediaUploadStatusText" class="text-slate-200 font-mono-code text-[11px] truncate">Mengunggah media ke Supabase Storage...</span>
         </div>
 
-        <!-- --- pratinjau kutipan balasan dengan thumbnail media mini di sisi kiri --- -->
-        <div id="communityReplyPreviewBar" class="hidden rounded-2xl bg-slate-900/95 border border-slate-800 border-l-2 border-l-[var(--accent-main)] px-2.5 py-2 flex items-center justify-between gap-2.5 text-xs">
-          <div class="flex items-center gap-2.5 min-w-0 flex-1">
-            <div id="communityReplyPreviewThumbWrap" class="hidden w-10 h-10 rounded-lg overflow-hidden border border-slate-700/80 bg-slate-950 shrink-0 relative"></div>
-            <div class="min-w-0 flex-1">
-              <p class="text-[10px] font-mono-code accent-text font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
-              <p id="communityReplyPreviewText" class="text-[11px] text-slate-300 truncate mt-0.5">-</p>
-            </div>
+        <!-- --- pratinjau kutipan balasan di atas input dengan teks kiri dan thumbnail kanan --- -->
+        <div id="communityReplyPreviewBar" class="hidden flex flex-row items-center justify-between gap-2.5 py-1.5 pl-3 pr-2 rounded-r-xl rounded-l-[4px] border-l-4 border-emerald-500 bg-slate-900/95 border-y border-r border-slate-800/90 text-xs">
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] font-mono-code text-emerald-400 font-bold truncate">Membalas <span id="communityReplyPreviewAuthor">-</span></p>
+            <p id="communityReplyPreviewText" class="emoji-ios text-[11px] text-slate-300 truncate mt-0.5">-</p>
           </div>
-          <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <div id="communityReplyPreviewThumbWrap" class="hidden shrink-0"></div>
+            <button type="button" onclick="clearCommunityReplyTarget()" aria-label="Batal Balas" class="w-7 h-7 rounded-full text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors flex items-center justify-center shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
         </div>
 
       </div>
@@ -683,15 +695,33 @@
       </div>
     </div>
 
-    <!-- --- bar pil emoji cepat ramping, rapat, dengan tombol plus di ujung kanan --- -->
+    <!-- --- bar pil emoji cepat ramping gaya ios/apple dengan tombol plus di ujung kanan --- -->
     <div id="floatingReactionBar" onclick="event.stopPropagation()" class="popup-enter fixed left-3 top-24 z-[51] rounded-full bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_14px_38px_rgba(0,0,0,0.88)] px-1.5 py-1">
       <div id="floatingEmojiRow" class="flex items-center justify-between gap-0.5">
-        <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">👍</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">❤️</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😂</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('😮')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😮</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('😢')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">😢</button>
-        <button type="button" onclick="triggerFloatingEmojiReaction('🙏')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 text-[19px] leading-none flex items-center justify-center transition-transform hover:scale-125 active:scale-90">🙏</button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f44d.png" alt="👍" class="w-6 h-6 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <span class="hidden text-[19px] leading-none">👍</span>
+        </button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/2764-fe0f.png" alt="❤️" class="w-6 h-6 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <span class="hidden text-[19px] leading-none">❤️</span>
+        </button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f602.png" alt="😂" class="w-6 h-6 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <span class="hidden text-[19px] leading-none">😂</span>
+        </button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😮')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f62e.png" alt="😮" class="w-6 h-6 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <span class="hidden text-[19px] leading-none">😮</span>
+        </button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('😢')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f622.png" alt="😢" class="w-6 h-6 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <span class="hidden text-[19px] leading-none">😢</span>
+        </button>
+        <button type="button" onclick="triggerFloatingEmojiReaction('🙏')" class="w-9 h-9 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f64f.png" alt="🙏" class="w-6 h-6 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <span class="hidden text-[19px] leading-none">🙏</span>
+        </button>
         <button type="button" onclick="openExtendedEmojiPicker(event)" title="Pilih Emoji Lainnya" aria-label="Pilih Emoji Lainnya" class="w-8 h-8 ml-0.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center justify-center transition-all active:scale-90 shrink-0">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M12 4v16m8-8H4"/></svg>
         </button>

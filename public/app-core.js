@@ -4889,7 +4889,7 @@ function getCommunityDayDividerLabel(timestampMs) {
   return formatWibDayDivider(timestampMs);
 }
 
-// --- badge mini reaksi yang melekat di sudut bawah gelembung pesan ---
+// --- badge mini reaksi gaya ios/apple yang melekat di sudut bawah gelembung pesan ---
 function buildMessageReactionBadgesHtml(msg) {
   const reactionsList = Array.isArray(msg.reactions) ? msg.reactions : [];
   if (reactionsList.length === 0) return '';
@@ -4907,7 +4907,12 @@ function buildMessageReactionBadgesHtml(msg) {
   }
 
   const pillsHtml = Array.from(groupedCounts.entries())
-    .map(([emojiChar, count]) => `<span>${escapeHtmlString(emojiChar)}${count > 1 ? `<span class="text-[10px] font-mono-code font-bold ml-0.5 text-slate-200">${count}</span>` : ''}</span>`)
+    .map(([emojiChar, count]) => `
+      <span class="inline-flex items-center gap-0.5">
+        ${renderAppleStyleEmojiHtml(emojiChar, 'w-4 h-4', 'text-xs')}
+        ${count > 1 ? `<span class="text-[10px] font-mono-code font-bold text-slate-200">${count}</span>` : ''}
+      </span>
+    `)
     .join('');
 
   return `
@@ -5355,7 +5360,7 @@ function renderChatHomeView() {
   }
 }
 
-// --- render ruang chat whatsapp bot (pribadi & grup wa) dengan bubble kompak grouped ---
+// --- render ruang chat whatsapp bot (pribadi & grup wa) dengan bubble kompak & emoji ios ---
 function renderActiveWaRoomTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport || activeChatRoomType !== 'wa') return;
@@ -5380,7 +5385,7 @@ function renderActiveWaRoomTimeline(shouldScrollBottom = true) {
       <div class="flex ${isMine ? 'justify-end' : 'justify-start'} ${isGrouped ? 'mt-0.5' : 'mt-2.5'}">
         <div class="max-w-[78%] sm:max-w-[65%] w-fit rounded-2xl px-3 py-1.5 text-xs ${isMine ? 'bg-emerald-500/20 border border-emerald-500/35 text-slate-100 rounded-tr-sm' : 'bg-slate-900/95 border border-slate-800 text-slate-200 rounded-tl-sm'}">
           ${!isGrouped ? `<p class="text-[10px] font-bold mb-0.5 ${isMine ? 'text-emerald-300' : 'text-sky-300'}">${escapeHtmlString(senderName)}</p>` : ''}
-          <p class="text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text || '')}</p>
+          <p class="emoji-ios text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${formatTextWithAppleEmojis(msg.text || '')}</p>
           <p class="text-[9px] font-mono-code text-slate-400 text-right mt-0.5">${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</p>
         </div>
       </div>
@@ -5430,7 +5435,7 @@ function submitActiveRoomMessageForm(event) {
   clearCommunityReplyTarget();
 }
 
-// --- render linimasa pesan kompak dengan thumbnail media pada kutipan balasan & scroll akurat ---
+// --- render linimasa pesan kompak dengan quoted reply ala whatsapp & emoji ios penuh ---
 function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport) return;
@@ -5480,7 +5485,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
                 </div>
                 <span class="text-[10px] font-mono-code text-slate-500 shrink-0">${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</span>
               </div>
-              <p class="text-xs text-slate-300 leading-relaxed">${escapeHtmlString(msg.text || `${targetName} baru saja mendarat di Xu Core Community! Yuk sapa dia.`)}</p>
+              <p class="text-xs text-slate-300 leading-relaxed">${formatTextWithAppleEmojis(msg.text || `${targetName} baru saja mendarat di Xu Core Community! Yuk sapa dia.`)}</p>
               <div class="flex items-center justify-between pt-0.5">
                 <div>${reactionHtml}</div>
                 <button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="openMessageActionPopup(this.dataset.msgId, this, event)" title="Reaksi & Opsi" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors">
@@ -5511,6 +5516,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       ? '<span class="role-hex-badge role-hex-developer"><span class="w-1.5 h-1.5 rounded-full bg-white"></span>DEVELOPER</span>'
       : '<span class="role-hex-badge role-hex-member">MEMBER</span>';
 
+    // --- bangun kotak quoted bar horizontal dengan teks di kiri dan thumbnail di kanan ---
     const hasValidReply = Boolean(msg.replyTo && (msg.replyTo.id || msg.replyTo.text));
     const replyAuthorLabel = msg.replyTo?.userId === currentGoogleUserId ? 'Kamu' : (msg.replyTo?.name || 'Member');
     const resolvedReplyOrigin = hasValidReply && !msg.replyTo?.mediaUrl && msg.replyTo?.id
@@ -5519,15 +5525,19 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
     const replyMediaType = msg.replyTo?.type || resolvedReplyOrigin?.type || 'text';
     const replyMediaUrl = msg.replyTo?.mediaUrl || resolvedReplyOrigin?.mediaUrl || '';
     const replyThumbHtml = hasValidReply ? buildQuotedReplyThumbHtml(replyMediaType, replyMediaUrl) : '';
+    const replyMediaIconHtml = hasValidReply ? buildQuotedMediaIconHtml(replyMediaType) : '';
 
     const replyQuoteHtml = hasValidReply
       ? `
-        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-1.5 pl-2 py-1.5 pr-2.5 rounded-xl bg-black/35 hover:bg-black/50 border-l-2 border-[var(--accent-main)] flex items-center gap-2 text-[10px] cursor-pointer transition-colors">
-          ${replyThumbHtml}
-          <div class="min-w-0 flex-1">
-            <p class="font-bold accent-text truncate">${escapeHtmlString(replyAuthorLabel)}</p>
-            <p class="text-slate-300 truncate mt-0.5">${escapeHtmlString(msg.replyTo.text || '[Pesan]')}</p>
+        <div onclick="scrollToRepliedCommunityMessage('${escapeHtmlString(msg.replyTo.id || '')}')" class="mb-1.5 flex flex-row items-center justify-between gap-3 py-1.5 pl-2.5 ${replyThumbHtml ? 'pr-1.5' : 'pr-3'} rounded-r-lg rounded-l-[4px] border-l-4 border-emerald-500 bg-black/35 hover:bg-black/50 min-w-[168px] cursor-pointer transition-colors">
+          <div class="min-w-0 flex-1 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-emerald-400 truncate leading-tight">${escapeHtmlString(replyAuthorLabel)}</p>
+            <div class="emoji-ios flex items-center gap-1 mt-0.5 text-[11px] text-slate-300 leading-tight">
+              ${replyMediaIconHtml}
+              <span class="truncate">${formatTextWithAppleEmojis(msg.replyTo.text || '[Pesan]')}</span>
+            </div>
           </div>
+          ${replyThumbHtml}
         </div>
       `
       : '';
@@ -5547,7 +5557,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
           <div onclick="openChatMediaLightbox('image', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative max-w-[230px] sm:max-w-[260px] rounded-2xl overflow-hidden border border-slate-800/90 cursor-zoom-in shadow-lg">
             <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Foto" loading="lazy" class="w-full max-h-72 object-cover block" />
           </div>
-          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${escapeHtmlString(msg.text)}</p>` : ''}
+          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${formatTextWithAppleEmojis(msg.text)}</p>` : ''}
         </div>
       `;
     } else if (msg.type === 'video' && msg.mediaUrl) {
@@ -5561,11 +5571,11 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
               </span>
             </div>
           </div>
-          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${escapeHtmlString(msg.text)}</p>` : ''}
+          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${formatTextWithAppleEmojis(msg.text)}</p>` : ''}
         </div>
       `;
     } else {
-      bodyContentHtml = `<p class="text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${escapeHtmlString(msg.text || '')}</p>`;
+      bodyContentHtml = `<p class="text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${formatTextWithAppleEmojis(msg.text || '')}</p>`;
     }
 
     const reactionBadgeHtml = activeChatRoomType === 'community' ? buildMessageReactionBadgesHtml(msg) : '';
@@ -5738,6 +5748,34 @@ function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeCla
       <span class="hidden ${textSizeClass} leading-none">${escapeHtmlString(cleanEmoji)}</span>
     </span>
   `;
+}
+
+// --- ubah seluruh karakter emoji di dalam teks chat menjadi gambar emoji gaya ios/apple ---
+function formatTextWithAppleEmojis(rawText) {
+  const cleanStr = String(rawText ?? '');
+  if (!cleanStr) return '';
+
+  const emojiDetectRegex = /\p{Extended_Pictographic}/u;
+  if (!emojiDetectRegex.test(cleanStr)) {
+    return escapeHtmlString(cleanStr);
+  }
+
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    const segmenter = new Intl.Segmenter('id', { granularity: 'grapheme' });
+    let resultHtml = '';
+    for (const { segment } of segmenter.segment(cleanStr)) {
+      if (emojiDetectRegex.test(segment)) {
+        resultHtml += renderAppleStyleEmojiHtml(segment, 'w-[1.2em] h-[1.2em] inline-flex align-[-0.2em] mx-[0.5px]', 'text-[1em]');
+      } else {
+        resultHtml += escapeHtmlString(segment);
+      }
+    }
+    return resultHtml;
+  }
+
+  return escapeHtmlString(cleanStr).replace(/\p{Extended_Pictographic}/gu, (matchedChar) =>
+    renderAppleStyleEmojiHtml(matchedChar, 'w-[1.2em] h-[1.2em] inline-flex align-[-0.2em] mx-[0.5px]', 'text-[1em]')
+  );
 }
 
 // --- tarik daftar lengkap emoji apple terbaru dari cdn lalu kelompokkan per kategori ---
@@ -6045,7 +6083,7 @@ function setReactionDetailFilter(emojiFilter) {
   renderReactionDetailSheetContent();
 }
 
-// --- render isi bottom sheet detail reaksi dengan tombol ikut react ala whatsapp ---
+// --- render isi bottom sheet detail reaksi dengan emoji gaya ios/apple & tombol ikut react ---
 function renderReactionDetailSheetContent() {
   const titleEl = getEl('reactionDetailTitle');
   const tabsEl = getEl('reactionDetailTabs');
@@ -6097,13 +6135,13 @@ function renderReactionDetailSheetContent() {
       const isSelected = activeDetailReactionFilter === emojiChar;
       const isUserReacted = ownEmojisSet.has(emojiChar);
       const pillCls = isSelected || isUserReacted
-        ? 'px-3 py-1.5 rounded-full accent-soft-bg border accent-border text-white text-xs font-bold inline-flex items-center gap-1 transition-all active:scale-95'
-        : 'px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 text-slate-200 text-xs font-semibold inline-flex items-center gap-1 transition-all active:scale-95';
+        ? 'px-3 py-1.5 rounded-full accent-soft-bg border accent-border text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all active:scale-95'
+        : 'px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-700/90 text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95';
       const joinHintHtml = !isUserReacted
         ? '<span class="text-[10px] accent-text font-bold">+</span>'
         : '';
 
-      return `<button type="button" title="${isUserReacted ? 'Filter reaksi ini' : 'Ketuk untuk ikut reaksi ini'}" onclick="handleReactionDetailEmojiClick('${escapeHtmlString(targetMsg.id)}', '${escapeHtmlString(emojiChar)}')" class="${pillCls}">${escapeHtmlString(emojiChar)} <span class="font-mono-code">${count}</span>${joinHintHtml}</button>`;
+      return `<button type="button" title="${isUserReacted ? 'Filter reaksi ini' : 'Ketuk untuk ikut reaksi ini'}" onclick="handleReactionDetailEmojiClick('${escapeHtmlString(targetMsg.id)}', '${escapeHtmlString(emojiChar)}')" class="${pillCls}">${renderAppleStyleEmojiHtml(emojiChar, 'w-4 h-4', 'text-sm')}<span class="font-mono-code">${count}</span>${joinHintHtml}</button>`;
     }).join('');
 
     tabsEl.innerHTML = `<button type="button" onclick="setReactionDetailFilter('all')" class="${allPillCls}">Semua <span class="font-mono-code ml-0.5">${reactions.length}</span></button>${emojiTabsHtml}`;
@@ -6132,13 +6170,28 @@ function renderReactionDetailSheetContent() {
             <p class="text-[11px] ${isOwnReaction ? 'accent-text' : 'text-slate-500'} truncate">${isOwnReaction ? 'Ketuk untuk menghapus' : 'Anggota komunitas'}</p>
           </div>
         </div>
-        <span class="text-xl shrink-0">${escapeHtmlString(entry.emoji)}</span>
+        ${renderAppleStyleEmojiHtml(entry.emoji, 'w-6 h-6', 'text-xl')}
       </div>
     `;
   }).join('');
 }
 
-// --- bangun html thumbnail persegi mini untuk kutipan balasan video, foto, atau stiker ---
+// --- bangun ikon mini tipe media di samping teks kutipan balasan ala whatsapp ---
+function buildQuotedMediaIconHtml(replyType) {
+  const normalizedType = String(replyType || 'text').trim().toLowerCase();
+  if (normalizedType === 'video') {
+    return '<svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>';
+  }
+  if (normalizedType === 'image') {
+    return '<svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>';
+  }
+  if (normalizedType === 'sticker') {
+    return '<svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+  }
+  return '';
+}
+
+// --- bangun kotak thumbnail persegi kompak di sisi kanan kutipan balasan ---
 function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
   const cleanUrl = String(replyMediaUrl || '').trim();
   const normalizedType = String(replyType || 'text').trim().toLowerCase();
@@ -6146,27 +6199,19 @@ function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
 
   if (normalizedType === 'video') {
     return `
-      <div class="w-10 h-10 rounded-lg overflow-hidden bg-black border border-slate-700/80 shrink-0 relative">
+      <div class="w-11 h-11 aspect-square rounded-md overflow-hidden bg-black border border-white/10 shrink-0 relative">
         <video src="${escapeHtmlString(cleanUrl)}" muted playsinline preload="metadata" class="w-full h-full object-cover pointer-events-none"></video>
-        <span class="absolute inset-0 bg-black/30 flex items-center justify-center">
+        <span class="absolute inset-0 bg-black/20 flex items-center justify-center">
           <svg class="w-3.5 h-3.5 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         </span>
       </div>
     `;
   }
 
-  if (normalizedType === 'sticker') {
+  if (normalizedType === 'image' || normalizedType === 'sticker') {
     return `
-      <div class="w-10 h-10 rounded-lg overflow-hidden bg-slate-900/90 border border-slate-700/70 p-0.5 shrink-0 flex items-center justify-center">
-        <img src="${escapeHtmlString(cleanUrl)}" alt="Stiker" loading="lazy" class="w-full h-full object-contain" />
-      </div>
-    `;
-  }
-
-  if (normalizedType === 'image') {
-    return `
-      <div class="w-10 h-10 rounded-lg overflow-hidden bg-slate-950 border border-slate-700/80 shrink-0">
-        <img src="${escapeHtmlString(cleanUrl)}" alt="Foto" loading="lazy" class="w-full h-full object-cover" />
+      <div class="w-11 h-11 aspect-square rounded-md overflow-hidden bg-slate-950/90 border border-white/10 shrink-0">
+        <img src="${escapeHtmlString(cleanUrl)}" alt="${normalizedType === 'sticker' ? 'Stiker' : 'Foto'}" loading="lazy" class="w-full h-full object-cover" />
       </div>
     `;
   }
@@ -6174,7 +6219,7 @@ function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
   return '';
 }
 
-// --- siapkan kutipan balasan pesan lengkap dengan thumbnail media untuk community atau dm ---
+// --- siapkan kutipan balasan pesan lengkap dengan thumbnail media & emoji ios ---
 function setCommunityReplyTarget(messageId) {
   const activeList = getActiveRoomMessagesList();
   const foundMsg = activeList.find((messageItem) => messageItem.id === messageId);
@@ -6208,13 +6253,13 @@ function setCommunityReplyTarget(messageId) {
     getEl('communityReplyPreviewAuthor').textContent = activeCommunityReplyTarget.name;
   }
   if (getEl('communityReplyPreviewText')) {
-    getEl('communityReplyPreviewText').textContent = activeCommunityReplyTarget.text;
+    getEl('communityReplyPreviewText').innerHTML = formatTextWithAppleEmojis(activeCommunityReplyTarget.text);
   }
 
   if (thumbWrapEl) {
     const thumbHtml = buildQuotedReplyThumbHtml(activeCommunityReplyTarget.type, activeCommunityReplyTarget.mediaUrl);
     if (thumbHtml) {
-      thumbWrapEl.innerHTML = thumbHtml.replace('w-10 h-10 rounded-lg overflow-hidden', 'w-full h-full');
+      thumbWrapEl.innerHTML = thumbHtml;
       thumbWrapEl.classList.remove('hidden');
     } else {
       thumbWrapEl.innerHTML = '';
@@ -6965,6 +7010,7 @@ function initXuCoreUnifiedPage(requestedPage) {
       fetchCurrentProfileSettings();
     }
 
+    // --- inisialisasi halaman beranda chat dan filter otomatis jika akses via ?tab=inbox ---
     if (activePageName === 'chat') {
       fetchCurrentProfileSettings();
       socketClient.emit('community:init');
@@ -6972,7 +7018,7 @@ function initXuCoreUnifiedPage(requestedPage) {
 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('tab') === 'inbox') {
-        switchChatPageSection('inbox');
+        setChatHomeFilter('bot');
       }
     }
 
