@@ -4577,18 +4577,24 @@ function jumpToPinnedItemFromModal(messageId) {
   });
 }
 
-// --- bar pesan disematkan di bawah header (dikunci ketat khusus admin) ---
+// --- bar pesan disematkan di bawah header & modal daftar pin lengkap dengan thumbnail media ---
 function renderCommunityPinnedBar() {
   const barEl = getEl('communityPinnedBar');
   const counterEl = getEl('communityPinnedCounter');
   const previewEl = getEl('communityPinnedPreviewText');
+  const thumbWrapEl = getEl('communityPinnedThumbWrap');
   const nextBtnEl = getEl('communityPinnedNextBtn');
   const modalListEl = getEl('communityPinnedModalList');
-  const adminFormEl = getEl('communityPinnedAdminForm');
 
-  if (adminFormEl) {
-    adminFormEl.classList.toggle('hidden', !isCurrentUserAdmin);
-  }
+  const resolvePinMediaMeta = (pinItem) => {
+    const originMsg = pinItem?.messageId
+      ? communityMessagesCache.find((msgItem) => msgItem.id === pinItem.messageId)
+      : null;
+    return {
+      mediaType: String(originMsg?.type || pinItem?.mediaType || 'text').trim().toLowerCase(),
+      mediaUrl: String(originMsg?.mediaUrl || pinItem?.mediaUrl || '').trim()
+    };
+  };
 
   if (barEl) {
     if (communityPinnedCache.length === 0 || activeChatRoomType !== 'community') {
@@ -4599,11 +4605,24 @@ function renderCommunityPinnedBar() {
         activePinnedCarouselIndex = 0;
       }
       const activePin = communityPinnedCache[activePinnedCarouselIndex];
+      const { mediaType, mediaUrl } = resolvePinMediaMeta(activePin);
+      const mediaIconHtml = buildQuotedMediaIconHtml(mediaType);
+      const thumbHtml = buildQuotedReplyThumbHtml(mediaType, mediaUrl);
+
       if (counterEl) {
         counterEl.textContent = `Pesan disematkan (${activePinnedCarouselIndex + 1}/${communityPinnedCache.length})`;
       }
       if (previewEl) {
-        previewEl.textContent = activePin?.text || '-';
+        previewEl.innerHTML = `${mediaIconHtml}<span class="truncate">${formatTextWithAppleEmojis(activePin?.text || '-')}</span>`;
+      }
+      if (thumbWrapEl) {
+        if (thumbHtml) {
+          thumbWrapEl.innerHTML = thumbHtml;
+          thumbWrapEl.classList.remove('hidden');
+        } else {
+          thumbWrapEl.innerHTML = '';
+          thumbWrapEl.classList.add('hidden');
+        }
       }
       if (nextBtnEl) {
         const hasMultiplePins = communityPinnedCache.length > 1;
@@ -4619,19 +4638,29 @@ function renderCommunityPinnedBar() {
     } else {
       modalListEl.innerHTML = communityPinnedCache.map((pinItem, pinIndex) => {
         const hasTargetMsg = Boolean(pinItem.messageId);
+        const { mediaType, mediaUrl } = resolvePinMediaMeta(pinItem);
+        const mediaIconHtml = buildQuotedMediaIconHtml(mediaType);
+        const thumbHtml = buildQuotedReplyThumbHtml(mediaType, mediaUrl);
         const jumpAttr = hasTargetMsg
           ? `onclick="jumpToPinnedItemFromModal('${escapeHtmlString(pinItem.messageId)}')"`
           : '';
         const unpinBtnHtml = isCurrentUserAdmin
           ? `<button type="button" data-pin-id="${escapeHtmlString(pinItem.id)}" onclick="event.stopPropagation(); unpinCommunityMessageAdmin(this.dataset.pinId)" class="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[10px] font-bold shrink-0 transition-colors">Lepas</button>`
           : '';
+
         return `
-          <div ${jumpAttr} class="rounded-xl bg-slate-950/90 border border-slate-800 ${hasTargetMsg ? 'hover:border-amber-500/40 cursor-pointer' : ''} p-3 space-y-1.5 transition-colors">
+          <div ${jumpAttr} class="rounded-r-xl rounded-l-[4px] border-l-4 border-amber-500 bg-slate-950/90 border-y border-r border-slate-800 ${hasTargetMsg ? 'hover:border-amber-500/50 cursor-pointer' : ''} p-3 space-y-2 transition-colors">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[10px] font-mono-code accent-text font-bold">#${pinIndex + 1} • Disematkan oleh ${escapeHtmlString(pinItem.pinnedBy || 'Admin')}</span>
+              <span class="text-[10px] font-mono-code accent-text font-bold truncate">#${pinIndex + 1} • Disematkan oleh ${escapeHtmlString(pinItem.pinnedBy || 'Admin')}</span>
               ${unpinBtnHtml}
             </div>
-            <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap break-words">${escapeHtmlString(pinItem.text || '')}</p>
+            <div class="flex flex-row items-center justify-between gap-3">
+              <div class="emoji-ios min-w-0 flex-1 flex items-center gap-1.5 text-xs text-slate-200 leading-relaxed">
+                ${mediaIconHtml}
+                <span class="truncate">${formatTextWithAppleEmojis(pinItem.text || '')}</span>
+              </div>
+              ${thumbHtml}
+            </div>
             <div class="flex items-center justify-between text-[9px] font-mono-code text-slate-500">
               <span>${escapeHtmlString(formatWibDateTime(pinItem.pinnedAt))}</span>
               ${hasTargetMsg ? '<span class="text-amber-300/90">Ketuk untuk lompat ke pesan</span>' : ''}
@@ -4660,18 +4689,6 @@ function openPinnedMessagesModal() {
 
 function closePinnedMessagesModal() {
   toggleModalVisibility('communityPinnedModal', false);
-}
-
-function submitNewPinnedMessageAdmin() {
-  if (!isCurrentUserAdmin) {
-    showCyberToast('Akses Ditolak', 'Hanya Admin yang dapat menyematkan pesan.', 'danger');
-    return;
-  }
-  const inputEl = getEl('communityPinnedNewInput');
-  const pinText = String(inputEl?.value || '').trim();
-  if (!pinText) return;
-  socketClient.emit('community:pin:add', { text: pinText });
-  if (inputEl) inputEl.value = '';
 }
 
 function pinCommunityMessageAdmin(messageId) {
@@ -5868,39 +5885,18 @@ async function renderExtendedEmojiCategoriesGrid() {
   }).join('');
 }
 
-// --- tangani input emoji langsung dari keyboard bawaan hp ---
-function handleCustomKeyboardEmojiInput(inputEl) {
-  if (!inputEl || !activeFloatingMessageId) return;
-  const rawVal = String(inputEl.value || '').trim();
-  if (!rawVal) return;
-
-  const firstSegment = typeof Intl !== 'undefined' && Intl.Segmenter
-    ? Array.from(new Intl.Segmenter('id', { granularity: 'grapheme' }).segment(rawVal))[0]?.segment
-    : Array.from(rawVal)[0];
-
-  inputEl.value = '';
-  if (firstSegment) {
-    triggerFloatingEmojiReaction(firstSegment);
-  }
-}
-
-// --- buka bottom sheet pilih reaksi lengkap ala apple & fokuskan input keyboard hp ---
+// --- buka bottom sheet pilih reaksi lengkap ala apple tanpa fokus keyboard hp ---
 function openExtendedEmojiPicker(clickEvent) {
   if (clickEvent) clickEvent.stopPropagation();
-  const customInput = getEl('customKeyboardEmojiInput');
-  if (customInput) customInput.value = '';
   toggleModalVisibility('extendedEmojiPickerSheet', true);
   renderExtendedEmojiCategoriesGrid();
-  setTimeout(() => customInput?.focus(), 60);
 }
 
 function closeExtendedEmojiPicker() {
-  const customInput = getEl('customKeyboardEmojiInput');
-  if (customInput) customInput.value = '';
   toggleModalVisibility('extendedEmojiPickerSheet', false);
 }
 
-// --- buka top action bar dinamis dengan ikon pin/unpin saja & pill emoji cepat ---
+// --- buka top action bar dinamis & pill emoji rata kiri dengan ukuran sedikit lebih besar ---
 function openMessageActionPopup(messageId, anchorEl, triggerEvent) {
   if (triggerEvent) {
     if (typeof triggerEvent.preventDefault === 'function') triggerEvent.preventDefault();
@@ -5956,16 +5952,17 @@ function openMessageActionPopup(messageId, anchorEl, triggerEvent) {
 
   if (isCommunityRoom) {
     const anchorRect = anchorEl?.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
-    const pillWidth = Math.min(282, window.innerWidth - 20);
+    const pillWidth = Math.min(316, window.innerWidth - 24);
+    const chatColumnOffset = Math.max(0, Math.round((window.innerWidth - Math.min(window.innerWidth, 896)) / 2));
+    const fixedLeftPos = Math.min(window.innerWidth - pillWidth - 12, chatColumnOffset + 12);
+
     reactionBar.style.width = `${Math.round(pillWidth)}px`;
+    reactionBar.style.left = `${Math.round(fixedLeftPos)}px`;
 
     if (anchorRect) {
-      const idealLeft = Math.max(10, Math.min(window.innerWidth - pillWidth - 10, anchorRect.left + anchorRect.width / 2 - pillWidth / 2));
-      const idealTop = anchorRect.top > 136 ? anchorRect.top - 58 : Math.min(window.innerHeight - 96, Math.max(76, anchorRect.bottom + 8));
-      reactionBar.style.left = `${Math.round(idealLeft)}px`;
+      const idealTop = anchorRect.top > 142 ? anchorRect.top - 64 : Math.min(window.innerHeight - 104, Math.max(78, anchorRect.bottom + 8));
       reactionBar.style.top = `${Math.round(idealTop)}px`;
     } else {
-      reactionBar.style.left = `${Math.round((window.innerWidth - pillWidth) / 2)}px`;
       reactionBar.style.top = '88px';
     }
   }
@@ -6316,7 +6313,7 @@ function submitCommunityChatForm(event) {
   clearCommunityReplyTarget();
 }
 
-// --- buka pratinjau video/foto layar penuh lengkap dengan profil, nama, waktu & tombol simpan ---
+// --- buka pratinjau video/foto layar penuh tanpa menu titik tiga pada video player ---
 function openChatMediaLightbox(mediaType, mediaUrl, senderName = 'Member', senderAvatar = '', timeLabel = '') {
   const modal = getEl('chatMediaLightboxModal');
   const content = getEl('chatMediaLightboxContent');
@@ -6330,7 +6327,7 @@ function openChatMediaLightbox(mediaType, mediaUrl, senderName = 'Member', sende
   if (getEl('mediaLightboxTime')) getEl('mediaLightboxTime').textContent = timeLabel || '';
 
   content.innerHTML = mediaType === 'video'
-    ? `<video src="${escapeHtmlString(mediaUrl)}" controls autoplay playsinline class="max-h-[82vh] max-w-[96vw] rounded-2xl shadow-2xl bg-black"></video>`
+    ? `<video src="${escapeHtmlString(mediaUrl)}" controls controlsList="nodownload noplaybackrate noremoteplayback" disablePictureInPicture autoplay playsinline class="max-h-[82vh] max-w-[96vw] rounded-2xl shadow-2xl bg-black"></video>`
     : `<img src="${escapeHtmlString(mediaUrl)}" alt="Media" class="max-h-[82vh] max-w-[96vw] rounded-2xl object-contain shadow-2xl" />`;
   toggleModalVisibility('chatMediaLightboxModal', true);
 }
