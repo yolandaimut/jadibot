@@ -4675,6 +4675,57 @@ function isStickerUrlFavorited(stickerUrl) {
   return communityStickersCache.some((item) => item?.url === stickerUrl);
 }
 
+// --- format tanggal pembuatan stiker singkat zona wib ---
+function formatStickerCreatedDateLabel(timestampMs) {
+  const parsedMs = Number(timestampMs || 0);
+  if (!parsedMs || Number.isNaN(parsedMs)) return '';
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }).format(new Date(parsedMs));
+}
+
+// --- selesaikan nama akun pembuat & tanggal pembuatan stiker dari url atau cache ---
+function resolveStickerWatermarkMeta(stickerUrl, fallbackSenderName = 'Member') {
+  const cleanUrl = String(stickerUrl || '').trim();
+  const pathMatch = cleanUrl.match(/\/stickers\/([^/]+)\/(\d{13})_/i);
+
+  let creatorName = String(fallbackSenderName || 'Member').trim() || 'Member';
+  let createdAtMs = 0;
+
+  if (pathMatch) {
+    const ownerId = pathMatch[1];
+    createdAtMs = Number(pathMatch[2] || 0);
+
+    if (ownerId === currentGoogleUserId && currentUserFullName) {
+      creatorName = currentUserFullName;
+    } else {
+      const matchedMember = communityMembersCache.find((member) => member?.userId === ownerId);
+      if (matchedMember?.displayName) {
+        creatorName = matchedMember.displayName;
+      }
+    }
+  }
+
+  if (!createdAtMs) {
+    const matchedFavorite = communityStickersCache.find((item) => item?.url === cleanUrl);
+    if (matchedFavorite?.createdAt) {
+      createdAtMs = Number(matchedFavorite.createdAt);
+    } else {
+      const matchedMsg = getActiveRoomMessagesList().find((msg) => msg?.mediaUrl === cleanUrl);
+      if (matchedMsg?.timestamp) {
+        createdAtMs = Number(matchedMsg.timestamp);
+      }
+    }
+  }
+
+  const dateLabel = formatStickerCreatedDateLabel(createdAtMs);
+  return dateLabel ? `${creatorName} • ${dateLabel}` : creatorName;
+}
+
+// --- perbarui ikon bintang / bintang disilang & label tombol favorit ala whatsapp ---
 function renderStickerFavoriteSheetState() {
   const toggleBtn = getEl('stickerFavoriteToggleBtn');
   const toggleIcon = getEl('stickerFavoriteToggleIcon');
@@ -4682,21 +4733,22 @@ function renderStickerFavoriteSheetState() {
   if (!toggleBtn || !toggleLabel) return;
 
   const isSaved = isStickerUrlFavorited(activeInspectStickerUrl);
+  toggleBtn.className = 'inline-flex items-center gap-3.5 px-3 py-2.5 rounded-xl bg-transparent hover:bg-slate-800/60 active:bg-slate-800/80 text-slate-100 text-[13.5px] font-medium transition-colors disabled:opacity-60';
+
   if (isSaved) {
-    toggleBtn.className = 'w-full py-3 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-300 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60';
     toggleLabel.textContent = 'Hapus dari Favorit';
     if (toggleIcon) {
-      toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>';
+      toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" d="M8.34 8.34 2 9.27l5 4.87L5.82 21 12 17.77 18.18 21l-.59-3.43"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" d="M18.42 12.76 22 9.27l-6.91-1L12 2l-1.44 2.91"/><line x1="2" x2="22" y1="2" y2="22" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9"/>';
     }
   } else {
-    toggleBtn.className = 'w-full py-3 px-4 rounded-xl accent-bg text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 accent-shadow disabled:opacity-60';
-    toggleLabel.textContent = 'Tambahkan ke Favorit';
+    toggleLabel.textContent = 'Tambah ke Favorit';
     if (toggleIcon) {
-      toggleIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>';
+      toggleIcon.innerHTML = '<polygon stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>';
     }
   }
 }
 
+// --- buka bottom sheet info stiker ala whatsapp lengkap dengan watermark pembuat & tanggal ---
 function openStickerFavoriteSheet(stickerUrl, senderName = 'Member', event) {
   if (event) event.stopPropagation();
   if (!stickerUrl) return;
@@ -4704,7 +4756,7 @@ function openStickerFavoriteSheet(stickerUrl, senderName = 'Member', event) {
   activeInspectStickerUrl = stickerUrl;
   if (getEl('stickerFavoritePreviewImg')) getEl('stickerFavoritePreviewImg').src = stickerUrl;
   if (getEl('stickerFavoriteSenderLabel')) {
-    getEl('stickerFavoriteSenderLabel').textContent = `Dikirim oleh ${senderName || 'Member'}`;
+    getEl('stickerFavoriteSenderLabel').textContent = resolveStickerWatermarkMeta(stickerUrl, senderName);
   }
 
   renderStickerFavoriteSheetState();
