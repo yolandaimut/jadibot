@@ -434,36 +434,36 @@
             </div>
           </div>
 
-          <!-- --- tombol menu titik tiga pojok kanan atas ala whatsapp --- -->
-          <div class="relative shrink-0 pr-0.5">
-            <button id="roomMoreMenuBtn" type="button" onclick="toggleRoomMoreMenu(event)" title="Opsi Lainnya" aria-label="Opsi Lainnya" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-all active:scale-90">
+          <!-- --- tombol menu titik tiga pojok kanan atas pekat gelap & z-index tinggi --- -->
+          <div class="relative shrink-0 pr-0.5 z-[70]">
+            <button id="roomMoreMenuBtn" type="button" onclick="toggleRoomMoreMenu(event)" title="Opsi Lainnya" aria-label="Opsi Lainnya" class="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-all active:scale-90">
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
             </button>
 
-            <div id="roomMoreMenuPopup" onclick="event.stopPropagation()" class="hidden popup-enter absolute right-0 top-10 w-60 rounded-2xl bg-[#0d1322]/98 backdrop-blur-2xl border border-slate-700/90 shadow-[0_18px_48px_rgba(0,0,0,0.85)] p-1.5 space-y-0.5 z-50 text-xs">
-              <button type="button" onclick="closeRoomMoreMenu(); openInChatSearchBar();" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+            <div id="roomMoreMenuPopup" onclick="event.stopPropagation()" class="hidden popup-enter fixed sm:absolute right-3 sm:right-0 top-16 sm:top-10 w-60 rounded-2xl bg-[#070b14] border border-slate-700/95 shadow-[0_20px_54px_rgba(0,0,0,0.96)] p-1.5 space-y-0.5 z-[70] text-xs">
+              <button type="button" onclick="closeRoomMoreMenu(); openInChatSearchBar();" class="w-full text-left px-3 py-2.5 rounded-xl bg-[#070b14] hover:bg-slate-900 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
                 <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <span>Cari Pesan</span>
               </button>
 
-              <button id="roomMenuPinnedBtn" type="button" onclick="closeRoomMoreMenu(); openPinnedMessagesModal();" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+              <button id="roomMenuPinnedBtn" type="button" onclick="closeRoomMoreMenu(); openPinnedMessagesModal();" class="w-full text-left px-3 py-2.5 rounded-xl bg-[#070b14] hover:bg-slate-900 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
                 <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
                 <span>Pesan Disematkan</span>
               </button>
 
-              <button id="roomMenuMembersBtn" type="button" onclick="closeRoomMoreMenu(); toggleMembersDrawer(true);" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+              <button id="roomMenuMembersBtn" type="button" onclick="closeRoomMoreMenu(); toggleMembersDrawer(true);" class="w-full text-left px-3 py-2.5 rounded-xl bg-[#070b14] hover:bg-slate-900 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
                 <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <span>Info &amp; Anggota</span>
               </button>
 
-              <button id="roomMenuClearSelfBtn" type="button" onclick="closeRoomMoreMenu(); openClearChatConfirmModal('self');" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+              <button id="roomMenuClearSelfBtn" type="button" onclick="closeRoomMoreMenu(); openClearChatConfirmModal('self');" class="w-full text-left px-3 py-2.5 rounded-xl bg-[#070b14] hover:bg-slate-900 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
                 <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 <span>Bersihkan Chat Saya</span>
               </button>
 
               <div id="roomMenuAdminDivider" class="hidden my-1 border-t border-slate-800"></div>
 
-              <button id="roomMenuClearGlobalBtn" type="button" onclick="closeRoomMoreMenu(); openClearChatConfirmModal('global');" class="hidden w-full text-left px-3 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-bold flex items-center gap-2.5 transition-colors">
+              <button id="roomMenuClearGlobalBtn" type="button" onclick="closeRoomMoreMenu(); openClearChatConfirmModal('global');" class="hidden w-full text-left px-3 py-2.5 rounded-xl bg-[#180910] hover:bg-rose-950/70 text-rose-300 font-bold flex items-center gap-2.5 transition-colors">
                 <svg class="w-4 h-4 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
                 <span>Hapus Semua Chat (Admin)</span>
               </button>

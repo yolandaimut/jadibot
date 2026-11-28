@@ -7767,7 +7767,7 @@ function initXuCoreUnifiedPage(requestedPage) {
     if (activePageName === 'dashboard') {
       const brandCanvas = getEl('headerBrandTextCanvas');
       if (brandCanvas) {
-        const responsiveScale = window.innerWidth < 440 ? 0.62 : 0.7;
+        const responsiveScale = window.innerWidth < 380 ? 0.48 : (window.innerWidth < 460 ? 0.56 : 0.7);
         initHeaderBrandTextCanvas(brandCanvas, {
           width: 146,
           height: 44,
