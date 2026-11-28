@@ -347,10 +347,11 @@
   <!-- --- wrapper utama dua tampilan: beranda chat ala wa & ruang percakapan aktif --- -->
   <div class="relative flex flex-col h-[100dvh] w-full max-w-4xl mx-auto overflow-hidden sm:border-x sm:border-slate-800/70">
 
-    <!-- --- tampilan 1: beranda chat ala whatsapp (community, bot wa/grup, dm akun xu core & mulai percakapan) --- -->
+    <!-- --- tampilan 1: beranda chat ala whatsapp dengan seleksi tekan-lama, spinner refresh & filter mulai percakapan --- -->
     <div id="chatHomeView" class="flex-1 flex flex-col min-h-0 overflow-hidden">
       <header class="shrink-0 z-30 px-3.5 sm:px-5 pt-3.5 pb-2.5 space-y-3 border-b border-slate-800/70 bg-slate-950/75 backdrop-blur-xl">
-        <div class="flex items-center justify-between gap-2">
+        <!-- --- baris header normal beranda chat --- -->
+        <div id="chatHomeHeaderDefaultRow" class="flex items-center justify-between gap-2">
           <div class="flex items-center gap-2.5 min-w-0">
             <a href="/dashboard" title="Kembali ke Dashboard" aria-label="Kembali ke Dashboard" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
@@ -360,11 +361,32 @@
 
           <div class="flex items-center gap-2 shrink-0">
             <span class="hidden sm:inline-block text-[11px] font-mono-code text-slate-400">Xu Core Community</span>
-            <button type="button" onclick="refreshAllChatHomeData()" title="Refresh Percakapan" aria-label="Refresh Percakapan" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center transition-all active:scale-90">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <button id="refreshChatHomeBtn" type="button" onclick="refreshAllChatHomeData()" title="Refresh Percakapan" aria-label="Refresh Percakapan" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-[var(--accent-main)] flex items-center justify-center transition-all active:scale-90 disabled:opacity-60 disabled:cursor-wait">
+              <svg id="refreshChatHomeIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             </button>
             <button type="button" onclick="openProfileSettingsModal()" title="Settings Profile" aria-label="Settings Profile" class="p-0.5 rounded-full border-2 accent-border hover:scale-105 transition-transform active:scale-95">
               <img id="communityNavAvatar" src="https://ui-avatars.com/api/?name=U&background=10b981&color=fff" alt="Profil" class="w-7 h-7 rounded-full object-cover bg-slate-900" />
+            </button>
+          </div>
+        </div>
+
+        <!-- --- baris aksi seleksi saat tekan lama percakapan di beranda --- -->
+        <div id="chatHomeSelectionBar" onclick="event.stopPropagation()" class="hidden items-center justify-between gap-2 min-h-[34px]">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <button type="button" onclick="closeHomeChatSelectionBar()" title="Batal Pilih" aria-label="Batal Pilih" class="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            </button>
+            <div class="min-w-0">
+              <p id="homeSelectTitleLabel" class="text-sm font-heading-modern font-extrabold text-white truncate">1 dipilih</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="homeSelectPinBtn" type="button" onclick="toggleSelectedHomeChatPin()" title="Sematkan Chat" aria-label="Sematkan Chat" class="w-8 h-8 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 flex items-center justify-center transition-all active:scale-90">
+              <svg id="homeSelectPinIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+            </button>
+            <button id="homeSelectDeleteBtn" type="button" onclick="triggerSelectedHomeChatDelete()" title="Hapus Chat" aria-label="Hapus Chat" class="w-8 h-8 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-300 flex items-center justify-center transition-all active:scale-90">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </button>
           </div>
         </div>
@@ -393,7 +415,7 @@
           </div>
         </section>
 
-        <section class="space-y-2.5 pb-6">
+        <section id="chatHomeStartSection" class="space-y-2.5 pb-6">
           <div class="flex items-center justify-between px-1">
             <div>
               <h2 class="font-heading-modern text-sm sm:text-base font-extrabold text-white">Mulai percakapan</h2>

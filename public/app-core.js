@@ -1529,6 +1529,7 @@ function executeCommandPaletteAction(index) {
   if (action && typeof action.run === 'function') action.run();
 }
 
+// --- pintasan keyboard global termasuk tutup seleksi chat beranda ---
 function setupGlobalHotkeys() {
   document.addEventListener('keydown', (event) => {
     const key = String(event.key || '').toLowerCase();
@@ -1550,6 +1551,7 @@ function setupGlobalHotkeys() {
         closeLiveChatFullscreen();
         return;
       }
+      if (selectedHomeChatTarget) closeHomeChatSelectionBar();
       if (activeFloatingMessageId) closeMessageActionPopup();
       if (activeDetailReactionMessageId) closeReactionDetailSheet();
       if (isStickerSheetOpen) closeStickerBottomSheet();
@@ -4102,7 +4104,7 @@ async function clearAllLocalChatAndMediaCaches() {
   }
 }
 
-// --- simpan snapshot ringkas ruang chat terisolasi per akun userId ---
+// --- simpan snapshot ringkas ruang chat & preferensi beranda terisolasi per akun userId ---
 function persistChatLocalCaches() {
   const activeUid = String(currentGoogleUserId || '').trim();
   if (!activeUid) return;
@@ -4136,6 +4138,13 @@ function persistChatLocalCaches() {
         }))
       : []
   );
+  safeSetLocalStorageJson(
+    getScopedChatCacheKey('xu_core_chat_home_prefs_v1', activeUid),
+    {
+      pinnedHomeChats: Array.isArray(pinnedHomeChatsCache) ? pinnedHomeChatsCache.slice(0, 10) : [],
+      hiddenWaChats: hiddenWaChatsMapCache && typeof hiddenWaChatsMapCache === 'object' ? hiddenWaChatsMapCache : {}
+    }
+  );
 }
 
 // --- baca & tulis riwayat dm per peer terisolasi untuk akun aktif ---
@@ -4163,7 +4172,7 @@ function saveCachedDmMessages(peerUserId, messagesList) {
   safeSetLocalStorageJson(scopedKey, Object.fromEntries(sortedEntries));
 }
 
-// --- muat instan cache chat milik akun terakhir sebelum verifikasi socket tiba ---
+// --- muat instan cache chat & preferensi beranda milik akun terakhir sebelum socket tiba ---
 function hydrateChatStateFromLocalStorage() {
   let candidateUid = String(currentGoogleUserId || '').trim();
   if (!candidateUid) {
@@ -4180,6 +4189,7 @@ function hydrateChatStateFromLocalStorage() {
   const cachedMembers = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.members, candidateUid), []);
   const cachedDmRooms = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.dmRooms, candidateUid), []);
   const cachedWaInbox = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.waInbox, candidateUid), []);
+  const cachedHomePrefs = safeReadLocalStorageJson(getScopedChatCacheKey('xu_core_chat_home_prefs_v1', candidateUid), null);
 
   if (Array.isArray(cachedCommunity) && cachedCommunity.length > 0 && communityMessagesCache.length === 0) {
     communityMessagesCache = cachedCommunity;
@@ -4195,6 +4205,14 @@ function hydrateChatStateFromLocalStorage() {
   }
   if (Array.isArray(cachedWaInbox) && cachedWaInbox.length > 0 && waLiveInboxCache.length === 0) {
     waLiveInboxCache = cachedWaInbox;
+  }
+  if (cachedHomePrefs && typeof cachedHomePrefs === 'object') {
+    if (Array.isArray(cachedHomePrefs.pinnedHomeChats) && pinnedHomeChatsCache.length === 0) {
+      pinnedHomeChatsCache = cachedHomePrefs.pinnedHomeChats;
+    }
+    if (cachedHomePrefs.hiddenWaChats && typeof cachedHomePrefs.hiddenWaChats === 'object') {
+      hiddenWaChatsMapCache = cachedHomePrefs.hiddenWaChats;
+    }
   }
 
   renderCommunityMembersDrawer();
@@ -5466,12 +5484,201 @@ function setChatHomeFilter(filterKey) {
   renderChatHomeView();
 }
 
-// --- segarkan seluruh data beranda chat (komunitas, dm xu core, dan bot wa) ---
+// --- state & controller seleksi tekan-lama beranda, pin/hapus chat, dan spinner refresh ---
+let pinnedHomeChatsCache = [];
+let hiddenWaChatsMapCache = {};
+let selectedHomeChatTarget = null;
+let homeChatLongPressTimer = null;
+let isHomeChatLongPressTriggered = false;
+let chatHomeRefreshStartedAt = 0;
+let chatHomeRefreshFallbackTimer = null;
+let pendingHomeRefreshSteps = new Set();
+
+function buildHomeChatKey(roomType, targetId = '') {
+  if (roomType === 'community') return 'community';
+  return `${roomType}:${String(targetId || '').trim()}`;
+}
+
+function removeCachedDmMessages(peerUserId) {
+  const scopedKey = getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.dmMessagesMap);
+  if (!peerUserId || !scopedKey) return;
+  const dmMap = safeReadLocalStorageJson(scopedKey, {});
+  if (dmMap && typeof dmMap === 'object' && dmMap[peerUserId]) {
+    delete dmMap[peerUserId];
+    safeSetLocalStorageJson(scopedKey, dmMap);
+  }
+}
+
+function setChatHomeRefreshSpinState(isSpinning) {
+  const btn = getEl('refreshChatHomeBtn');
+  const icon = getEl('refreshChatHomeIcon');
+  if (btn) btn.disabled = isSpinning;
+  if (icon) icon.classList.toggle('animate-spin', isSpinning);
+}
+
+function stopChatHomeRefreshSpinSmoothly() {
+  if (chatHomeRefreshFallbackTimer) {
+    clearTimeout(chatHomeRefreshFallbackTimer);
+    chatHomeRefreshFallbackTimer = null;
+  }
+  pendingHomeRefreshSteps.clear();
+  const remainingDelay = Math.max(0, 400 - (Date.now() - chatHomeRefreshStartedAt));
+  setTimeout(() => setChatHomeRefreshSpinState(false), remainingDelay);
+}
+
+function markChatHomeRefreshStepDone(stepKey) {
+  if (pendingHomeRefreshSteps.size === 0) return;
+  pendingHomeRefreshSteps.delete(stepKey);
+  if (pendingHomeRefreshSteps.size === 0) {
+    stopChatHomeRefreshSpinSmoothly();
+  }
+}
+
+// --- segarkan data beranda chat dengan animasi spinner asli hingga respons server selesai ---
 function refreshAllChatHomeData() {
+  chatHomeRefreshStartedAt = Date.now();
+  pendingHomeRefreshSteps = new Set(['community', 'dm', 'inbox']);
+  setChatHomeRefreshSpinState(true);
+
+  if (chatHomeRefreshFallbackTimer) clearTimeout(chatHomeRefreshFallbackTimer);
+  chatHomeRefreshFallbackTimer = setTimeout(() => {
+    pendingHomeRefreshSteps.clear();
+    setChatHomeRefreshSpinState(false);
+    chatHomeRefreshFallbackTimer = null;
+  }, 8000);
+
+  if (!socketClient.connected) {
+    socketClient.connect();
+  }
   socketClient.emit('community:init');
   socketClient.emit('dm:list');
   socketClient.emit('inbox:list');
-  showCyberToast('Disegarkan', 'Daftar percakapan diperbarui.', 'info');
+}
+
+function startHomeChatLongPress(roomType, targetId, title, touchEvent) {
+  cancelHomeChatLongPress();
+  isHomeChatLongPressTriggered = false;
+  homeChatLongPressTimer = setTimeout(() => {
+    isHomeChatLongPressTriggered = true;
+    openHomeChatSelectionBar(roomType, targetId, title, touchEvent);
+  }, 420);
+}
+
+function cancelHomeChatLongPress() {
+  if (homeChatLongPressTimer) {
+    clearTimeout(homeChatLongPressTimer);
+    homeChatLongPressTimer = null;
+  }
+}
+
+function handleHomeChatCardClick(roomType, targetId, title, clickEvent) {
+  if (isHomeChatLongPressTriggered) {
+    isHomeChatLongPressTriggered = false;
+    if (clickEvent) clickEvent.preventDefault();
+    return;
+  }
+
+  if (selectedHomeChatTarget) {
+    const clickedKey = buildHomeChatKey(roomType, targetId);
+    if (selectedHomeChatTarget.chatKey === clickedKey) {
+      closeHomeChatSelectionBar();
+    } else {
+      openHomeChatSelectionBar(roomType, targetId, title, clickEvent);
+    }
+    return;
+  }
+
+  openUnifiedChatRoom(roomType, targetId);
+}
+
+function openHomeChatSelectionBar(roomType, targetId, title, triggerEvent) {
+  if (triggerEvent) {
+    if (typeof triggerEvent.preventDefault === 'function') triggerEvent.preventDefault();
+    if (typeof triggerEvent.stopPropagation === 'function') triggerEvent.stopPropagation();
+  }
+
+  const chatKey = buildHomeChatKey(roomType, targetId);
+  selectedHomeChatTarget = { chatKey, roomType, targetId, title: title || 'Chat' };
+
+  getEl('chatHomeHeaderDefaultRow')?.classList.add('hidden');
+  const selBar = getEl('chatHomeSelectionBar');
+  if (selBar) {
+    selBar.classList.remove('hidden');
+    selBar.classList.add('flex');
+  }
+
+  const titleLabel = getEl('homeSelectTitleLabel');
+  if (titleLabel) titleLabel.textContent = selectedHomeChatTarget.title;
+
+  const isPinned = pinnedHomeChatsCache.includes(chatKey);
+  const pinBtn = getEl('homeSelectPinBtn');
+  const pinIcon = getEl('homeSelectPinIcon');
+  if (pinBtn) {
+    pinBtn.title = isPinned ? 'Lepas Sematan Chat' : 'Sematkan Chat';
+    pinBtn.setAttribute('aria-label', pinBtn.title);
+    pinBtn.className = isPinned
+      ? 'w-8 h-8 rounded-xl bg-amber-500/25 hover:bg-amber-500/35 border border-amber-400/55 text-amber-200 flex items-center justify-center transition-all active:scale-90'
+      : 'w-8 h-8 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 flex items-center justify-center transition-all active:scale-90';
+  }
+  if (pinIcon) {
+    pinIcon.innerHTML = isPinned
+      ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m2 2 20 20"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/>'
+      : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>';
+  }
+
+  const delBtn = getEl('homeSelectDeleteBtn');
+  if (delBtn) {
+    delBtn.title = roomType === 'community' ? 'Bersihkan Chat Community' : 'Hapus Chat';
+    delBtn.setAttribute('aria-label', delBtn.title);
+  }
+
+  renderChatHomeView();
+}
+
+function closeHomeChatSelectionBar() {
+  selectedHomeChatTarget = null;
+  const selBar = getEl('chatHomeSelectionBar');
+  if (selBar) {
+    selBar.classList.add('hidden');
+    selBar.classList.remove('flex');
+  }
+  getEl('chatHomeHeaderDefaultRow')?.classList.remove('hidden');
+  renderChatHomeView();
+}
+
+function toggleSelectedHomeChatPin() {
+  if (!selectedHomeChatTarget?.chatKey) return;
+  const targetKey = selectedHomeChatTarget.chatKey;
+  const wasPinned = pinnedHomeChatsCache.includes(targetKey);
+
+  pinnedHomeChatsCache = wasPinned
+    ? pinnedHomeChatsCache.filter((k) => k !== targetKey)
+    : [targetKey, ...pinnedHomeChatsCache].slice(0, 10);
+
+  persistChatLocalCaches();
+  socketClient.emit('chat:home:pin:toggle', { chatKey: targetKey });
+  showCyberToast(
+    wasPinned ? 'Sematan Dilepas' : 'Chat Disematkan',
+    wasPinned ? `"${selectedHomeChatTarget.title}" dilepas dari atas beranda.` : `"${selectedHomeChatTarget.title}" disematkan di atas beranda.`,
+    'info'
+  );
+  closeHomeChatSelectionBar();
+}
+
+function triggerSelectedHomeChatDelete() {
+  if (!selectedHomeChatTarget) return;
+  const { roomType } = selectedHomeChatTarget;
+  if (roomType === 'community') {
+    openClearChatConfirmModal('self');
+    return;
+  }
+  if (roomType === 'dm') {
+    openClearChatConfirmModal('home_dm');
+    return;
+  }
+  if (roomType === 'wa') {
+    openClearChatConfirmModal('home_wa');
+  }
 }
 
 // --- state & helper loader ruang chat serta pengunci scroll instan paling bawah ---
@@ -5743,10 +5950,11 @@ function openUnifiedChatRoom(roomType, targetId = '') {
   }
 }
 
-// --- render daftar percakapan beranda chat ala whatsapp dengan pembeda visual jelas ---
+// --- render daftar percakapan beranda dengan urutan pin, seleksi tekan-lama & filter mulai percakapan ---
 function renderChatHomeView() {
   const listEl = getEl('chatHomeActiveList');
   const membersListEl = getEl('chatHomeMembersList');
+  const startSectionEl = getEl('chatHomeStartSection');
   if (!listEl) return;
 
   const query = String(getEl('chatHomeSearchInput')?.value || '').trim().toLowerCase();
@@ -5761,6 +5969,7 @@ function renderChatHomeView() {
     : 'Ruang obrolan resmi seluruh pengguna Xu Core';
 
   rows.push({
+    chatKey: buildHomeChatKey('community', 'community'),
     roomType: 'community',
     targetId: 'community',
     title: 'Xu Core Community',
@@ -5777,6 +5986,7 @@ function renderChatHomeView() {
   for (const dmRoom of dmRoomsListCache) {
     const avatarUrl = dmRoom.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(dmRoom.name || 'M')}&background=1e1b4b&color=c4b5fd`;
     rows.push({
+      chatKey: buildHomeChatKey('dm', dmRoom.peerUserId),
       roomType: 'dm',
       targetId: dmRoom.peerUserId,
       title: dmRoom.name || 'Member',
@@ -5794,8 +6004,13 @@ function renderChatHomeView() {
     });
   }
 
-  // --- 3. kartu percakapan masuk dari bot whatsapp (user pribadi & grup wa) ---
+  // --- 3. kartu percakapan masuk dari bot whatsapp (kecuali yang sudah dihapus dari beranda) ---
   for (const waChat of waLiveInboxCache) {
+    const hiddenAtMs = Number(hiddenWaChatsMapCache?.[waChat.jid] || 0);
+    if (hiddenAtMs > 0 && Number(waChat.lastTimestamp || 0) <= hiddenAtMs) {
+      continue;
+    }
+
     const isGroupWa = Boolean(waChat.isGroup || String(waChat.jid || '').endsWith('@g.us'));
     const displayTitle = waChat.name || String(waChat.jid || '').split('@')[0];
     const cleanNumberSub = formatCleanWhatsappSubtitle(waChat.jid);
@@ -5804,6 +6019,7 @@ function renderChatHomeView() {
       : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300';
 
     rows.push({
+      chatKey: buildHomeChatKey('wa', waChat.jid),
       roomType: 'wa',
       targetId: waChat.jid,
       title: displayTitle,
@@ -5822,6 +6038,22 @@ function renderChatHomeView() {
     });
   }
 
+  // --- urutkan chat yang disematkan paling atas lalu diikuti percakapan lainnya ---
+  rows.sort((a, b) => {
+    const pinIdxA = pinnedHomeChatsCache.indexOf(a.chatKey);
+    const pinIdxB = pinnedHomeChatsCache.indexOf(b.chatKey);
+    const isPinnedA = pinIdxA !== -1;
+    const isPinnedB = pinIdxB !== -1;
+
+    if (isPinnedA && isPinnedB) return pinIdxA - pinIdxB;
+    if (isPinnedA) return -1;
+    if (isPinnedB) return 1;
+
+    if (a.roomType === 'community' && b.roomType !== 'community') return -1;
+    if (b.roomType === 'community' && a.roomType !== 'community') return 1;
+    return Number(b.timestamp || 0) - Number(a.timestamp || 0);
+  });
+
   const filteredRows = rows.filter((row) => {
     if (query) {
       const hay = `${row.title} ${row.subtitle} ${row.targetId}`.toLowerCase();
@@ -5838,12 +6070,34 @@ function renderChatHomeView() {
     listEl.innerHTML = '<div class="rounded-3xl bg-slate-900/50 border border-dashed border-slate-800 py-8 text-center text-xs font-mono-code text-slate-500">Tidak ada percakapan pada filter ini.</div>';
   } else {
     listEl.innerHTML = filteredRows.map((row) => {
+      const isPinned = pinnedHomeChatsCache.includes(row.chatKey);
+      const isSelected = selectedHomeChatTarget?.chatKey === row.chatKey;
       const unreadPill = row.unreadCount > 0
         ? `<span class="min-w-[20px] h-5 px-1.5 rounded-full accent-bg text-slate-950 font-mono-code text-[10px] font-extrabold flex items-center justify-center shrink-0">${row.unreadCount > 99 ? '99+' : row.unreadCount}</span>`
         : '';
+      const pinIconHtml = isPinned
+        ? '<svg class="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>'
+        : '';
+      const selectedAvatarOverlay = isSelected
+        ? '<span class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full accent-bg border-2 border-[#050810] text-slate-950 flex items-center justify-center shadow-md"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg></span>'
+        : '';
+      const cardToneClass = isSelected
+        ? 'bg-slate-800/90 accent-border ring-1 ring-[var(--accent-main)]'
+        : 'bg-slate-900/70 hover:bg-slate-900 border-slate-800/85 hover:border-slate-700';
+
       return `
-        <button type="button" onclick="openUnifiedChatRoom('${escapeHtmlString(row.roomType)}', '${escapeHtmlString(row.targetId)}')" class="w-full text-left rounded-3xl bg-slate-900/70 hover:bg-slate-900 border border-slate-800/85 hover:border-slate-700 px-3.5 py-3 flex items-center gap-3 transition-all active:scale-[0.99]">
-          ${row.avatarHtml}
+        <button
+          type="button"
+          onclick="handleHomeChatCardClick('${escapeHtmlString(row.roomType)}', '${escapeHtmlString(row.targetId)}', '${escapeHtmlString(row.title)}', event)"
+          oncontextmenu="openHomeChatSelectionBar('${escapeHtmlString(row.roomType)}', '${escapeHtmlString(row.targetId)}', '${escapeHtmlString(row.title)}', event); return false;"
+          ontouchstart="startHomeChatLongPress('${escapeHtmlString(row.roomType)}', '${escapeHtmlString(row.targetId)}', '${escapeHtmlString(row.title)}', event)"
+          ontouchend="cancelHomeChatLongPress()"
+          ontouchmove="cancelHomeChatLongPress()"
+          class="w-full text-left rounded-3xl border px-3.5 py-3 flex items-center gap-3 select-none transition-all active:scale-[0.99] ${cardToneClass}">
+          <div class="relative shrink-0">
+            ${row.avatarHtml}
+            ${selectedAvatarOverlay}
+          </div>
           <div class="min-w-0 flex-1 space-y-0.5">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-1.5 min-w-0">
@@ -5854,7 +6108,10 @@ function renderChatHomeView() {
             </div>
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-slate-400 truncate">${escapeHtmlString(row.subtitle)}</p>
-              ${unreadPill}
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${pinIconHtml}
+                ${unreadPill}
+              </div>
             </div>
           </div>
         </button>
@@ -5862,18 +6119,24 @@ function renderChatHomeView() {
     }).join('');
   }
 
-  // --- render bagian mulai percakapan (daftar akun xu core lain) ---
+  // --- sembunyikan member yang sudah pernah di-chat dan hilangkan seluruh bagian jika sudah semua ---
   if (membersListEl) {
-    const otherMembers = communityMembersCache.filter((member) => {
+    const chattedPeerIds = new Set(dmRoomsListCache.map((room) => room?.peerUserId).filter(Boolean));
+    const unchattedMembers = communityMembersCache.filter((member) => {
       if (!member.userId || member.userId === currentGoogleUserId) return false;
+      if (chattedPeerIds.has(member.userId)) return false;
       if (!query) return true;
       return `${member.displayName || ''} ${member.handle || ''}`.toLowerCase().includes(query);
     });
 
-    if (otherMembers.length === 0) {
-      membersListEl.innerHTML = '<div class="rounded-3xl bg-slate-900/40 border border-dashed border-slate-800 py-5 text-center text-xs font-mono-code text-slate-500">Belum ada anggota lain yang tersedia.</div>';
+    if (startSectionEl) {
+      startSectionEl.classList.toggle('hidden', unchattedMembers.length === 0);
+    }
+
+    if (unchattedMembers.length === 0) {
+      membersListEl.innerHTML = '';
     } else {
-      membersListEl.innerHTML = otherMembers.map((member) => {
+      membersListEl.innerHTML = unchattedMembers.map((member) => {
         const displayName = member.displayName || 'Member';
         const isDev = String(member.role || '').toUpperCase() === 'DEVELOPER' || Boolean(member.isAdmin);
         const avatarUrl = member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0f172a&color=10b981`;
@@ -7051,14 +7314,18 @@ function handleInChatSearchInput() {
   renderCommunityMessagesTimeline(false);
 }
 
+// --- buka modal konfirmasi kustom untuk bersihkan chat atau hapus percakapan beranda ---
 function openClearChatConfirmModal(scopeMode = 'self') {
   if (scopeMode === 'global' && !isCurrentUserAdmin) {
     showCyberToast('Akses Ditolak', 'Hanya Admin yang dapat menghapus seluruh riwayat komunitas.', 'danger');
     return;
   }
 
-  pendingClearChatScope = scopeMode === 'global' ? 'global' : 'self';
+  pendingClearChatScope = ['global', 'home_dm', 'home_wa'].includes(scopeMode) ? scopeMode : 'self';
   const isGlobal = pendingClearChatScope === 'global';
+  const isHomeDm = pendingClearChatScope === 'home_dm';
+  const isHomeWa = pendingClearChatScope === 'home_wa';
+  const targetTitle = selectedHomeChatTarget?.title || 'percakapan ini';
 
   const titleEl = getEl('clearChatModalTitle');
   const descEl = getEl('clearChatModalDesc');
@@ -7067,25 +7334,73 @@ function openClearChatConfirmModal(scopeMode = 'self') {
   const submitBtn = getEl('clearChatConfirmSubmitBtn');
 
   if (titleEl) {
-    titleEl.textContent = isGlobal ? 'Hapus Semua Riwayat Forum?' : 'Bersihkan Chat di Akun Anda?';
+    if (isGlobal) titleEl.textContent = 'Hapus Semua Riwayat Forum?';
+    else if (isHomeDm) titleEl.textContent = `Hapus Chat ${targetTitle}?`;
+    else if (isHomeWa) titleEl.textContent = `Hapus Chat WA ${targetTitle}?`;
+    else titleEl.textContent = 'Bersihkan Chat di Akun Anda?';
   }
+
   if (descEl) {
-    descEl.textContent = isGlobal
-      ? 'Seluruh pesan dan daftar pesan disematkan di Xu Core Community akan dihapus permanen untuk SEMUA anggota.'
-      : 'Riwayat pesan Xu Core Community saat ini akan dibersihkan hanya di akun Anda. Anggota lain tetap dapat melihat pesan seperti biasa.';
+    if (isGlobal) {
+      descEl.textContent = 'Seluruh pesan dan daftar pesan disematkan di Xu Core Community akan dihapus permanen untuk SEMUA anggota.';
+    } else if (isHomeDm) {
+      descEl.textContent = `Percakapan pribadi dengan ${targetTitle} akan dihapus dari beranda akun Anda. Anda tetap bisa memulai chat baru lagi kapan saja.`;
+    } else if (isHomeWa) {
+      descEl.textContent = `Percakapan WhatsApp ${targetTitle} akan dihapus dari daftar beranda sampai ada pesan baru masuk.`;
+    } else {
+      descEl.textContent = 'Riwayat pesan Xu Core Community saat ini akan dibersihkan hanya di akun Anda. Anggota lain tetap dapat melihat pesan seperti biasa.';
+    }
   }
+
   if (guardCheck) guardCheck.checked = false;
   guardWrap?.classList.toggle('hidden', !isGlobal);
 
   if (submitBtn) {
-    submitBtn.textContent = isGlobal ? 'Hapus Global Sekarang' : 'Bersihkan Chat Saya';
-    submitBtn.className = isGlobal
-      ? 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed'
-      : 'px-4 py-2 rounded-xl accent-bg text-slate-950 text-xs font-extrabold transition-all active:scale-95';
+    if (isGlobal) {
+      submitBtn.textContent = 'Hapus Global Sekarang';
+      submitBtn.className = 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed';
+    } else if (isHomeDm || isHomeWa) {
+      submitBtn.textContent = 'Hapus Chat';
+      submitBtn.className = 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all active:scale-95';
+    } else {
+      submitBtn.textContent = 'Bersihkan Chat Saya';
+      submitBtn.className = 'px-4 py-2 rounded-xl accent-bg text-slate-950 text-xs font-extrabold transition-all active:scale-95';
+    }
   }
 
   updateClearChatSubmitButtonState();
   toggleModalVisibility('clearChatConfirmModal', true);
+}
+
+// --- eksekusi aksi pembersihan atau penghapusan chat sesuai mode konfirmasi ---
+function confirmExecuteClearChat() {
+  if (pendingClearChatScope === 'global') {
+    if (!isCurrentUserAdmin || !getEl('clearChatGlobalGuardCheck')?.checked) return;
+    socketClient.emit('community:clear:global');
+  } else if (pendingClearChatScope === 'home_dm' && selectedHomeChatTarget?.targetId) {
+    const peerId = selectedHomeChatTarget.targetId;
+    const labelName = selectedHomeChatTarget.title || 'Member';
+    socketClient.emit('chat:home:delete', { roomType: 'dm', targetId: peerId });
+    dmRoomsListCache = dmRoomsListCache.filter((room) => room.peerUserId !== peerId);
+    pinnedHomeChatsCache = pinnedHomeChatsCache.filter((key) => key !== `dm:${peerId}`);
+    removeCachedDmMessages(peerId);
+    persistChatLocalCaches();
+    closeHomeChatSelectionBar();
+    showCyberToast('Chat Dihapus', `Percakapan dengan ${labelName} telah dihapus.`, 'info');
+  } else if (pendingClearChatScope === 'home_wa' && selectedHomeChatTarget?.targetId) {
+    const waJid = selectedHomeChatTarget.targetId;
+    const labelName = selectedHomeChatTarget.title || 'WhatsApp';
+    socketClient.emit('chat:home:delete', { roomType: 'wa', targetId: waJid });
+    hiddenWaChatsMapCache = { ...(hiddenWaChatsMapCache || {}), [waJid]: Date.now() };
+    pinnedHomeChatsCache = pinnedHomeChatsCache.filter((key) => key !== `wa:${waJid}`);
+    persistChatLocalCaches();
+    closeHomeChatSelectionBar();
+    showCyberToast('Chat Dihapus', `Percakapan WA ${labelName} dihapus dari beranda.`, 'info');
+  } else {
+    socketClient.emit('community:clear:me');
+    if (selectedHomeChatTarget) closeHomeChatSelectionBar();
+  }
+  closeClearChatConfirmModal();
 }
 
 function closeClearChatConfirmModal() {
@@ -7102,16 +7417,6 @@ function updateClearChatSubmitButtonState() {
   } else {
     submitBtn.disabled = false;
   }
-}
-
-function confirmExecuteClearChat() {
-  if (pendingClearChatScope === 'global') {
-    if (!isCurrentUserAdmin || !getEl('clearChatGlobalGuardCheck')?.checked) return;
-    socketClient.emit('community:clear:global');
-  } else {
-    socketClient.emit('community:clear:me');
-  }
-  closeClearChatConfirmModal();
 }
 
 // --- pemicu reverse infinite scroll saat user menggulir mendekati ujung atas ---
@@ -7279,10 +7584,11 @@ socketClient.on('public:chat:message', (msg) => {
   if (getEl('publicChatMessagesList')) renderPublicChatMessages();
 });
 
-// --- sinkronkan wa bot inbox dan simpan ke localStorage ---
+// --- sinkronkan wa bot inbox, hentikan spinner refresh, dan simpan ke localStorage ---
 socketClient.on('inbox:update', (list) => {
   waLiveInboxCache = Array.isArray(list) ? list : [];
   persistChatLocalCaches();
+  markChatHomeRefreshStepDone('inbox');
   if (getEl('chatHomeActiveList')) renderChatHomeView();
   if (activeChatRoomType === 'wa') renderActiveWaRoomTimeline(true);
 });
@@ -7303,7 +7609,7 @@ socketClient.on('connect', () => {
   }
 });
 
-// --- listener inisialisasi beranda chat & komunitas dengan deteksi ganti akun ---
+// --- listener inisialisasi beranda chat & komunitas lengkap dengan pin beranda & spinner ---
 socketClient.on('community:ready', (payload) => {
   if (!payload) return;
 
@@ -7316,6 +7622,8 @@ socketClient.on('community:ready', (payload) => {
     activeDmMessagesCache = [];
     dmRoomsListCache = [];
     waLiveInboxCache = [];
+    pinnedHomeChatsCache = [];
+    hiddenWaChatsMapCache = {};
   }
 
   isCurrentUserAdmin = Boolean(payload.isAdmin);
@@ -7332,6 +7640,8 @@ socketClient.on('community:ready', (payload) => {
   communityHasMoreHistory = Boolean(payload.hasMoreMessages);
   communityPinnedCache = Array.isArray(payload.pinnedMessages) ? payload.pinnedMessages : [];
   communityMembersCache = Array.isArray(payload.members) ? payload.members : [];
+  if (Array.isArray(payload.pinnedHomeChats)) pinnedHomeChatsCache = payload.pinnedHomeChats;
+  if (payload.hiddenWaChats && typeof payload.hiddenWaChats === 'object') hiddenWaChatsMapCache = payload.hiddenWaChats;
   if (Array.isArray(payload.dmRooms)) dmRoomsListCache = payload.dmRooms;
   if (Array.isArray(payload.waInbox)) waLiveInboxCache = payload.waInbox;
 
@@ -7339,6 +7649,7 @@ socketClient.on('community:ready', (payload) => {
   syncRoomMoreMenuOptions();
   renderCommunityMembersDrawer();
   renderChatHomeView();
+  markChatHomeRefreshStepDone('community');
 
   if (activeChatRoomType === 'community') {
     renderCommunityPinnedBar();
@@ -7350,6 +7661,20 @@ socketClient.on('community:ready', (payload) => {
 
   const serverStickers = Array.isArray(payload.stickers) ? payload.stickers : [];
   syncStickersFromSupabaseToLocal(currentGoogleUserId, serverStickers);
+});
+
+// --- sinkronkan daftar pin chat beranda secara real-time ---
+socketClient.on('chat:home:pins:update', (pinsList) => {
+  pinnedHomeChatsCache = Array.isArray(pinsList) ? pinsList : [];
+  persistChatLocalCaches();
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
+});
+
+// --- sinkronkan daftar chat bot wa yang disembunyikan dari beranda ---
+socketClient.on('chat:home:hiddenWa:update', (hiddenMap) => {
+  hiddenWaChatsMapCache = hiddenMap && typeof hiddenMap === 'object' ? hiddenMap : {};
+  persistChatLocalCaches();
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
 });
 
 // --- sisipkan pesan komunitas lama di atas tanpa menggeser posisi scroll layar ---
@@ -7379,12 +7704,14 @@ socketClient.on('community:history:older:data', (payload) => {
   }
 });
 
-// --- tangani pembersihan riwayat komunitas khusus akun sendiri ---
+// --- tangani pembersihan riwayat komunitas khusus akun sendiri beserta sematan lokalnya ---
 socketClient.on('community:cleared:me', (payload) => {
   userCommunityClearedAt = Number(payload?.clearedAt || Date.now());
   communityMessagesCache = [];
+  communityPinnedCache = [];
   communityHasMoreHistory = false;
   persistChatLocalCaches();
+  renderCommunityPinnedBar();
 
   if (getEl('chatHomeActiveList')) renderChatHomeView();
   if (activeChatRoomType === 'community') {
@@ -7419,10 +7746,11 @@ socketClient.on('community:cleared:global', (payload) => {
   );
 });
 
-// --- listener dm sesama akun xu core dengan cache lokal per ruang ---
+// --- listener dm sesama akun xu core dengan cache lokal & sinkronisasi spinner refresh ---
 socketClient.on('dm:list:data', (roomsList) => {
   dmRoomsListCache = Array.isArray(roomsList) ? roomsList : [];
   persistChatLocalCaches();
+  markChatHomeRefreshStepDone('dm');
   if (getEl('chatHomeActiveList')) renderChatHomeView();
 });
 
