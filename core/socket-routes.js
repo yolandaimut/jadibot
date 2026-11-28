@@ -81,6 +81,11 @@ import {
   getUnreferencedMediaUrls,
   popExpiredUnreferencedMediaUrls,
   enqueuePendingMediaDeletion,
+  deleteDmRoomForUser,
+  getUserHiddenWaChats,
+  getUserPinnedHomeChats,
+  hideWaChatForUser,
+  toggleUserPinnedHomeChat,
 } from './database.js';
 import {
   deletePluginFile,
@@ -1398,7 +1403,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim payload inisialisasi beranda chat dengan 30 pesan terbaru sesuai cursor & clearedAt ---
+    // --- kirim payload inisialisasi beranda chat beserta pin beranda & pin pesan valid ---
     clientSocket.on('community:init', () => {
       try {
         clientSocket.join('community_room');
@@ -1423,7 +1428,9 @@ export function registerSocketHandlers(io, coreModules) {
           messages: initialPage.messages,
           hasMoreMessages: initialPage.hasMore,
           communityClearedAt: userClearedAt,
-          pinnedMessages: getPinnedCommunityMessages(),
+          pinnedMessages: getPinnedCommunityMessages(userClearedAt),
+          pinnedHomeChats: getUserPinnedHomeChats(authenticatedGoogleId),
+          hiddenWaChats: getUserHiddenWaChats(authenticatedGoogleId),
           members: latestMembers,
           dmRooms: getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds),
           waInbox: getLiveInboxSnapshot(authenticatedGoogleId),
@@ -1431,6 +1438,42 @@ export function registerSocketHandlers(io, coreModules) {
         });
       } catch (initErr) {
         clientSocket.emit('community:error', { errorMessage: initErr.message || 'Gagal memuat ruang komunitas.' });
+      }
+    });
+
+    // --- sematkan atau lepas sematan percakapan pada beranda chat milik user ---
+    clientSocket.on('chat:home:pin:toggle', (payload) => {
+      try {
+        const chatKey = String(payload?.chatKey || '').trim();
+        if (!chatKey) return;
+        const nextPinnedHome = toggleUserPinnedHomeChat(authenticatedGoogleId, chatKey);
+        io.to(`user_${authenticatedGoogleId}`).emit('chat:home:pins:update', nextPinnedHome);
+      } catch (homePinErr) {
+        clientSocket.emit('community:error', { errorMessage: homePinErr.message || 'Gagal menyematkan percakapan.' });
+      }
+    });
+
+    // --- hapus percakapan dm atau sembunyikan chat bot wa dari beranda milik user ---
+    clientSocket.on('chat:home:delete', (payload) => {
+      try {
+        const roomType = String(payload?.roomType || '').trim().toLowerCase();
+        const targetId = String(payload?.targetId || '').trim();
+        if (!targetId) return;
+
+        if (roomType === 'dm') {
+          const result = deleteDmRoomForUser(authenticatedGoogleId, targetId);
+          io.to(`user_${authenticatedGoogleId}`).emit('dm:list:data', getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds));
+          io.to(`user_${authenticatedGoogleId}`).emit('chat:home:pins:update', result.pinnedHomeChats);
+          return;
+        }
+
+        if (roomType === 'wa') {
+          const result = hideWaChatForUser(authenticatedGoogleId, targetId);
+          io.to(`user_${authenticatedGoogleId}`).emit('chat:home:hiddenWa:update', result.hiddenWaChats);
+          io.to(`user_${authenticatedGoogleId}`).emit('chat:home:pins:update', result.pinnedHomeChats);
+        }
+      } catch (homeDelErr) {
+        clientSocket.emit('community:error', { errorMessage: homeDelErr.message || 'Gagal menghapus percakapan.' });
       }
     });
 
@@ -1588,7 +1631,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim pesan komunitas beserta posterUrl video bila ada ---
+    // --- kirim pesan komunitas beserta sinkronisasi otomatis bila ada pin lama yang terlepas ---
     clientSocket.on('community:message:send', (payload) => {
       try {
         const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
@@ -1608,6 +1651,9 @@ export function registerSocketHandlers(io, coreModules) {
 
         if (savedResult?.item) {
           io.emit('community:message:new', savedResult.item);
+        }
+        if (savedResult?.pinsChanged) {
+          io.emit('community:pins:update', savedResult.pinnedMessages);
         }
       } catch (sendError) {
         clientSocket.emit('community:error', { errorMessage: sendError.message || 'Gagal mengirim pesan.' });

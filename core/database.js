@@ -620,7 +620,7 @@ function extractMessageMediaUrls(messageObj) {
   ].filter(Boolean);
 }
 
-// --- tambahkan pesan komunitas dan antrekan media lama yang terpotong batas riwayat ---
+// --- tambahkan pesan komunitas, antrekan media terpotong, dan lepas pin yang pesannya hilang ---
 export function appendCommunityChatMessage({
   userId = '',
   name = 'Member',
@@ -694,12 +694,19 @@ export function appendCommunityChatMessage({
   }
 
   masterDb.publicChatMessages = combinedList.slice(-MAX_PUBLIC_CHAT_HISTORY);
+  const pinPruneResult = pruneOrphanPinnedMessages(masterDb);
+
   if (trimmedCandidateUrls.length > 0) {
     enqueuePendingMediaDeletion(trimmedCandidateUrls, MEDIA_DELETE_GRACE_PERIOD_MS, masterDb);
   }
 
   writeMasterDatabaseFileAtomic(masterDb);
-  return { item: chatEntry, list: masterDb.publicChatMessages };
+  return {
+    item: chatEntry,
+    list: masterDb.publicChatMessages,
+    pinsChanged: pinPruneResult.changed,
+    pinnedMessages: pinPruneResult.pins
+  };
 }
 
 // --- toggle emoji reaction pada pesan komunitas (klik emoji sama untuk menghapus) ---
@@ -929,12 +936,212 @@ export function deleteCommunityMessageAuthorized(messageId, actorUserId, isAdmin
   };
 }
 
-// --- manajemen daftar pesan disematkan komunitas (modifikasi khusus admin) ---
-export function getPinnedCommunityMessages() {
+// --- bersihkan otomatis sematan yang pesan aslinya sudah dihapus atau hilang dari riwayat ---
+function pruneOrphanPinnedMessages(masterDb) {
+  const currentPins = Array.isArray(masterDb.pinnedMessages) ? masterDb.pinnedMessages : [];
+  if (currentPins.length === 0) return { changed: false, pins: [] };
+
+  const activeMsgIds = new Set(
+    (Array.isArray(masterDb.publicChatMessages) ? masterDb.publicChatMessages : [])
+      .map((msg) => msg?.id)
+      .filter(Boolean)
+  );
+
+  const validPins = [];
+  const orphanUrls = [];
+
+  for (const pin of currentPins) {
+    if (pin?.messageId && activeMsgIds.has(pin.messageId)) {
+      validPins.push(pin);
+    } else {
+      if (pin?.mediaUrl) orphanUrls.push(pin.mediaUrl);
+      if (pin?.posterUrl) orphanUrls.push(pin.posterUrl);
+    }
+  }
+
+  const changed = validPins.length !== currentPins.length;
+  if (changed) {
+    masterDb.pinnedMessages = validPins;
+    if (orphanUrls.length > 0) {
+      enqueuePendingMediaDeletion(orphanUrls, MEDIA_DELETE_GRACE_PERIOD_MS, masterDb);
+    }
+  }
+
+  return { changed, pins: validPins };
+}
+
+// --- baca daftar chat beranda yang disematkan oleh akun user ---
+export function getUserPinnedHomeChats(userId) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return [];
   const masterDb = readMasterDatabaseFile();
-  return Array.isArray(masterDb.pinnedMessages)
-    ? masterDb.pinnedMessages.slice(0, MAX_PINNED_MESSAGES)
+  const pinnedList = masterDb.userProfiles?.[cleanUserId]?.pinnedHomeChats;
+  return Array.isArray(pinnedList) ? pinnedList : [];
+}
+
+// --- sematkan atau lepas sematan chat di beranda milik akun user ---
+export function toggleUserPinnedHomeChat(userId, rawChatKey) {
+  const cleanUserId = String(userId || '').trim();
+  const cleanChatKey = String(rawChatKey || '').trim().slice(0, 120);
+  if (!cleanUserId || !cleanChatKey) return [];
+
+  const masterDb = readMasterDatabaseFile();
+  masterDb.userProfiles = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+
+  const existingProfile = masterDb.userProfiles[cleanUserId] || { userId: cleanUserId };
+  const currentPins = Array.isArray(existingProfile.pinnedHomeChats)
+    ? existingProfile.pinnedHomeChats.filter(Boolean)
     : [];
+
+  const nextPins = currentPins.includes(cleanChatKey)
+    ? currentPins.filter((key) => key !== cleanChatKey)
+    : [cleanChatKey, ...currentPins].slice(0, 10);
+
+  masterDb.userProfiles[cleanUserId] = {
+    ...existingProfile,
+    pinnedHomeChats: nextPins,
+    updatedAt: Date.now()
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return nextPins;
+}
+
+// --- baca dan simpan daftar chat bot wa yang disembunyikan dari beranda user ---
+export function getUserHiddenWaChats(userId) {
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanUserId) return {};
+  const masterDb = readMasterDatabaseFile();
+  const hiddenMap = masterDb.userProfiles?.[cleanUserId]?.hiddenWaChats;
+  return hiddenMap && typeof hiddenMap === 'object' ? hiddenMap : {};
+}
+
+export function hideWaChatForUser(userId, chatJid) {
+  const cleanUserId = String(userId || '').trim();
+  const cleanJid = String(chatJid || '').trim().slice(0, 120);
+  if (!cleanUserId || !cleanJid) return { hiddenWaChats: {}, pinnedHomeChats: [] };
+
+  const masterDb = readMasterDatabaseFile();
+  masterDb.userProfiles = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+
+  const existingProfile = masterDb.userProfiles[cleanUserId] || { userId: cleanUserId };
+  const nextHiddenMap = {
+    ...(existingProfile.hiddenWaChats && typeof existingProfile.hiddenWaChats === 'object' ? existingProfile.hiddenWaChats : {}),
+    [cleanJid]: Date.now()
+  };
+  const nextPinnedHome = (Array.isArray(existingProfile.pinnedHomeChats) ? existingProfile.pinnedHomeChats : []).filter(
+    (key) => key !== `wa:${cleanJid}`
+  );
+
+  masterDb.userProfiles[cleanUserId] = {
+    ...existingProfile,
+    hiddenWaChats: nextHiddenMap,
+    pinnedHomeChats: nextPinnedHome,
+    updatedAt: Date.now()
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return { hiddenWaChats: nextHiddenMap, pinnedHomeChats: nextPinnedHome };
+}
+
+// --- hapus percakapan dm dari beranda akun sendiri tanpa merusak riwayat lawan bicara ---
+export function deleteDmRoomForUser(userId, peerUserId) {
+  const cleanUserId = String(userId || '').trim();
+  const cleanPeerId = String(peerUserId || '').trim();
+  const roomKey = buildDmRoomKey(cleanUserId, cleanPeerId);
+  if (!cleanUserId || !cleanPeerId || !roomKey) {
+    return { isSuccess: false, pinnedHomeChats: [] };
+  }
+
+  const masterDb = readMasterDatabaseFile();
+  const nowMs = Date.now();
+  const existingRoom = masterDb.directMessages?.[roomKey];
+
+  if (existingRoom) {
+    const nextHiddenBy = { ...(existingRoom.hiddenBy || {}), [cleanUserId]: true };
+    const nextClearedAtBy = { ...(existingRoom.clearedAtBy || {}), [cleanUserId]: nowMs };
+    const nextUnreadBy = { ...(existingRoom.unreadBy || {}), [cleanUserId]: 0 };
+
+    const participants = Array.isArray(existingRoom.participants)
+      ? existingRoom.participants
+      : [cleanUserId, cleanPeerId];
+    const minClearedAll = participants.every((pid) => Number(nextClearedAtBy[pid] || 0) > 0)
+      ? Math.min(...participants.map((pid) => Number(nextClearedAtBy[pid] || 0)))
+      : 0;
+
+    const existingMessages = Array.isArray(existingRoom.messages) ? existingRoom.messages : [];
+    let nextMessages = existingMessages;
+    const droppedMediaUrls = [];
+
+    if (minClearedAll > 0) {
+      nextMessages = existingMessages.filter((msg) => {
+        const isKeep = Number(msg?.timestamp || 0) > minClearedAll;
+        if (!isKeep) {
+          droppedMediaUrls.push(...extractMessageMediaUrls(msg));
+        }
+        return isKeep;
+      });
+    }
+
+    masterDb.directMessages[roomKey] = {
+      ...existingRoom,
+      hiddenBy: nextHiddenBy,
+      clearedAtBy: nextClearedAtBy,
+      unreadBy: nextUnreadBy,
+      messages: nextMessages
+    };
+
+    if (droppedMediaUrls.length > 0) {
+      enqueuePendingMediaDeletion(droppedMediaUrls, MEDIA_DELETE_GRACE_PERIOD_MS, masterDb);
+    }
+  }
+
+  masterDb.userProfiles = masterDb.userProfiles && typeof masterDb.userProfiles === 'object'
+    ? masterDb.userProfiles
+    : {};
+  const existingProfile = masterDb.userProfiles[cleanUserId] || { userId: cleanUserId };
+  const nextPinnedHome = (Array.isArray(existingProfile.pinnedHomeChats) ? existingProfile.pinnedHomeChats : []).filter(
+    (key) => key !== `dm:${cleanPeerId}`
+  );
+  masterDb.userProfiles[cleanUserId] = {
+    ...existingProfile,
+    pinnedHomeChats: nextPinnedHome,
+    updatedAt: nowMs
+  };
+
+  writeMasterDatabaseFileAtomic(masterDb);
+  return { isSuccess: true, pinnedHomeChats: nextPinnedHome };
+}
+
+// --- ambil daftar pesan disematkan valid dan otomatis lepas pin yang pesannya sudah hilang ---
+export function getPinnedCommunityMessages(minTimestamp = 0) {
+  const masterDb = readMasterDatabaseFile();
+  const { changed, pins } = pruneOrphanPinnedMessages(masterDb);
+  if (changed) {
+    writeMasterDatabaseFileAtomic(masterDb);
+  }
+
+  const cleanMinTs = Math.max(0, Number(minTimestamp) || 0);
+  if (cleanMinTs <= 0) {
+    return pins.slice(0, MAX_PINNED_MESSAGES);
+  }
+
+  const messageMap = new Map(
+    (Array.isArray(masterDb.publicChatMessages) ? masterDb.publicChatMessages : [])
+      .filter((msg) => msg?.id)
+      .map((msg) => [msg.id, msg])
+  );
+
+  return pins
+    .filter((pin) => {
+      const originMsg = messageMap.get(pin.messageId);
+      return originMsg && Number(originMsg.timestamp || 0) > cleanMinTs;
+    })
+    .slice(0, MAX_PINNED_MESSAGES);
 }
 
 // --- simpan pesan disematkan ke pinnedMessages lengkap dengan metadata thumbnail media ---
@@ -1001,7 +1208,7 @@ export function buildDmRoomKey(userIdA, userIdB) {
   return `dm_${sortedIds[0]}__${sortedIds[1]}`;
 }
 
-// --- ambil seluruh daftar percakapan dm milik satu akun xu core ---
+// --- ambil daftar percakapan dm aktif milik satu akun (kecuali yang dihapus/disembunyikan) ---
 export function getUserDmRoomsList(userId, onlineUserIdsSet = new Set()) {
   const cleanUserId = String(userId || '').trim();
   if (!cleanUserId) return [];
@@ -1015,12 +1222,18 @@ export function getUserDmRoomsList(userId, onlineUserIdsSet = new Set()) {
     if (!roomData || !Array.isArray(roomData.participants) || !roomData.participants.includes(cleanUserId)) {
       continue;
     }
+    if (roomData.hiddenBy?.[cleanUserId] === true) {
+      continue;
+    }
 
     const peerUserId = roomData.participants.find((participantId) => participantId !== cleanUserId);
     if (!peerUserId) continue;
 
+    const clearedAtMs = Number(roomData.clearedAtBy?.[cleanUserId] || 0);
     const peerProfile = profilesMap[peerUserId] || {};
-    const messages = Array.isArray(roomData.messages) ? roomData.messages : [];
+    const messages = (Array.isArray(roomData.messages) ? roomData.messages : []).filter(
+      (msg) => Number(msg?.timestamp || 0) > clearedAtMs
+    );
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
     const unreadCount = Number(roomData.unreadBy?.[cleanUserId] || 0);
 
@@ -1045,16 +1258,18 @@ export function getUserDmRoomsList(userId, onlineUserIdsSet = new Set()) {
   return rooms.sort((a, b) => Number(b.lastTimestamp || 0) - Number(a.lastTimestamp || 0));
 }
 
-// --- ambil riwayat pesan dm antara dua akun xu core ---
+// --- ambil riwayat pesan dm antara dua akun dengan menghormati batas hapus milik viewer ---
 export function getDmRoomMessages(userIdA, userIdB) {
   const roomKey = buildDmRoomKey(userIdA, userIdB);
   if (!roomKey) return [];
   const masterDb = readMasterDatabaseFile();
-  const messages = masterDb.directMessages?.[roomKey]?.messages;
-  return Array.isArray(messages) ? messages.slice(-80) : [];
+  const roomData = masterDb.directMessages?.[roomKey];
+  const clearedAtMs = Number(roomData?.clearedAtBy?.[String(userIdA || '').trim()] || 0);
+  const messages = Array.isArray(roomData?.messages) ? roomData.messages : [];
+  return messages.filter((msg) => Number(msg?.timestamp || 0) > clearedAtMs).slice(-80);
 }
 
-// --- simpan pesan dm baru dan antrekan media lama yang terpotong batas 80 pesan ---
+/// --- simpan pesan dm baru, tampilkan kembali ruang tersembunyi, dan antrekan media lama ---
 export function appendDmMessage({
   fromUserId = '',
   toUserId = '',
@@ -1099,10 +1314,15 @@ export function appendDmMessage({
     ? masterDb.directMessages
     : {};
 
+  const cleanFromId = String(fromUserId).trim();
+  const cleanToId = String(toUserId).trim();
+
   const existingRoom = masterDb.directMessages[roomKey] || {
     roomKey,
-    participants: [String(fromUserId).trim(), String(toUserId).trim()],
+    participants: [cleanFromId, cleanToId],
     unreadBy: {},
+    hiddenBy: {},
+    clearedAtBy: {},
     messages: [],
     updatedAt: Date.now()
   };
@@ -1110,8 +1330,8 @@ export function appendDmMessage({
   const dmEntry = {
     id: `dm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     roomKey,
-    userId: String(fromUserId).trim(),
-    toUserId: String(toUserId).trim(),
+    userId: cleanFromId,
+    toUserId: cleanToId,
     name: String(senderProfile?.displayName || senderProfile?.fullName || 'Member').trim().slice(0, 48),
     handle: String(senderProfile?.handle || '').trim().slice(0, 32),
     avatarUrl: String(senderProfile?.avatarUrl || '').trim().slice(0, 450),
@@ -1127,8 +1347,10 @@ export function appendDmMessage({
   };
 
   const unreadBy = { ...(existingRoom.unreadBy || {}) };
-  unreadBy[String(toUserId).trim()] = Number(unreadBy[String(toUserId).trim()] || 0) + 1;
-  unreadBy[String(fromUserId).trim()] = 0;
+  unreadBy[cleanToId] = Number(unreadBy[cleanToId] || 0) + 1;
+  unreadBy[cleanFromId] = 0;
+
+  const hiddenBy = { ...(existingRoom.hiddenBy || {}), [cleanFromId]: false, [cleanToId]: false };
 
   const combinedDmMessages = [...(Array.isArray(existingRoom.messages) ? existingRoom.messages : []), dmEntry];
   const dmOverflowCount = combinedDmMessages.length - 80;
@@ -1142,8 +1364,9 @@ export function appendDmMessage({
 
   masterDb.directMessages[roomKey] = {
     ...existingRoom,
-    participants: [String(fromUserId).trim(), String(toUserId).trim()],
+    participants: [cleanFromId, cleanToId],
     unreadBy,
+    hiddenBy,
     messages: combinedDmMessages.slice(-80),
     updatedAt: dmEntry.timestamp
   };
