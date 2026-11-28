@@ -504,6 +504,7 @@ function validateDeleteAccountConfirmation() {
   return isExactMatch;
 }
 
+// --- hapus akun permanen dan bersihkan seluruh cache lokal perangkat ---
 async function submitPermanentAccountDeletion() {
   const expectedPhrase = getExpectedDeleteAccountPhrase();
   if (!validateDeleteAccountConfirmation()) {
@@ -529,9 +530,7 @@ async function submitPermanentAccountDeletion() {
       throw new Error(result.errorMessage || 'Gagal menghapus akun.');
     }
 
-    try {
-      localStorage.removeItem(`${STICKER_CACHE_PREFIX}${currentGoogleUserId}`);
-    } catch {}
+    await clearAllLocalChatAndMediaCaches();
 
     if (socketClient.connected) socketClient.disconnect();
     window.location.replace('/login');
@@ -1557,6 +1556,8 @@ function setupGlobalHotkeys() {
       if (activeInspectStickerUrl) closeStickerFavoriteSheet();
       if (isChatAttachMenuOpen) closeChatAttachMenu();
       if (isMembersDrawerOpen) toggleMembersDrawer(false);
+      if (isRoomMoreMenuOpen) closeRoomMoreMenu();
+      closeClearChatConfirmModal();
       closePinnedMessagesModal();
       closeChatMediaLightbox();
       closeProfileSettingsModal();
@@ -2227,7 +2228,11 @@ function triggerManualSessionSync() {
   showCyberToast('Sinkronisasi', 'Memuat ulang status sesi dan statistik...', 'info');
 }
 
+// --- keluar akun tanpa menghapus cache riwayat, hanya reset penanda akun terakhir ---
 async function logoutGoogleAccount() {
+  try {
+    localStorage.removeItem(LAST_CHAT_CACHE_USER_KEY);
+  } catch {}
   try {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
   } catch {}
@@ -3985,6 +3990,384 @@ function updateCodeInspectorReport(errorMessageText, hasError) {
     output.textContent = errorMessageText || 'Belum ada error sintaks maupun runtime yang terdeteksi.';
   }
 }
+
+// --- konfigurasi hybrid cache localStorage anti-quota overflow & indexeddb poster video ---
+const CHAT_CACHE_STORAGE_KEYS = {
+  community: 'xu_core_chat_community_v1',
+  pinned: 'xu_core_chat_pinned_v1',
+  members: 'xu_core_chat_members_v1',
+  dmRooms: 'xu_core_chat_dm_rooms_v1',
+  dmMessagesMap: 'xu_core_chat_dm_msgs_v1',
+  waInbox: 'xu_core_chat_wa_inbox_v1',
+  appleEmojis: 'xu_core_apple_emoji_catalog_v1512'
+};
+
+const MAX_CACHED_COMMUNITY_MSGS = 80;
+const MAX_CACHED_DM_ROOMS = 12;
+const MAX_CACHED_DM_MSGS_PER_ROOM = 50;
+const MAX_CACHED_WA_CHATS = 30;
+const MAX_IDB_VIDEO_POSTERS = 60;
+
+const VIDEO_POSTER_IDB_NAME = 'xu_core_media_cache_v1';
+const VIDEO_POSTER_STORE_NAME = 'video_posters';
+const videoPosterMemoryMap = new Map();
+const pendingVideoPosterJobs = new Set();
+let videoPosterIdbPromise = null;
+
+// --- baca json aman dari localStorage ---
+function safeReadLocalStorageJson(storageKey, fallbackValue = null) {
+  try {
+    const rawValue = localStorage.getItem(storageKey);
+    if (!rawValue) return fallbackValue;
+    return JSON.parse(rawValue);
+  } catch {
+    return fallbackValue;
+  }
+}
+
+// --- tulis json ke localStorage dengan pemulihan otomatis jika melewati batas kuota 5mb ---
+function safeSetLocalStorageJson(storageKey, valueObj) {
+  const serialized = JSON.stringify(valueObj);
+  try {
+    localStorage.setItem(storageKey, serialized);
+    return true;
+  } catch (quotaErr) {
+    try {
+      localStorage.removeItem(CHAT_CACHE_STORAGE_KEYS.appleEmojis);
+      localStorage.removeItem(CHAT_CACHE_STORAGE_KEYS.waInbox);
+
+      const dmMap = safeReadLocalStorageJson(CHAT_CACHE_STORAGE_KEYS.dmMessagesMap, {});
+      if (dmMap && typeof dmMap === 'object') {
+        const roomKeys = Object.keys(dmMap);
+        if (roomKeys.length > 4) {
+          roomKeys.slice(0, roomKeys.length - 4).forEach((oldKey) => {
+            delete dmMap[oldKey];
+          });
+          localStorage.setItem(CHAT_CACHE_STORAGE_KEYS.dmMessagesMap, JSON.stringify(dmMap));
+        } else {
+          localStorage.removeItem(CHAT_CACHE_STORAGE_KEYS.dmMessagesMap);
+        }
+      }
+
+      localStorage.setItem(storageKey, serialized);
+      return true;
+    } catch {
+      console.warn('[CACHE QUOTA]', quotaErr?.name || 'QuotaExceededError');
+      return false;
+    }
+  }
+}
+
+// --- kunci penanda akun terakhir untuk isolasi cache antar akun di browser yang sama ---
+const LAST_CHAT_CACHE_USER_KEY = 'xu_core_last_chat_uid';
+
+function getScopedChatCacheKey(baseKey, explicitUserId = '') {
+  const activeUid = String(explicitUserId || currentGoogleUserId || '').trim();
+  if (!activeUid) return '';
+  return `${baseKey}_${activeUid}`;
+}
+
+// --- bersihkan seluruh cache chat lokal & poster video indexeddb saat logout atau ganti akun ---
+async function clearAllLocalChatAndMediaCaches() {
+  try {
+    const allKeys = Object.keys(localStorage);
+    for (const keyName of allKeys) {
+      if (
+        keyName.startsWith('xu_core_chat_') ||
+        keyName.startsWith(STICKER_CACHE_PREFIX) ||
+        keyName === LAST_CHAT_CACHE_USER_KEY
+      ) {
+        localStorage.removeItem(keyName);
+      }
+    }
+  } catch {
+    // --- abaikan jika localStorage tidak dapat diakses ---
+  }
+
+  videoPosterMemoryMap.clear();
+  try {
+    const db = await openVideoPosterIdb();
+    if (db) {
+      const tx = db.transaction(VIDEO_POSTER_STORE_NAME, 'readwrite');
+      tx.objectStore(VIDEO_POSTER_STORE_NAME).clear();
+    }
+  } catch {
+    // --- abaikan error pembersihan indexeddb ---
+  }
+}
+
+// --- simpan snapshot ringkas ruang chat terisolasi per akun userId ---
+function persistChatLocalCaches() {
+  const activeUid = String(currentGoogleUserId || '').trim();
+  if (!activeUid) return;
+
+  try {
+    localStorage.setItem(LAST_CHAT_CACHE_USER_KEY, activeUid);
+  } catch {}
+
+  safeSetLocalStorageJson(
+    getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.community, activeUid),
+    (Array.isArray(communityMessagesCache) ? communityMessagesCache : []).slice(-MAX_CACHED_COMMUNITY_MSGS)
+  );
+  safeSetLocalStorageJson(
+    getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.pinned, activeUid),
+    Array.isArray(communityPinnedCache) ? communityPinnedCache.slice(0, 12) : []
+  );
+  safeSetLocalStorageJson(
+    getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.members, activeUid),
+    Array.isArray(communityMembersCache) ? communityMembersCache.slice(0, 150) : []
+  );
+  safeSetLocalStorageJson(
+    getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.dmRooms, activeUid),
+    Array.isArray(dmRoomsListCache) ? dmRoomsListCache.slice(0, MAX_CACHED_DM_ROOMS) : []
+  );
+  safeSetLocalStorageJson(
+    getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.waInbox, activeUid),
+    Array.isArray(waLiveInboxCache)
+      ? waLiveInboxCache.slice(0, MAX_CACHED_WA_CHATS).map((chatItem) => ({
+          ...chatItem,
+          messages: Array.isArray(chatItem.messages) ? chatItem.messages.slice(-40) : []
+        }))
+      : []
+  );
+}
+
+// --- baca & tulis riwayat dm per peer terisolasi untuk akun aktif ---
+function readCachedDmMessages(peerUserId) {
+  const scopedKey = getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.dmMessagesMap);
+  if (!peerUserId || !scopedKey) return [];
+  const dmMap = safeReadLocalStorageJson(scopedKey, {});
+  const entry = dmMap?.[peerUserId];
+  return Array.isArray(entry?.messages) ? entry.messages : [];
+}
+
+function saveCachedDmMessages(peerUserId, messagesList) {
+  const scopedKey = getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.dmMessagesMap);
+  if (!peerUserId || !scopedKey || !Array.isArray(messagesList)) return;
+  const dmMap = safeReadLocalStorageJson(scopedKey, {}) || {};
+  dmMap[peerUserId] = {
+    updatedAt: Date.now(),
+    messages: messagesList.slice(-MAX_CACHED_DM_MSGS_PER_ROOM)
+  };
+
+  const sortedEntries = Object.entries(dmMap)
+    .sort((a, b) => Number(b[1]?.updatedAt || 0) - Number(a[1]?.updatedAt || 0))
+    .slice(0, MAX_CACHED_DM_ROOMS);
+
+  safeSetLocalStorageJson(scopedKey, Object.fromEntries(sortedEntries));
+}
+
+// --- muat instan cache chat milik akun terakhir sebelum verifikasi socket tiba ---
+function hydrateChatStateFromLocalStorage() {
+  let candidateUid = String(currentGoogleUserId || '').trim();
+  if (!candidateUid) {
+    try {
+      candidateUid = String(localStorage.getItem(LAST_CHAT_CACHE_USER_KEY) || '').trim();
+    } catch {
+      candidateUid = '';
+    }
+  }
+  if (!candidateUid) return;
+
+  const cachedCommunity = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.community, candidateUid), []);
+  const cachedPinned = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.pinned, candidateUid), []);
+  const cachedMembers = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.members, candidateUid), []);
+  const cachedDmRooms = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.dmRooms, candidateUid), []);
+  const cachedWaInbox = safeReadLocalStorageJson(getScopedChatCacheKey(CHAT_CACHE_STORAGE_KEYS.waInbox, candidateUid), []);
+
+  if (Array.isArray(cachedCommunity) && cachedCommunity.length > 0 && communityMessagesCache.length === 0) {
+    communityMessagesCache = cachedCommunity;
+  }
+  if (Array.isArray(cachedPinned) && cachedPinned.length > 0 && communityPinnedCache.length === 0) {
+    communityPinnedCache = cachedPinned;
+  }
+  if (Array.isArray(cachedMembers) && cachedMembers.length > 0 && communityMembersCache.length === 0) {
+    communityMembersCache = cachedMembers;
+  }
+  if (Array.isArray(cachedDmRooms) && cachedDmRooms.length > 0 && dmRoomsListCache.length === 0) {
+    dmRoomsListCache = cachedDmRooms;
+  }
+  if (Array.isArray(cachedWaInbox) && cachedWaInbox.length > 0 && waLiveInboxCache.length === 0) {
+    waLiveInboxCache = cachedWaInbox;
+  }
+
+  renderCommunityMembersDrawer();
+  renderChatHomeView();
+}
+
+// --- buka koneksi indexeddb untuk penyimpanan poster thumbnail video ---
+function openVideoPosterIdb() {
+  if (videoPosterIdbPromise) return videoPosterIdbPromise;
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+
+  videoPosterIdbPromise = new Promise((resolve) => {
+    try {
+      const openReq = indexedDB.open(VIDEO_POSTER_IDB_NAME, 1);
+      openReq.onupgradeneeded = () => {
+        const db = openReq.result;
+        if (!db.objectStoreNames.contains(VIDEO_POSTER_STORE_NAME)) {
+          db.createObjectStore(VIDEO_POSTER_STORE_NAME, { keyPath: 'url' });
+        }
+      };
+      openReq.onsuccess = () => resolve(openReq.result);
+      openReq.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+  return videoPosterIdbPromise;
+}
+
+async function getVideoPosterFromIdb(videoUrl) {
+  if (!videoUrl) return '';
+  if (videoPosterMemoryMap.has(videoUrl)) return videoPosterMemoryMap.get(videoUrl);
+
+  const db = await openVideoPosterIdb();
+  if (!db) return '';
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(VIDEO_POSTER_STORE_NAME, 'readonly');
+      const req = tx.objectStore(VIDEO_POSTER_STORE_NAME).get(videoUrl);
+      req.onsuccess = () => {
+        const posterData = req.result?.posterDataUrl || '';
+        if (posterData) videoPosterMemoryMap.set(videoUrl, posterData);
+        resolve(posterData);
+      };
+      req.onerror = () => resolve('');
+    } catch {
+      resolve('');
+    }
+  });
+}
+
+async function saveVideoPosterToIdb(videoUrl, posterDataUrl) {
+  if (!videoUrl || !posterDataUrl) return;
+  videoPosterMemoryMap.set(videoUrl, posterDataUrl);
+
+  const db = await openVideoPosterIdb();
+  if (!db) return;
+
+  try {
+    const tx = db.transaction(VIDEO_POSTER_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(VIDEO_POSTER_STORE_NAME);
+    store.put({ url: videoUrl, posterDataUrl, savedAt: Date.now() });
+
+    const allReq = store.getAll();
+    allReq.onsuccess = () => {
+      const allRows = Array.isArray(allReq.result) ? allReq.result : [];
+      if (allRows.length <= MAX_IDB_VIDEO_POSTERS) return;
+      allRows.sort((a, b) => Number(a.savedAt || 0) - Number(b.savedAt || 0));
+      const excessCount = allRows.length - MAX_IDB_VIDEO_POSTERS;
+      for (let idx = 0; idx < excessCount; idx += 1) {
+        if (allRows[idx]?.url) store.delete(allRows[idx].url);
+      }
+    };
+  } catch {
+    // --- abaikan jika indexeddb tidak tersedia ---
+  }
+}
+
+// --- tangkap 1 frame poster ringan dari file lokal atau url video tanpa layar hitam ---
+function captureVideoFrameAsPosterDataUrl(videoSourceUrl, isCrossOrigin = false, maxWidthPx = 360) {
+  return new Promise((resolve) => {
+    if (!videoSourceUrl) {
+      resolve('');
+      return;
+    }
+
+    const tempVideo = document.createElement('video');
+    let isSettled = false;
+    const finish = (resultUrl = '') => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timeoutGuard);
+      tempVideo.pause();
+      tempVideo.removeAttribute('src');
+      tempVideo.load();
+      resolve(resultUrl);
+    };
+
+    const timeoutGuard = setTimeout(() => finish(''), 4500);
+    if (isCrossOrigin) tempVideo.crossOrigin = 'anonymous';
+    tempVideo.muted = true;
+    tempVideo.playsInline = true;
+    tempVideo.preload = 'auto';
+
+    tempVideo.onloadeddata = () => {
+      try {
+        const targetSeek = tempVideo.duration && tempVideo.duration > 0.25 ? 0.15 : 0;
+        if (targetSeek > 0) {
+          tempVideo.currentTime = targetSeek;
+        } else {
+          drawFrame();
+        }
+      } catch {
+        drawFrame();
+      }
+    };
+
+    const drawFrame = () => {
+      try {
+        const rawW = tempVideo.videoWidth || 320;
+        const rawH = tempVideo.videoHeight || 240;
+        const scale = rawW > maxWidthPx ? maxWidthPx / rawW : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(rawW * scale));
+        canvas.height = Math.max(1, Math.round(rawH * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+        let dataUrl = canvas.toDataURL('image/webp', 0.72);
+        if (!dataUrl || !dataUrl.startsWith('data:image/webp')) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.74);
+        }
+        finish(dataUrl || '');
+      } catch {
+        finish('');
+      }
+    };
+
+    tempVideo.onseeked = drawFrame;
+    tempVideo.onerror = () => finish('');
+    tempVideo.src = videoSourceUrl;
+  });
+}
+
+// --- hidrasi poster untuk video lama yang belum memiliki posterUrl lalu simpan ke indexeddb ---
+function hydrateMissingVideoPosters(rootEl = document) {
+  const posterImages = rootEl.querySelectorAll('img[data-video-poster-src]');
+  posterImages.forEach(async (imgEl) => {
+    const videoUrl = imgEl.getAttribute('data-video-poster-src') || '';
+    if (!videoUrl) return;
+
+    const cachedPoster = await getVideoPosterFromIdb(videoUrl);
+    if (cachedPoster) {
+      document.querySelectorAll(`img[data-video-poster-src="${CSS.escape(videoUrl)}"]`).forEach((node) => {
+        node.src = cachedPoster;
+        node.classList.remove('opacity-0');
+        node.removeAttribute('data-video-poster-src');
+      });
+      return;
+    }
+
+    if (pendingVideoPosterJobs.has(videoUrl)) return;
+    pendingVideoPosterJobs.add(videoUrl);
+
+    const generatedPoster = await captureVideoFrameAsPosterDataUrl(videoUrl, true, 360);
+    pendingVideoPosterJobs.delete(videoUrl);
+
+    if (generatedPoster) {
+      await saveVideoPosterToIdb(videoUrl, generatedPoster);
+      document.querySelectorAll(`img[data-video-poster-src="${CSS.escape(videoUrl)}"]`).forEach((node) => {
+        node.src = generatedPoster;
+        node.classList.remove('opacity-0');
+        node.removeAttribute('data-video-poster-src');
+      });
+    }
+  });
+}
+
 // --- modul stiker hibrida via supabase storage & sinkronisasi localStorage ---
 function getUserStickerStorageKey(userId) {
   return `${STICKER_CACHE_PREFIX}${String(userId || currentGoogleUserId || 'guest')}`;
@@ -4382,7 +4765,7 @@ function triggerChatMediaUpload(mediaType) {
   }
 }
 
-// --- unggah lampiran foto atau video room chat ke supabase storage ---
+// --- unggah foto atau video beserta poster thumbnail permanen ke supabase storage ---
 async function handleChatMediaFileSelected(event, mediaType) {
   const fileObj = event?.target?.files?.[0];
   if (!fileObj) return;
@@ -4400,35 +4783,55 @@ async function handleChatMediaFileSelected(event, mediaType) {
   if (uploadBar) uploadBar.classList.remove('hidden');
   if (uploadText) uploadText.textContent = `Mengunggah ${mediaType === 'video' ? 'video' : 'foto'} (${fileObj.name})...`;
 
+  let localVideoBlobUrl = '';
   try {
+    let localPosterDataUrl = '';
+    if (mediaType === 'video') {
+      localVideoBlobUrl = URL.createObjectURL(fileObj);
+      localPosterDataUrl = await captureVideoFrameAsPosterDataUrl(localVideoBlobUrl, false, 360);
+    }
+
     const dataUrl = await readFileAsDataUrlPromise(fileObj);
-    const response = await fetch('/api/chat/media/upload', {
+    const mainUploadPromise = fetch('/api/chat/media/upload', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mediaType, dataUrl })
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.isSuccess || !result.url) {
-      throw new Error(result.errorMessage || 'Gagal mengunggah media.');
+    }).then(async (res) => ({ ok: res.ok, body: await res.json().catch(() => ({})) }));
+
+    const posterUploadPromise = localPosterDataUrl
+      ? fetch('/api/chat/media/upload', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mediaType: 'image', dataUrl: localPosterDataUrl })
+        })
+          .then(async (res) => (res.ok ? (await res.json().catch(() => ({})))?.url || '' : ''))
+          .catch(() => '')
+      : Promise.resolve('');
+
+    const [mainResult, uploadedPosterUrl] = await Promise.all([mainUploadPromise, posterUploadPromise]);
+    if (!mainResult.ok || !mainResult.body?.isSuccess || !mainResult.body?.url) {
+      throw new Error(mainResult.body?.errorMessage || 'Gagal mengunggah media.');
+    }
+
+    if (mediaType === 'video' && localPosterDataUrl) {
+      saveVideoPosterToIdb(mainResult.body.url, localPosterDataUrl);
     }
 
     const optionalCaption = String(getEl('communityMessageInput')?.value || '').trim();
+    const messagePayload = {
+      type: mediaType === 'video' ? 'video' : 'image',
+      mediaUrl: mainResult.body.url,
+      posterUrl: uploadedPosterUrl || '',
+      text: optionalCaption,
+      replyTo: activeCommunityReplyTarget
+    };
+
     if (activeChatRoomType === 'dm' && activeChatRoomTargetId) {
-      socketClient.emit('dm:send', {
-        peerUserId: activeChatRoomTargetId,
-        type: mediaType === 'video' ? 'video' : 'image',
-        mediaUrl: result.url,
-        text: optionalCaption,
-        replyTo: activeCommunityReplyTarget
-      });
+      socketClient.emit('dm:send', { peerUserId: activeChatRoomTargetId, ...messagePayload });
     } else {
-      socketClient.emit('community:message:send', {
-        type: mediaType === 'video' ? 'video' : 'image',
-        mediaUrl: result.url,
-        text: optionalCaption,
-        replyTo: activeCommunityReplyTarget
-      });
+      socketClient.emit('community:message:send', messagePayload);
     }
 
     if (getEl('communityMessageInput')) getEl('communityMessageInput').value = '';
@@ -4436,6 +4839,7 @@ async function handleChatMediaFileSelected(event, mediaType) {
   } catch (mediaErr) {
     showCyberToast('Upload Media Gagal', mediaErr.message, 'danger');
   } finally {
+    if (localVideoBlobUrl) URL.revokeObjectURL(localVideoBlobUrl);
     if (event.target) event.target.value = '';
     uploadBar?.classList.add('hidden');
   }
@@ -4577,7 +4981,7 @@ function jumpToPinnedItemFromModal(messageId) {
   });
 }
 
-// --- bar pesan disematkan di bawah header & modal daftar pin lengkap dengan thumbnail media ---
+// --- bar pesan disematkan & modal daftar pin lengkap dengan thumbnail poster media ---
 function renderCommunityPinnedBar() {
   const barEl = getEl('communityPinnedBar');
   const counterEl = getEl('communityPinnedCounter');
@@ -4592,7 +4996,8 @@ function renderCommunityPinnedBar() {
       : null;
     return {
       mediaType: String(originMsg?.type || pinItem?.mediaType || 'text').trim().toLowerCase(),
-      mediaUrl: String(originMsg?.mediaUrl || pinItem?.mediaUrl || '').trim()
+      mediaUrl: String(originMsg?.mediaUrl || pinItem?.mediaUrl || '').trim(),
+      posterUrl: String(originMsg?.posterUrl || pinItem?.posterUrl || '').trim()
     };
   };
 
@@ -4605,9 +5010,9 @@ function renderCommunityPinnedBar() {
         activePinnedCarouselIndex = 0;
       }
       const activePin = communityPinnedCache[activePinnedCarouselIndex];
-      const { mediaType, mediaUrl } = resolvePinMediaMeta(activePin);
+      const { mediaType, mediaUrl, posterUrl } = resolvePinMediaMeta(activePin);
       const mediaIconHtml = buildQuotedMediaIconHtml(mediaType);
-      const thumbHtml = buildQuotedReplyThumbHtml(mediaType, mediaUrl);
+      const thumbHtml = buildQuotedReplyThumbHtml(mediaType, mediaUrl, posterUrl);
 
       if (counterEl) {
         counterEl.textContent = `Pesan disematkan (${activePinnedCarouselIndex + 1}/${communityPinnedCache.length})`;
@@ -4619,6 +5024,7 @@ function renderCommunityPinnedBar() {
         if (thumbHtml) {
           thumbWrapEl.innerHTML = thumbHtml;
           thumbWrapEl.classList.remove('hidden');
+          hydrateMissingVideoPosters(thumbWrapEl);
         } else {
           thumbWrapEl.innerHTML = '';
           thumbWrapEl.classList.add('hidden');
@@ -4638,9 +5044,9 @@ function renderCommunityPinnedBar() {
     } else {
       modalListEl.innerHTML = communityPinnedCache.map((pinItem, pinIndex) => {
         const hasTargetMsg = Boolean(pinItem.messageId);
-        const { mediaType, mediaUrl } = resolvePinMediaMeta(pinItem);
+        const { mediaType, mediaUrl, posterUrl } = resolvePinMediaMeta(pinItem);
         const mediaIconHtml = buildQuotedMediaIconHtml(mediaType);
-        const thumbHtml = buildQuotedReplyThumbHtml(mediaType, mediaUrl);
+        const thumbHtml = buildQuotedReplyThumbHtml(mediaType, mediaUrl, posterUrl);
         const jumpAttr = hasTargetMsg
           ? `onclick="jumpToPinnedItemFromModal('${escapeHtmlString(pinItem.messageId)}')"`
           : '';
@@ -4668,6 +5074,7 @@ function renderCommunityPinnedBar() {
           </div>
         `;
       }).join('');
+      hydrateMissingVideoPosters(modalListEl);
     }
   }
 }
@@ -5102,6 +5509,8 @@ function backToChatHomeView() {
   clearCommunityReplyTarget();
   closeChatAttachMenu();
   closeMessageActionPopup();
+  closeRoomMoreMenu();
+  closeInChatSearchBar(false);
 
   getEl('chatRoomView')?.classList.add('hidden');
   getEl('chatRoomView')?.classList.remove('flex');
@@ -5110,19 +5519,20 @@ function backToChatHomeView() {
   renderChatHomeView();
 }
 
-// --- buka ruang chat aktif: community, dm akun xu core, atau bot/grup wa ---
+// --- buka ruang chat instan dari cache tanpa loader berlebih ---
 function openUnifiedChatRoom(roomType, targetId = '') {
   activeChatRoomType = roomType;
   activeChatRoomTargetId = targetId;
   clearCommunityReplyTarget();
   closeChatAttachMenu();
+  closeRoomMoreMenu();
+  closeInChatSearchBar(false);
+  syncRoomMoreMenuOptions();
 
   getEl('chatHomeView')?.classList.add('hidden');
   getEl('chatHomeView')?.classList.remove('flex');
   getEl('chatRoomView')?.classList.remove('hidden');
   getEl('chatRoomView')?.classList.add('flex');
-
-  showChatRoomLoader('Memuat chat...');
 
   const isCommunity = roomType === 'community';
   const isDm = roomType === 'dm';
@@ -5135,7 +5545,6 @@ function openUnifiedChatRoom(roomType, targetId = '') {
   const inputEl = getEl('communityMessageInput');
 
   getEl('roomMembersDrawerBtn')?.classList.toggle('hidden', !isCommunity);
-  getEl('roomPinnedHeaderBtn')?.classList.toggle('hidden', !isCommunity);
   getEl('roomAttachBtn')?.classList.toggle('hidden', isWa);
   getEl('roomStickerShortcutBtn')?.classList.toggle('hidden', isWa);
 
@@ -5150,8 +5559,16 @@ function openUnifiedChatRoom(roomType, targetId = '') {
     if (subEl) subEl.innerHTML = `<span id="communityMembersCountLabel">${communityMembersCache.length} anggota</span> • <span id="communityOnlineCountLabel" class="text-emerald-400">${onlineCount} online</span>`;
     if (inputEl) inputEl.placeholder = 'Ketik pesan ke Xu Core Community...';
     renderCommunityPinnedBar();
-    renderCommunityMessagesTimeline(true);
-    settleInitialRoomScrollAndReveal();
+
+    if (communityMessagesCache.length > 0) {
+      getEl('chatRoomLoadingOverlay')?.classList.add('hidden');
+      renderCommunityMessagesTimeline(true);
+      requestAnimationFrame(() => forceScrollChatToBottomInstant());
+    } else {
+      showChatRoomLoader('Memuat chat...');
+      renderCommunityMessagesTimeline(true);
+      settleInitialRoomScrollAndReveal();
+    }
     return;
   }
 
@@ -5177,16 +5594,26 @@ function openUnifiedChatRoom(roomType, targetId = '') {
     if (subEl) subEl.textContent = peerMember.isOnline ? 'Online • Chat Pribadi Xu Core' : 'Offline • Chat Pribadi Xu Core';
     if (inputEl) inputEl.placeholder = `Kirim pesan ke ${peerName}...`;
 
-    activeDmMessagesCache = [];
-    if (getEl('communityMessagesContainer')) {
-      getEl('communityMessagesContainer').innerHTML = '';
-    }
-    socketClient.emit('dm:open', { peerUserId: targetId });
-    chatRoomLoaderFallbackTimer = setTimeout(() => {
-      if (activeChatRoomType === 'dm' && activeChatRoomTargetId === targetId) {
-        settleInitialRoomScrollAndReveal();
+    const cachedDmMsgs = readCachedDmMessages(targetId);
+    if (cachedDmMsgs.length > 0) {
+      activeDmMessagesCache = cachedDmMsgs;
+      getEl('chatRoomLoadingOverlay')?.classList.add('hidden');
+      renderCommunityMessagesTimeline(true);
+      requestAnimationFrame(() => forceScrollChatToBottomInstant());
+    } else {
+      activeDmMessagesCache = [];
+      if (getEl('communityMessagesContainer')) {
+        getEl('communityMessagesContainer').innerHTML = '';
       }
-    }, 3500);
+      showChatRoomLoader('Memuat chat...');
+      chatRoomLoaderFallbackTimer = setTimeout(() => {
+        if (activeChatRoomType === 'dm' && activeChatRoomTargetId === targetId) {
+          settleInitialRoomScrollAndReveal();
+        }
+      }, 3000);
+    }
+
+    socketClient.emit('dm:open', { peerUserId: targetId });
     return;
   }
 
@@ -5211,8 +5638,9 @@ function openUnifiedChatRoom(roomType, targetId = '') {
     if (inputEl) inputEl.placeholder = isGroupWa ? 'Kirim pesan ke grup WhatsApp via Bot...' : 'Balas pesan WhatsApp via Bot...';
 
     socketClient.emit('inbox:read', { chatJid: targetId });
+    getEl('chatRoomLoadingOverlay')?.classList.add('hidden');
     renderActiveWaRoomTimeline(true);
-    settleInitialRoomScrollAndReveal();
+    requestAnimationFrame(() => forceScrollChatToBottomInstant());
   }
 }
 
@@ -5377,16 +5805,29 @@ function renderChatHomeView() {
   }
 }
 
-// --- render ruang chat whatsapp bot (pribadi & grup wa) dengan bubble kompak & emoji ios ---
+// --- render ruang chat whatsapp bot (pribadi & grup wa) dengan filter cari pesan & emoji ios ---
 function renderActiveWaRoomTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport || activeChatRoomType !== 'wa') return;
 
   const activeChat = waLiveInboxCache.find((chat) => chat.jid === activeChatRoomTargetId);
-  const msgs = Array.isArray(activeChat?.messages) ? activeChat.messages : [];
+  const rawMsgs = Array.isArray(activeChat?.messages) ? activeChat.messages : [];
+  const msgs = activeInChatSearchQuery
+    ? rawMsgs.filter((msg) => {
+        const hay = `${msg.senderName || ''} ${msg.text || ''}`.toLowerCase();
+        return hay.includes(activeInChatSearchQuery);
+      })
+    : rawMsgs;
+
+  const searchCountEl = getEl('roomInChatSearchCount');
+  if (searchCountEl) {
+    searchCountEl.textContent = activeInChatSearchQuery ? `${msgs.length} hasil` : '';
+  }
 
   if (msgs.length === 0) {
-    viewport.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada pesan di percakapan WhatsApp ini.</div>';
+    viewport.innerHTML = activeInChatSearchQuery
+      ? '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Tidak ada pesan yang cocok dengan pencarian.</div>'
+      : '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada pesan di percakapan WhatsApp ini.</div>';
     return;
   }
 
@@ -5452,7 +5893,7 @@ function submitActiveRoomMessageForm(event) {
   clearCommunityReplyTarget();
 }
 
-// --- render linimasa pesan kompak dengan quoted reply ala whatsapp & emoji ios penuh ---
+// --- render linimasa pesan dengan kartu poster video img statis anti-layar hitam saat scroll ---
 function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
   const viewport = getEl('communityMessagesContainer');
   if (!viewport) return;
@@ -5461,9 +5902,24 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
     return;
   }
 
-  const sourceList = activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
+  // --- terapkan filter pencarian dalam ruang chat bila sedang aktif ---
+  const rawList = activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
+  const sourceList = activeInChatSearchQuery
+    ? rawList.filter((item) => {
+        const hay = `${item.name || ''} ${item.text || ''} ${item.type || ''}`.toLowerCase();
+        return hay.includes(activeInChatSearchQuery);
+      })
+    : rawList;
+
+  const searchCountEl = getEl('roomInChatSearchCount');
+  if (searchCountEl) {
+    searchCountEl.textContent = activeInChatSearchQuery ? `${sourceList.length} hasil` : '';
+  }
+
   if (sourceList.length === 0) {
-    viewport.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada percakapan. Mulai kirim pesan sekarang!</div>';
+    viewport.innerHTML = activeInChatSearchQuery
+      ? '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Tidak ada pesan yang cocok dengan pencarian.</div>'
+      : '<div class="py-12 text-center text-xs font-mono-code text-slate-500">Belum ada percakapan. Mulai kirim pesan sekarang!</div>';
     return;
   }
 
@@ -5502,7 +5958,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
                 </div>
                 <span class="text-[10px] font-mono-code text-slate-500 shrink-0">${escapeHtmlString(formatWibTimeOnly(msg.timestamp))}</span>
               </div>
-              <p class="text-xs text-slate-300 leading-relaxed">${formatTextWithAppleEmojis(msg.text || `${targetName} baru saja mendarat di Xu Core Community! Yuk sapa dia.`)}</p>
+              <p class="emoji-ios text-xs text-slate-300 leading-relaxed">${formatTextWithAppleEmojis(msg.text || `${targetName} baru saja mendarat di Xu Core Community! Yuk sapa dia.`)}</p>
               <div class="flex items-center justify-between pt-0.5">
                 <div>${reactionHtml}</div>
                 <button type="button" data-msg-id="${escapeHtmlString(msg.id)}" onclick="openMessageActionPopup(this.dataset.msgId, this, event)" title="Reaksi & Opsi" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors">
@@ -5533,15 +5989,15 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
       ? '<span class="role-hex-badge role-hex-developer"><span class="w-1.5 h-1.5 rounded-full bg-white"></span>DEVELOPER</span>'
       : '<span class="role-hex-badge role-hex-member">MEMBER</span>';
 
-    // --- bangun kotak quoted bar horizontal dengan teks di kiri dan thumbnail di kanan ---
     const hasValidReply = Boolean(msg.replyTo && (msg.replyTo.id || msg.replyTo.text));
     const replyAuthorLabel = msg.replyTo?.userId === currentGoogleUserId ? 'Kamu' : (msg.replyTo?.name || 'Member');
-    const resolvedReplyOrigin = hasValidReply && !msg.replyTo?.mediaUrl && msg.replyTo?.id
+    const resolvedReplyOrigin = hasValidReply && (!msg.replyTo?.mediaUrl || !msg.replyTo?.posterUrl) && msg.replyTo?.id
       ? sourceList.find((candidateItem) => candidateItem.id === msg.replyTo.id)
       : null;
     const replyMediaType = msg.replyTo?.type || resolvedReplyOrigin?.type || 'text';
     const replyMediaUrl = msg.replyTo?.mediaUrl || resolvedReplyOrigin?.mediaUrl || '';
-    const replyThumbHtml = hasValidReply ? buildQuotedReplyThumbHtml(replyMediaType, replyMediaUrl) : '';
+    const replyPosterUrl = msg.replyTo?.posterUrl || resolvedReplyOrigin?.posterUrl || '';
+    const replyThumbHtml = hasValidReply ? buildQuotedReplyThumbHtml(replyMediaType, replyMediaUrl, replyPosterUrl) : '';
     const replyMediaIconHtml = hasValidReply ? buildQuotedMediaIconHtml(replyMediaType) : '';
 
     const replyQuoteHtml = hasValidReply
@@ -5565,34 +6021,39 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
     if (msg.type === 'sticker' && msg.mediaUrl) {
       bodyContentHtml = `
         <div class="py-0.5">
-          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Stiker" loading="lazy" onclick="openStickerFavoriteSheet('${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', event)" class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none cursor-pointer hover:scale-105 active:scale-95 transition-transform drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]" />
+          <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Stiker" decoding="async" onclick="openStickerFavoriteSheet('${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', event)" class="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-xl select-none cursor-pointer hover:scale-105 active:scale-95 transition-transform drop-shadow-[0_6px_14px_rgba(0,0,0,0.45)]" />
         </div>
       `;
     } else if (msg.type === 'image' && msg.mediaUrl) {
       bodyContentHtml = `
         <div class="space-y-1">
-          <div onclick="openChatMediaLightbox('image', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative max-w-[230px] sm:max-w-[260px] rounded-2xl overflow-hidden border border-slate-800/90 cursor-zoom-in shadow-lg">
-            <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Foto" loading="lazy" class="w-full max-h-72 object-cover block" />
+          <div onclick="openChatMediaLightbox('image', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative max-w-[230px] sm:max-w-[260px] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800/90 cursor-zoom-in shadow-lg">
+            <img src="${escapeHtmlString(msg.mediaUrl)}" alt="Foto" decoding="async" class="w-full max-h-72 object-cover block" />
           </div>
-          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${formatTextWithAppleEmojis(msg.text)}</p>` : ''}
+          ${msg.text ? `<p class="emoji-ios text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${formatTextWithAppleEmojis(msg.text)}</p>` : ''}
         </div>
       `;
     } else if (msg.type === 'video' && msg.mediaUrl) {
+      const resolvedVideoPoster = String(msg.posterUrl || '').trim() || videoPosterMemoryMap.get(msg.mediaUrl) || '';
+      const posterImgHtml = resolvedVideoPoster
+        ? `<img src="${escapeHtmlString(resolvedVideoPoster)}" alt="Video" decoding="async" class="w-full max-h-72 min-h-[160px] object-cover block" />`
+        : `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-video-poster-src="${escapeHtmlString(msg.mediaUrl)}" alt="Video" decoding="async" class="w-full aspect-[4/3] min-h-[160px] max-h-72 object-cover block opacity-0 transition-opacity duration-200" />`;
+
       bodyContentHtml = `
         <div class="space-y-1">
-          <div onclick="openChatMediaLightbox('video', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative max-w-[230px] sm:max-w-[260px] rounded-2xl overflow-hidden bg-black border border-slate-800/90 cursor-pointer group/vid shadow-lg">
-            <video src="${escapeHtmlString(msg.mediaUrl)}" muted playsinline preload="metadata" class="w-full max-h-72 object-cover block pointer-events-none"></video>
+          <div onclick="openChatMediaLightbox('video', '${escapeHtmlString(msg.mediaUrl)}', '${escapeHtmlString(senderName)}', '${escapeHtmlString(senderAvatar)}', '${escapeHtmlString(timeLabel)}')" class="relative w-[230px] sm:w-[260px] rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800/90 cursor-pointer group/vid shadow-lg">
+            ${posterImgHtml}
             <div class="absolute inset-0 bg-black/25 group-hover/vid:bg-black/35 flex items-center justify-center transition-colors">
               <span class="w-12 h-12 rounded-full bg-black/65 backdrop-blur-md border border-white/25 text-white flex items-center justify-center shadow-xl group-hover/vid:scale-110 transition-transform">
                 <svg class="w-5 h-5 translate-x-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
               </span>
             </div>
           </div>
-          ${msg.text ? `<p class="text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${formatTextWithAppleEmojis(msg.text)}</p>` : ''}
+          ${msg.text ? `<p class="emoji-ios text-[13px] text-slate-100 leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] px-1 pt-0.5">${formatTextWithAppleEmojis(msg.text)}</p>` : ''}
         </div>
       `;
     } else {
-      bodyContentHtml = `<p class="text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${formatTextWithAppleEmojis(msg.text || '')}</p>`;
+      bodyContentHtml = `<p class="emoji-ios text-[13px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${formatTextWithAppleEmojis(msg.text || '')}</p>`;
     }
 
     const reactionBadgeHtml = activeChatRoomType === 'community' ? buildMessageReactionBadgesHtml(msg) : '';
@@ -5653,6 +6114,7 @@ function renderCommunityMessagesTimeline(shouldScrollBottom = true) {
 
   viewport.innerHTML = blocks.join('');
   hydrateAllWelcomeCanvases();
+  hydrateMissingVideoPosters(viewport);
   attachRoomMediaScrollSettlers(viewport, shouldScrollBottom);
 
   if (shouldScrollBottom) {
@@ -5680,8 +6142,8 @@ function getActiveRoomMessagesList() {
   return activeChatRoomType === 'dm' ? activeDmMessagesCache : communityMessagesCache;
 }
 
-// --- konfigurasi cdn resmi emoji-datasource-apple untuk daftar & gambar emoji iphone ---
-const APPLE_EMOJI_CDN_BASE = 'https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest';
+// --- konfigurasi cdn immutable emoji-datasource-apple@15.1.2 dengan cache localStorage ---
+const APPLE_EMOJI_CDN_BASE = 'https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2';
 const APPLE_EMOJI_JSON_URL = `${APPLE_EMOJI_CDN_BASE}/emoji.json`;
 const APPLE_EMOJI_IMG_BASE = `${APPLE_EMOJI_CDN_BASE}/img/apple/64`;
 
@@ -5740,8 +6202,14 @@ function buildAppleEmojiHexVariants(emojiChar) {
   return { withFe0f, withoutFe0f };
 }
 
-// --- render gambar emoji gaya apple/iphone dengan fallback otomatis ---
-function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeClass = 'text-2xl', exactImageFile = '') {
+// --- render gambar emoji gaya apple/iphone dengan opsi eager untuk chat dan lazy untuk picker ---
+function renderAppleStyleEmojiHtml(
+  emojiChar,
+  sizeClass = 'w-7 h-7',
+  textSizeClass = 'text-2xl',
+  exactImageFile = '',
+  isLazyLoad = false
+) {
   const cleanEmoji = String(emojiChar || '').trim();
   if (!cleanEmoji) return '';
 
@@ -5757,7 +6225,7 @@ function renderAppleStyleEmojiHtml(emojiChar, sizeClass = 'w-7 h-7', textSizeCla
         src="${escapeHtmlString(primaryUrl)}"
         data-alt-src="${escapeHtmlString(fallbackUrl)}"
         alt="${escapeHtmlString(cleanEmoji)}"
-        loading="lazy"
+        loading="${isLazyLoad ? 'lazy' : 'eager'}"
         decoding="async"
         onerror="if (this.dataset.altSrc && this.src !== this.dataset.altSrc) { this.src = this.dataset.altSrc; this.dataset.altSrc = ''; } else { this.style.display='none'; this.nextElementSibling.classList.remove('hidden'); }"
         class="w-full h-full object-contain"
@@ -5782,7 +6250,7 @@ function formatTextWithAppleEmojis(rawText) {
     let resultHtml = '';
     for (const { segment } of segmenter.segment(cleanStr)) {
       if (emojiDetectRegex.test(segment)) {
-        resultHtml += renderAppleStyleEmojiHtml(segment, 'w-[1.2em] h-[1.2em] inline-flex align-[-0.2em] mx-[0.5px]', 'text-[1em]');
+        resultHtml += renderAppleStyleEmojiHtml(segment, 'w-[1.2em] h-[1.2em] inline-flex align-[-0.2em] mx-[0.5px]', 'text-[1em]', '', false);
       } else {
         resultHtml += escapeHtmlString(segment);
       }
@@ -5791,13 +6259,22 @@ function formatTextWithAppleEmojis(rawText) {
   }
 
   return escapeHtmlString(cleanStr).replace(/\p{Extended_Pictographic}/gu, (matchedChar) =>
-    renderAppleStyleEmojiHtml(matchedChar, 'w-[1.2em] h-[1.2em] inline-flex align-[-0.2em] mx-[0.5px]', 'text-[1em]')
+    renderAppleStyleEmojiHtml(matchedChar, 'w-[1.2em] h-[1.2em] inline-flex align-[-0.2em] mx-[0.5px]', 'text-[1em]', '', false)
   );
 }
 
-// --- tarik daftar lengkap emoji apple terbaru dari cdn lalu kelompokkan per kategori ---
+// --- tarik daftar emoji apple dari cache localStorage terlebih dahulu, lalu cdn bila belum ada ---
 async function loadAppleEmojiCatalogFromCdn() {
   if (Array.isArray(appleEmojiCatalogCache) && appleEmojiCatalogCache.length > 0) {
+    return appleEmojiCatalogCache;
+  }
+
+  const cachedCompact = safeReadLocalStorageJson(CHAT_CACHE_STORAGE_KEYS.appleEmojis, null);
+  if (Array.isArray(cachedCompact) && cachedCompact.length > 0) {
+    appleEmojiCatalogCache = cachedCompact.map((groupRow) => ({
+      category: groupRow.c,
+      items: (groupRow.i || []).map(([char, image]) => ({ char, image, name: '' }))
+    }));
     return appleEmojiCatalogCache;
   }
 
@@ -5828,17 +6305,22 @@ async function loadAppleEmojiCatalogFromCdn() {
   }
 
   const structuredGroups = [];
+  const compactForStorage = [];
+
   for (const catKey of APPLE_CATEGORY_ORDER) {
     const items = groupedMap.get(catKey);
     if (!items || items.length === 0) continue;
     items.sort((a, b) => a.order - b.order);
-    structuredGroups.push({
-      category: APPLE_CATEGORY_LABELS_ID[catKey] || catKey,
-      items
+    const labelId = APPLE_CATEGORY_LABELS_ID[catKey] || catKey;
+    structuredGroups.push({ category: labelId, items });
+    compactForStorage.push({
+      c: labelId,
+      i: items.map((entry) => [entry.char, entry.image])
     });
   }
 
   appleEmojiCatalogCache = structuredGroups;
+  safeSetLocalStorageJson(CHAT_CACHE_STORAGE_KEYS.appleEmojis, compactForStorage);
   return structuredGroups;
 }
 
@@ -5850,7 +6332,7 @@ async function renderExtendedEmojiCategoriesGrid() {
   if (!appleEmojiCatalogCache) {
     if (isFetchingAppleEmojiCatalog) return;
     isFetchingAppleEmojiCatalog = true;
-    gridEl.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-400 animate-pulse">Memuat katalog emoji Apple terbaru dari CDN...</div>';
+    gridEl.innerHTML = '<div class="py-12 text-center text-xs font-mono-code text-slate-400 animate-pulse">Memuat katalog emoji Apple terbaru...</div>';
 
     try {
       await loadAppleEmojiCatalogFromCdn();
@@ -5862,15 +6344,16 @@ async function renderExtendedEmojiCategoriesGrid() {
     isFetchingAppleEmojiCatalog = false;
   }
 
+  if (gridEl.getAttribute('data-rendered') === '1') return;
+
   gridEl.innerHTML = appleEmojiCatalogCache.map((group) => {
     const tilesHtml = group.items.map((entry) => `
       <button
         type="button"
-        title="${escapeHtmlString(entry.name)}"
         onclick="triggerFloatingEmojiReaction('${escapeHtmlString(entry.char)}')"
         class="aspect-square rounded-xl hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-115 active:scale-90"
       >
-        ${renderAppleStyleEmojiHtml(entry.char, 'w-7 h-7', 'text-2xl', entry.image)}
+        ${renderAppleStyleEmojiHtml(entry.char, 'w-7 h-7', 'text-2xl', entry.image, true)}
       </button>
     `).join('');
 
@@ -5883,9 +6366,10 @@ async function renderExtendedEmojiCategoriesGrid() {
       </section>
     `;
   }).join('');
+  gridEl.setAttribute('data-rendered', '1');
 }
 
-// --- buka bottom sheet pilih reaksi lengkap ala apple tanpa fokus keyboard hp ---
+// --- buka bottom sheet pilih reaksi lengkap ala apple tanpa kolom keyboard hp ---
 function openExtendedEmojiPicker(clickEvent) {
   if (clickEvent) clickEvent.stopPropagation();
   toggleModalVisibility('extendedEmojiPickerSheet', true);
@@ -6185,17 +6669,22 @@ function buildQuotedMediaIconHtml(replyType) {
   return '';
 }
 
-// --- bangun kotak thumbnail persegi kompak di sisi kanan kutipan balasan ---
-function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
+// --- bangun kotak thumbnail persegi kompak memakai poster img agar tidak pernah hitam ---
+function buildQuotedReplyThumbHtml(replyType, replyMediaUrl, replyPosterUrl = '') {
   const cleanUrl = String(replyMediaUrl || '').trim();
   const normalizedType = String(replyType || 'text').trim().toLowerCase();
   if (!cleanUrl) return '';
 
   if (normalizedType === 'video') {
+    const resolvedPoster = String(replyPosterUrl || '').trim() || videoPosterMemoryMap.get(cleanUrl) || '';
+    const imgMarkup = resolvedPoster
+      ? `<img src="${escapeHtmlString(resolvedPoster)}" alt="Video" decoding="async" class="w-full h-full object-cover" />`
+      : `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-video-poster-src="${escapeHtmlString(cleanUrl)}" alt="Video" decoding="async" class="w-full h-full object-cover opacity-0 transition-opacity duration-150" />`;
+
     return `
-      <div class="w-11 h-11 aspect-square rounded-md overflow-hidden bg-black border border-white/10 shrink-0 relative">
-        <video src="${escapeHtmlString(cleanUrl)}" muted playsinline preload="metadata" class="w-full h-full object-cover pointer-events-none"></video>
-        <span class="absolute inset-0 bg-black/20 flex items-center justify-center">
+      <div class="w-11 h-11 aspect-square rounded-md overflow-hidden bg-slate-900 border border-white/10 shrink-0 relative">
+        ${imgMarkup}
+        <span class="absolute inset-0 bg-black/25 flex items-center justify-center">
           <svg class="w-3.5 h-3.5 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         </span>
       </div>
@@ -6205,7 +6694,7 @@ function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
   if (normalizedType === 'image' || normalizedType === 'sticker') {
     return `
       <div class="w-11 h-11 aspect-square rounded-md overflow-hidden bg-slate-950/90 border border-white/10 shrink-0">
-        <img src="${escapeHtmlString(cleanUrl)}" alt="${normalizedType === 'sticker' ? 'Stiker' : 'Foto'}" loading="lazy" class="w-full h-full object-cover" />
+        <img src="${escapeHtmlString(cleanUrl)}" alt="${normalizedType === 'sticker' ? 'Stiker' : 'Foto'}" decoding="async" class="w-full h-full object-cover" />
       </div>
     `;
   }
@@ -6213,7 +6702,7 @@ function buildQuotedReplyThumbHtml(replyType, replyMediaUrl) {
   return '';
 }
 
-// --- siapkan kutipan balasan pesan lengkap dengan thumbnail media & emoji ios ---
+// --- siapkan kutipan balasan pesan lengkap dengan poster thumbnail media & emoji ios ---
 function setCommunityReplyTarget(messageId) {
   const activeList = getActiveRoomMessagesList();
   const foundMsg = activeList.find((messageItem) => messageItem.id === messageId);
@@ -6237,6 +6726,7 @@ function setCommunityReplyTarget(messageId) {
     name: foundMsg.name || 'Member',
     type: normalizedType,
     mediaUrl: String(foundMsg.mediaUrl || '').trim(),
+    posterUrl: String(foundMsg.posterUrl || '').trim(),
     text: summaryText
   };
 
@@ -6251,10 +6741,15 @@ function setCommunityReplyTarget(messageId) {
   }
 
   if (thumbWrapEl) {
-    const thumbHtml = buildQuotedReplyThumbHtml(activeCommunityReplyTarget.type, activeCommunityReplyTarget.mediaUrl);
+    const thumbHtml = buildQuotedReplyThumbHtml(
+      activeCommunityReplyTarget.type,
+      activeCommunityReplyTarget.mediaUrl,
+      activeCommunityReplyTarget.posterUrl
+    );
     if (thumbHtml) {
       thumbWrapEl.innerHTML = thumbHtml;
       thumbWrapEl.classList.remove('hidden');
+      hydrateMissingVideoPosters(thumbWrapEl);
     } else {
       thumbWrapEl.innerHTML = '';
       thumbWrapEl.classList.add('hidden');
@@ -6280,15 +6775,182 @@ function scrollToRepliedCommunityMessage(targetMsgId) {
   jumpToChatMessageInstant(targetMsgId);
 }
 
-// --- tampilkan tombol scroll ke bawah saat user menggulir riwayat chat ke atas ---
+// --- state menu titik tiga, cari pesan, clear chat, dan reverse infinite scroll ---
+let isRoomMoreMenuOpen = false;
+let activeInChatSearchQuery = '';
+let pendingClearChatScope = 'self';
+let communityHasMoreHistory = false;
+let dmHasMoreHistory = false;
+let isLoadingOlderHistory = false;
+let userCommunityClearedAt = 0;
+
+function syncRoomMoreMenuOptions() {
+  const isCommunity = activeChatRoomType === 'community';
+  const showGlobalAdmin = isCommunity && isCurrentUserAdmin;
+
+  getEl('roomMenuPinnedBtn')?.classList.toggle('hidden', !isCommunity);
+  getEl('roomMenuMembersBtn')?.classList.toggle('hidden', !isCommunity);
+  getEl('roomMenuClearSelfBtn')?.classList.toggle('hidden', !isCommunity);
+  getEl('roomMenuAdminDivider')?.classList.toggle('hidden', !showGlobalAdmin);
+  getEl('roomMenuClearGlobalBtn')?.classList.toggle('hidden', !showGlobalAdmin);
+}
+
+function toggleRoomMoreMenu(clickEvent) {
+  if (clickEvent) clickEvent.stopPropagation();
+  syncRoomMoreMenuOptions();
+  isRoomMoreMenuOpen = !isRoomMoreMenuOpen;
+  getEl('roomMoreMenuPopup')?.classList.toggle('hidden', !isRoomMoreMenuOpen);
+}
+
+function closeRoomMoreMenu() {
+  isRoomMoreMenuOpen = false;
+  getEl('roomMoreMenuPopup')?.classList.add('hidden');
+}
+
+function openInChatSearchBar() {
+  const barEl = getEl('roomInChatSearchBar');
+  const inputEl = getEl('roomInChatSearchInput');
+  if (barEl) {
+    barEl.classList.remove('hidden');
+    barEl.classList.add('flex');
+  }
+  setTimeout(() => inputEl?.focus(), 40);
+}
+
+function closeInChatSearchBar(shouldRerender = true) {
+  const barEl = getEl('roomInChatSearchBar');
+  const inputEl = getEl('roomInChatSearchInput');
+  const countEl = getEl('roomInChatSearchCount');
+  const hadQuery = Boolean(activeInChatSearchQuery);
+
+  activeInChatSearchQuery = '';
+  if (inputEl) inputEl.value = '';
+  if (countEl) countEl.textContent = '';
+  if (barEl) {
+    barEl.classList.add('hidden');
+    barEl.classList.remove('flex');
+  }
+
+  if (shouldRerender && hadQuery) {
+    renderCommunityMessagesTimeline(true);
+  }
+}
+
+function handleInChatSearchInput() {
+  activeInChatSearchQuery = String(getEl('roomInChatSearchInput')?.value || '').trim().toLowerCase();
+  renderCommunityMessagesTimeline(false);
+}
+
+function openClearChatConfirmModal(scopeMode = 'self') {
+  if (scopeMode === 'global' && !isCurrentUserAdmin) {
+    showCyberToast('Akses Ditolak', 'Hanya Admin yang dapat menghapus seluruh riwayat komunitas.', 'danger');
+    return;
+  }
+
+  pendingClearChatScope = scopeMode === 'global' ? 'global' : 'self';
+  const isGlobal = pendingClearChatScope === 'global';
+
+  const titleEl = getEl('clearChatModalTitle');
+  const descEl = getEl('clearChatModalDesc');
+  const guardWrap = getEl('clearChatGlobalGuardWrap');
+  const guardCheck = getEl('clearChatGlobalGuardCheck');
+  const submitBtn = getEl('clearChatConfirmSubmitBtn');
+
+  if (titleEl) {
+    titleEl.textContent = isGlobal ? 'Hapus Semua Riwayat Forum?' : 'Bersihkan Chat di Akun Anda?';
+  }
+  if (descEl) {
+    descEl.textContent = isGlobal
+      ? 'Seluruh pesan dan daftar pesan disematkan di Xu Core Community akan dihapus permanen untuk SEMUA anggota.'
+      : 'Riwayat pesan Xu Core Community saat ini akan dibersihkan hanya di akun Anda. Anggota lain tetap dapat melihat pesan seperti biasa.';
+  }
+  if (guardCheck) guardCheck.checked = false;
+  guardWrap?.classList.toggle('hidden', !isGlobal);
+
+  if (submitBtn) {
+    submitBtn.textContent = isGlobal ? 'Hapus Global Sekarang' : 'Bersihkan Chat Saya';
+    submitBtn.className = isGlobal
+      ? 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed'
+      : 'px-4 py-2 rounded-xl accent-bg text-slate-950 text-xs font-extrabold transition-all active:scale-95';
+  }
+
+  updateClearChatSubmitButtonState();
+  toggleModalVisibility('clearChatConfirmModal', true);
+}
+
+function closeClearChatConfirmModal() {
+  const guardCheck = getEl('clearChatGlobalGuardCheck');
+  if (guardCheck) guardCheck.checked = false;
+  toggleModalVisibility('clearChatConfirmModal', false);
+}
+
+function updateClearChatSubmitButtonState() {
+  const submitBtn = getEl('clearChatConfirmSubmitBtn');
+  if (!submitBtn) return;
+  if (pendingClearChatScope === 'global') {
+    submitBtn.disabled = !Boolean(getEl('clearChatGlobalGuardCheck')?.checked);
+  } else {
+    submitBtn.disabled = false;
+  }
+}
+
+function confirmExecuteClearChat() {
+  if (pendingClearChatScope === 'global') {
+    if (!isCurrentUserAdmin || !getEl('clearChatGlobalGuardCheck')?.checked) return;
+    socketClient.emit('community:clear:global');
+  } else {
+    socketClient.emit('community:clear:me');
+  }
+  closeClearChatConfirmModal();
+}
+
+// --- pemicu reverse infinite scroll saat user menggulir mendekati ujung atas ---
+function requestOlderRoomMessages() {
+  if (isLoadingOlderHistory || activeInChatSearchQuery) return;
+
+  if (activeChatRoomType === 'community') {
+    if (!communityHasMoreHistory || communityMessagesCache.length === 0) return;
+    const oldestMsg = communityMessagesCache[0];
+    isLoadingOlderHistory = true;
+    getEl('chatOlderMessagesLoader')?.classList.remove('hidden');
+    socketClient.emit('community:history:older', {
+      beforeId: oldestMsg.id,
+      beforeTimestamp: oldestMsg.timestamp,
+      limit: 30
+    });
+    return;
+  }
+
+  if (activeChatRoomType === 'dm' && activeChatRoomTargetId) {
+    if (!dmHasMoreHistory || activeDmMessagesCache.length === 0) return;
+    const oldestDm = activeDmMessagesCache[0];
+    isLoadingOlderHistory = true;
+    getEl('chatOlderMessagesLoader')?.classList.remove('hidden');
+    socketClient.emit('dm:history:older', {
+      peerUserId: activeChatRoomTargetId,
+      beforeId: oldestDm.id,
+      beforeTimestamp: oldestDm.timestamp,
+      limit: 30
+    });
+  }
+}
+
+// --- pantau posisi scroll untuk tombol gulir bawah dan muat riwayat lama saat mentok atas ---
 function handleChatScrollVisibility() {
   const viewport = getEl('communityMessagesContainer');
   const scrollBtn = getEl('chatScrollBottomBtn');
-  if (!viewport || !scrollBtn) return;
+  if (!viewport) return;
 
-  const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-  scrollBtn.classList.toggle('hidden', distanceFromBottom < 140);
-  scrollBtn.classList.toggle('flex', distanceFromBottom >= 140);
+  if (scrollBtn) {
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    scrollBtn.classList.toggle('hidden', distanceFromBottom < 140);
+    scrollBtn.classList.toggle('flex', distanceFromBottom >= 140);
+  }
+
+  const isScrollable = viewport.scrollHeight > viewport.clientHeight + 40;
+  if (isScrollable && viewport.scrollTop <= 48) {
+    requestOlderRoomMessages();
+  }
 }
 
 function scrollActiveChatToBottom() {
@@ -6407,9 +7069,10 @@ socketClient.on('public:chat:message', (msg) => {
   if (getEl('publicChatMessagesList')) renderPublicChatMessages();
 });
 
-// --- sinkronkan wa bot inbox di beranda chat maupun saat ruang wa terbuka ---
+// --- sinkronkan wa bot inbox dan simpan ke localStorage ---
 socketClient.on('inbox:update', (list) => {
   waLiveInboxCache = Array.isArray(list) ? list : [];
+  persistChatLocalCaches();
   if (getEl('chatHomeActiveList')) renderChatHomeView();
   if (activeChatRoomType === 'wa') renderActiveWaRoomTimeline(true);
 });
@@ -6430,31 +7093,47 @@ socketClient.on('connect', () => {
   }
 });
 
-// --- listener inisialisasi beranda chat & komunitas ---
+// --- listener inisialisasi beranda chat & komunitas dengan deteksi ganti akun ---
 socketClient.on('community:ready', (payload) => {
   if (!payload) return;
 
+  const incomingUid = String(payload.profile?.userId || '').trim();
+  const previousCachedUid = (() => {
+    try { return String(localStorage.getItem(LAST_CHAT_CACHE_USER_KEY) || '').trim(); } catch { return ''; }
+  })();
+
+  if (incomingUid && previousCachedUid && incomingUid !== previousCachedUid) {
+    activeDmMessagesCache = [];
+    dmRoomsListCache = [];
+    waLiveInboxCache = [];
+  }
+
   isCurrentUserAdmin = Boolean(payload.isAdmin);
   if (payload.profile) {
-    currentGoogleUserId = payload.profile.userId || currentGoogleUserId;
+    currentGoogleUserId = incomingUid || currentGoogleUserId;
     currentUserEmail = payload.profile.email || currentUserEmail;
     currentUserProfileData = payload.profile;
     applyProfileIdentityToHeader(payload.profile);
     populateProfileSettingsModalFields(payload.profile);
   }
 
+  userCommunityClearedAt = Number(payload.communityClearedAt || 0);
   communityMessagesCache = Array.isArray(payload.messages) ? payload.messages : [];
+  communityHasMoreHistory = Boolean(payload.hasMoreMessages);
   communityPinnedCache = Array.isArray(payload.pinnedMessages) ? payload.pinnedMessages : [];
   communityMembersCache = Array.isArray(payload.members) ? payload.members : [];
   if (Array.isArray(payload.dmRooms)) dmRoomsListCache = payload.dmRooms;
   if (Array.isArray(payload.waInbox)) waLiveInboxCache = payload.waInbox;
 
+  persistChatLocalCaches();
+  syncRoomMoreMenuOptions();
   renderCommunityMembersDrawer();
   renderChatHomeView();
 
   if (activeChatRoomType === 'community') {
     renderCommunityPinnedBar();
     renderCommunityMessagesTimeline(true);
+    hideChatRoomLoaderNow();
   } else if (activeChatRoomType === 'wa') {
     renderActiveWaRoomTimeline(true);
   }
@@ -6463,23 +7142,121 @@ socketClient.on('community:ready', (payload) => {
   syncStickersFromSupabaseToLocal(currentGoogleUserId, serverStickers);
 });
 
-// --- listener dm sesama akun xu core ---
+// --- sisipkan pesan komunitas lama di atas tanpa menggeser posisi scroll layar ---
+socketClient.on('community:history:older:data', (payload) => {
+  isLoadingOlderHistory = false;
+  getEl('chatOlderMessagesLoader')?.classList.add('hidden');
+  if (!payload) return;
+
+  communityHasMoreHistory = Boolean(payload.hasMore);
+  const olderBatch = Array.isArray(payload.messages) ? payload.messages : [];
+  if (olderBatch.length === 0) return;
+
+  const existingIds = new Set(communityMessagesCache.map((item) => item.id));
+  const freshOlder = olderBatch.filter((item) => item?.id && !existingIds.has(item.id));
+  if (freshOlder.length === 0) return;
+
+  const viewport = getEl('communityMessagesContainer');
+  const prevScrollHeight = viewport ? viewport.scrollHeight : 0;
+  const prevScrollTop = viewport ? viewport.scrollTop : 0;
+
+  communityMessagesCache = [...freshOlder, ...communityMessagesCache];
+
+  if (activeChatRoomType === 'community' && viewport) {
+    renderCommunityMessagesTimeline(false);
+    const heightDelta = viewport.scrollHeight - prevScrollHeight;
+    viewport.scrollTop = prevScrollTop + heightDelta;
+  }
+});
+
+// --- tangani pembersihan riwayat komunitas khusus akun sendiri ---
+socketClient.on('community:cleared:me', (payload) => {
+  userCommunityClearedAt = Number(payload?.clearedAt || Date.now());
+  communityMessagesCache = [];
+  communityHasMoreHistory = false;
+  persistChatLocalCaches();
+
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
+  if (activeChatRoomType === 'community') {
+    renderCommunityMessagesTimeline(false);
+  }
+  showCyberToast('Chat Dibersihkan', 'Riwayat Xu Core Community telah dibersihkan di akun Anda.', 'success');
+});
+
+// --- tangani penghapusan seluruh riwayat komunitas secara global oleh admin ---
+socketClient.on('community:cleared:global', (payload) => {
+  communityMessagesCache = [];
+  communityPinnedCache = [];
+  communityHasMoreHistory = false;
+  persistChatLocalCaches();
+  renderCommunityPinnedBar();
+
+  if (getEl('chatHomeActiveList')) renderChatHomeView();
+  if (activeChatRoomType === 'community') {
+    renderCommunityMessagesTimeline(false);
+  }
+  showCyberToast(
+    'Riwayat Dihapus',
+    `Seluruh riwayat forum dibersihkan oleh ${payload?.clearedBy || 'Admin'}.`,
+    'info'
+  );
+});
+
+// --- listener dm sesama akun xu core dengan cache lokal per ruang ---
 socketClient.on('dm:list:data', (roomsList) => {
   dmRoomsListCache = Array.isArray(roomsList) ? roomsList : [];
+  persistChatLocalCaches();
   if (getEl('chatHomeActiveList')) renderChatHomeView();
 });
 
-// --- terima riwayat pesan dm, render, dan selesaikan loader di posisi paling bawah ---
+// --- terima riwayat dm awal beserta status pagination ---
 socketClient.on('dm:messages', (payload) => {
   if (!payload || payload.peerUserId !== activeChatRoomTargetId) return;
   if (chatRoomLoaderFallbackTimer) {
     clearTimeout(chatRoomLoaderFallbackTimer);
     chatRoomLoaderFallbackTimer = null;
   }
-  activeDmMessagesCache = Array.isArray(payload.messages) ? payload.messages : [];
+
+  const incomingMessages = Array.isArray(payload.messages) ? payload.messages : [];
+  dmHasMoreHistory = Boolean(payload.hasMore);
+  saveCachedDmMessages(payload.peerUserId, incomingMessages);
+
+  const prevSignature = activeDmMessagesCache.map((m) => m.id).join(',');
+  const nextSignature = incomingMessages.map((m) => m.id).join(',');
+  activeDmMessagesCache = incomingMessages;
+
   if (activeChatRoomType === 'dm') {
-    renderCommunityMessagesTimeline(true);
+    if (prevSignature !== nextSignature || prevSignature === '') {
+      renderCommunityMessagesTimeline(true);
+    }
     settleInitialRoomScrollAndReveal();
+  }
+});
+
+// --- sisipkan pesan dm lama di atas tanpa menggeser posisi scroll layar ---
+socketClient.on('dm:history:older:data', (payload) => {
+  isLoadingOlderHistory = false;
+  getEl('chatOlderMessagesLoader')?.classList.add('hidden');
+  if (!payload || payload.peerUserId !== activeChatRoomTargetId) return;
+
+  dmHasMoreHistory = Boolean(payload.hasMore);
+  const olderBatch = Array.isArray(payload.messages) ? payload.messages : [];
+  if (olderBatch.length === 0) return;
+
+  const existingIds = new Set(activeDmMessagesCache.map((item) => item.id));
+  const freshOlder = olderBatch.filter((item) => item?.id && !existingIds.has(item.id));
+  if (freshOlder.length === 0) return;
+
+  const viewport = getEl('communityMessagesContainer');
+  const prevScrollHeight = viewport ? viewport.scrollHeight : 0;
+  const prevScrollTop = viewport ? viewport.scrollTop : 0;
+
+  activeDmMessagesCache = [...freshOlder, ...activeDmMessagesCache];
+
+  if (activeChatRoomType === 'dm' && viewport) {
+    renderCommunityMessagesTimeline(false);
+    const heightDelta = viewport.scrollHeight - prevScrollHeight;
+    viewport.scrollTop = prevScrollTop + heightDelta;
   }
 });
 
@@ -6491,6 +7268,7 @@ socketClient.on('dm:message:new', (newMsg) => {
 
   if (isCurrentDmPeer && !activeDmMessagesCache.some((m) => m.id === newMsg.id)) {
     activeDmMessagesCache = [...activeDmMessagesCache, newMsg].slice(-80);
+    saveCachedDmMessages(activeChatRoomTargetId, activeDmMessagesCache);
     renderCommunityMessagesTimeline(true);
     if (newMsg.userId === activeChatRoomTargetId) {
       socketClient.emit('dm:open', { peerUserId: activeChatRoomTargetId });
@@ -6502,15 +7280,17 @@ socketClient.on('dm:message:deleted', (payload) => {
   if (!payload?.messageId) return;
   if (activeChatRoomType === 'dm' && payload.peerUserId === activeChatRoomTargetId) {
     activeDmMessagesCache = activeDmMessagesCache.filter((m) => m.id !== payload.messageId);
+    saveCachedDmMessages(activeChatRoomTargetId, activeDmMessagesCache);
     renderCommunityMessagesTimeline(false);
   }
 });
 
-// --- terima pesan komunitas baru dan perbarui beranda maupun ruang komunitas ---
+// --- terima pesan komunitas baru, perbarui cache, beranda, dan linimasa ---
 socketClient.on('community:message:new', (newMessage) => {
   if (!newMessage?.id) return;
   if (communityMessagesCache.some((existing) => existing.id === newMessage.id)) return;
   communityMessagesCache = [...communityMessagesCache, newMessage].slice(-120);
+  persistChatLocalCaches();
 
   if (getEl('chatHomeActiveList')) renderChatHomeView();
   if (activeChatRoomType === 'community' && getEl('communityMessagesContainer')) {
@@ -6525,8 +7305,9 @@ socketClient.on('community:message:reacted', (payload) => {
       ? { ...msg, reactions: Array.isArray(payload.reactions) ? payload.reactions : [] }
       : msg
   );
+  persistChatLocalCaches();
 
-  if (getEl('communityMessagesContainer')) {
+  if (activeChatRoomType === 'community' && getEl('communityMessagesContainer')) {
     renderCommunityMessagesTimeline(false);
   }
   if (activeDetailReactionMessageId === payload.messageId) {
@@ -6542,8 +7323,9 @@ socketClient.on('community:message:deleted', (payload) => {
     communityPinnedCache = payload.pinnedMessages;
     renderCommunityPinnedBar();
   }
+  persistChatLocalCaches();
 
-  if (getEl('communityMessagesContainer')) {
+  if (activeChatRoomType === 'community' && getEl('communityMessagesContainer')) {
     renderCommunityMessagesTimeline(false);
   }
   if (activeDetailReactionMessageId === payload.messageId) {
@@ -6553,12 +7335,14 @@ socketClient.on('community:message:deleted', (payload) => {
 
 socketClient.on('community:pins:update', (pinnedList) => {
   communityPinnedCache = Array.isArray(pinnedList) ? pinnedList : [];
+  persistChatLocalCaches();
   renderCommunityPinnedBar();
 });
 
-// --- terima pembaruan daftar anggota online/offline lalu render drawer & beranda ---
+// --- terima pembaruan daftar anggota online/offline lalu simpan cache & render ---
 socketClient.on('community:members:update', (membersList) => {
   communityMembersCache = Array.isArray(membersList) ? membersList : [];
+  persistChatLocalCaches();
   renderCommunityMembersDrawer();
   if (getEl('chatHomeActiveList')) renderChatHomeView();
 });
@@ -6963,6 +7747,7 @@ function initXuCoreUnifiedPage(requestedPage) {
       const popupMenu = getEl('userDropdownMenuPopup');
       if (popupMenu && !popupMenu.classList.contains('hidden')) popupMenu.classList.add('hidden');
       if (isChatAttachMenuOpen) closeChatAttachMenu();
+      if (isRoomMoreMenuOpen) closeRoomMoreMenu();
     });
 
     setupGlobalHotkeys();
@@ -7004,8 +7789,10 @@ function initXuCoreUnifiedPage(requestedPage) {
       fetchCurrentProfileSettings();
     }
 
-    // --- inisialisasi halaman beranda chat dan filter otomatis jika akses via ?tab=inbox ---
+    // --- muat instan cache lokal saat halaman /chat dibuka lalu sinkronkan di latar belakang ---
     if (activePageName === 'chat') {
+      hydrateChatStateFromLocalStorage();
+      loadAppleEmojiCatalogFromCdn().catch(() => {});
       fetchCurrentProfileSettings();
       socketClient.emit('community:init');
       socketClient.emit('inbox:list');

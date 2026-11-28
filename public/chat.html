@@ -409,8 +409,8 @@
 
     <!-- --- tampilan 2: ruang percakapan aktif (xu core community, dm sesama user, atau chat bot/grup wa) --- -->
     <div id="chatRoomView" class="hidden flex-1 flex-col min-h-0 overflow-hidden">
-      <!-- --- floating header pill melayang tanpa tombol pin di kanan official --- -->
-      <header class="shrink-0 z-30 px-3 sm:px-4 pt-3 pb-1.5 space-y-2">
+      <!-- --- floating header pill dengan tombol menu titik tiga ala whatsapp & bar cari pesan --- -->
+      <header class="relative shrink-0 z-30 px-3 sm:px-4 pt-3 pb-1.5 space-y-2">
         <div class="chat-glass-bar rounded-full border border-slate-800/90 px-2.5 sm:px-3.5 py-2 flex items-center justify-between gap-2 shadow-[0_8px_28px_rgba(0,0,0,0.5)]">
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <button type="button" onclick="backToChatHomeView()" title="Kembali ke Beranda Chat" aria-label="Kembali ke Beranda Chat" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center shrink-0 transition-all active:scale-90">
@@ -423,7 +423,7 @@
 
             <img id="roomHeaderAvatarImg" src="" alt="Avatar" class="hidden w-8 h-8 rounded-full object-cover border border-slate-700 shrink-0" />
 
-            <div class="min-w-0 flex-1 pl-0.5 pr-2">
+            <div class="min-w-0 flex-1 pl-0.5">
               <div class="flex items-center gap-1.5">
                 <h1 id="roomHeaderTitle" class="font-heading-modern text-sm sm:text-base font-extrabold tracking-wide text-white truncate">Xu Core Community</h1>
                 <span id="roomSourceBadge" class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-full accent-soft-bg border accent-border accent-text font-mono-code text-[9px] font-bold uppercase shrink-0">Official</span>
@@ -433,6 +433,52 @@
               </p>
             </div>
           </div>
+
+          <!-- --- tombol menu titik tiga pojok kanan atas ala whatsapp --- -->
+          <div class="relative shrink-0 pr-0.5">
+            <button id="roomMoreMenuBtn" type="button" onclick="toggleRoomMoreMenu(event)" title="Opsi Lainnya" aria-label="Opsi Lainnya" class="w-8 h-8 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition-all active:scale-90">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+            </button>
+
+            <div id="roomMoreMenuPopup" onclick="event.stopPropagation()" class="hidden popup-enter absolute right-0 top-10 w-60 rounded-2xl bg-[#0d1322]/98 backdrop-blur-2xl border border-slate-700/90 shadow-[0_18px_48px_rgba(0,0,0,0.85)] p-1.5 space-y-0.5 z-50 text-xs">
+              <button type="button" onclick="closeRoomMoreMenu(); openInChatSearchBar();" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+                <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span>Cari Pesan</span>
+              </button>
+
+              <button id="roomMenuPinnedBtn" type="button" onclick="closeRoomMoreMenu(); openPinnedMessagesModal();" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+                <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+                <span>Pesan Disematkan</span>
+              </button>
+
+              <button id="roomMenuMembersBtn" type="button" onclick="closeRoomMoreMenu(); toggleMembersDrawer(true);" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+                <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span>Info &amp; Anggota</span>
+              </button>
+
+              <button id="roomMenuClearSelfBtn" type="button" onclick="closeRoomMoreMenu(); openClearChatConfirmModal('self');" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/90 text-slate-200 hover:text-white font-semibold flex items-center gap-2.5 transition-colors">
+                <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Bersihkan Chat Saya</span>
+              </button>
+
+              <div id="roomMenuAdminDivider" class="hidden my-1 border-t border-slate-800"></div>
+
+              <button id="roomMenuClearGlobalBtn" type="button" onclick="closeRoomMoreMenu(); openClearChatConfirmModal('global');" class="hidden w-full text-left px-3 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-bold flex items-center gap-2.5 transition-colors">
+                <svg class="w-4 h-4 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+                <span>Hapus Semua Chat (Admin)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- --- bar pencarian pesan di dalam ruang chat --- -->
+        <div id="roomInChatSearchBar" class="hidden chat-glass-bar rounded-full border border-slate-700/90 px-3 py-1.5 flex items-center gap-2">
+          <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input id="roomInChatSearchInput" oninput="handleInChatSearchInput()" type="text" autocomplete="off" placeholder="Cari teks atau nama pengirim..." class="flex-1 min-w-0 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none" />
+          <span id="roomInChatSearchCount" class="text-[10px] font-mono-code text-slate-400 shrink-0"></span>
+          <button type="button" onclick="closeInChatSearchBar(true)" aria-label="Tutup Pencarian" class="w-6 h-6 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </div>
 
         <!-- --- bar pesan disematkan melayang dengan ikon pin dan thumbnail media --- -->
@@ -459,8 +505,14 @@
         </div>
       </header>
 
-      <!-- --- area linimasa pesan beserta loader gemini dan tombol scroll ke bawah --- -->
+      <!-- --- area linimasa pesan dengan reverse infinite scroll loader & loader ruang awal --- -->
       <div class="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+        <!-- --- pil loader otomatis saat user menggulir ke atas untuk memuat pesan lama --- -->
+        <div id="chatOlderMessagesLoader" class="hidden absolute top-2.5 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full chat-glass-bar border border-slate-700/90 flex items-center gap-2 shadow-xl pointer-events-none">
+          <span class="w-3.5 h-3.5 rounded-full border-2 border-[var(--accent-main)] border-t-transparent animate-spin shrink-0"></span>
+          <span class="text-[11px] font-mono-code text-slate-200 whitespace-nowrap">Memuat pesan lama...</span>
+        </div>
+
         <main id="communityMessagesContainer" onscroll="handleChatScrollVisibility()" class="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 pt-2.5 pb-6 space-y-1"></main>
 
         <!-- --- overlay loader saat pertama kali membuka ruang chat --- -->
@@ -700,31 +752,31 @@
       </div>
     </div>
 
-    <!-- --- bar pil emoji cepat berukuran lebih besar dan rata kiri --- -->
+    <!-- --- bar pil emoji cepat berukuran lebih besar rata kiri dengan cdn immutable --- -->
     <div id="floatingReactionBar" onclick="event.stopPropagation()" class="popup-enter fixed left-3 top-24 z-[51] rounded-full bg-[#0e1526]/98 border border-slate-700/90 shadow-[0_14px_38px_rgba(0,0,0,0.88)] px-2 py-1.5">
       <div id="floatingEmojiRow" class="flex items-center justify-between gap-0.5">
         <button type="button" onclick="triggerFloatingEmojiReaction('👍')" class="w-10 h-10 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
-          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f44d.png" alt="👍" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f44d.png" alt="👍" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <span class="hidden text-2xl leading-none">👍</span>
         </button>
         <button type="button" onclick="triggerFloatingEmojiReaction('❤️')" class="w-10 h-10 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
-          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/2764-fe0f.png" alt="❤️" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/2764-fe0f.png" alt="❤️" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <span class="hidden text-2xl leading-none">❤️</span>
         </button>
         <button type="button" onclick="triggerFloatingEmojiReaction('😂')" class="w-10 h-10 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
-          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f602.png" alt="😂" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f602.png" alt="😂" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <span class="hidden text-2xl leading-none">😂</span>
         </button>
         <button type="button" onclick="triggerFloatingEmojiReaction('😮')" class="w-10 h-10 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
-          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f62e.png" alt="😮" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f62e.png" alt="😮" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <span class="hidden text-2xl leading-none">😮</span>
         </button>
         <button type="button" onclick="triggerFloatingEmojiReaction('😢')" class="w-10 h-10 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
-          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f622.png" alt="😢" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f622.png" alt="😢" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <span class="hidden text-2xl leading-none">😢</span>
         </button>
         <button type="button" onclick="triggerFloatingEmojiReaction('🙏')" class="w-10 h-10 rounded-full hover:bg-slate-800/90 flex items-center justify-center transition-transform hover:scale-125 active:scale-90">
-          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@latest/img/apple/64/1f64f.png" alt="🙏" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/1f64f.png" alt="🙏" class="w-7 h-7 object-contain pointer-events-none select-none" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <span class="hidden text-2xl leading-none">🙏</span>
         </button>
         <button type="button" onclick="openExtendedEmojiPicker(event)" title="Pilih Emoji Lainnya" aria-label="Pilih Emoji Lainnya" class="w-9 h-9 ml-0.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center justify-center transition-all active:scale-90 shrink-0">
@@ -771,6 +823,37 @@
       <div id="reactionDetailTabs" class="flex flex-wrap items-center gap-1.5"></div>
 
       <div id="reactionDetailList" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+    </div>
+  </div>
+
+  <!-- --- modal konfirmasi kustom bersihkan chat sendiri atau hapus global admin --- -->
+  <div id="clearChatConfirmModal" onclick="if (event.target === this) closeClearChatConfirmModal()" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/80 backdrop-blur-md p-3.5">
+    <div class="popup-enter w-full max-w-sm rounded-2xl bg-[#0c111d]/98 border border-slate-800 shadow-[0_24px_64px_rgba(0,0,0,0.88)] overflow-hidden">
+      <div class="px-5 pt-5 pb-3 flex items-start gap-3">
+        <div id="clearChatModalIconWrap" class="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-400 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+        </div>
+        <div class="min-w-0">
+          <h3 id="clearChatModalTitle" class="font-heading-modern text-sm sm:text-base font-extrabold text-white">Bersihkan Chat?</h3>
+          <p id="clearChatModalDesc" class="text-xs text-slate-400 leading-relaxed mt-1">-</p>
+        </div>
+      </div>
+
+      <div id="clearChatGlobalGuardWrap" class="hidden px-5 pb-3">
+        <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 cursor-pointer select-none">
+          <input id="clearChatGlobalGuardCheck" type="checkbox" onchange="updateClearChatSubmitButtonState()" class="mt-0.5 w-4 h-4 accent-rose-500 rounded cursor-pointer shrink-0" />
+          <span class="text-[11px] text-rose-200 leading-snug">Saya paham seluruh pesan &amp; sematan komunitas akan terhapus permanen untuk semua anggota.</span>
+        </label>
+      </div>
+
+      <div class="px-5 py-3.5 bg-slate-950/75 border-t border-slate-800/80 flex items-center justify-end gap-2">
+        <button type="button" onclick="closeClearChatConfirmModal()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors">
+          Batal
+        </button>
+        <button id="clearChatConfirmSubmitBtn" type="button" onclick="confirmExecuteClearChat()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed">
+          Konfirmasi
+        </button>
+      </div>
     </div>
   </div>
 
