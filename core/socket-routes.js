@@ -73,6 +73,11 @@ import {
   getDmRoomMessages,
   getUserDmRoomsList,
   markDmRoomRead,
+  clearCommunityMessagesGlobal,
+  getCommunityMessagesPage,
+  getDmMessagesPage,
+  getUserCommunityClearedAt,
+  setUserCommunityClearedAt,
 } from './database.js';
 import {
   deletePluginFile,
@@ -1328,7 +1333,6 @@ export function registerSocketHandlers(io, coreModules) {
 
     syncSessionStateToSocket(io, coreModules, clientSocket, sessionUser);
 
-    // --- sinkronisasi profil komunitas, status online, dan auto-welcome anggota baru ---
     // --- sinkronisasi profil komunitas dan status online anggota ---
     try {
       getOrSyncUserProfile(sessionUser, isAdmin);
@@ -1350,23 +1354,31 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim payload inisialisasi beranda chat (komunitas, dm xu core, dan wa bot inbox) ---
+    // --- kirim payload inisialisasi beranda chat dengan 30 pesan terbaru sesuai cursor & clearedAt ---
     clientSocket.on('community:init', () => {
       try {
         clientSocket.join('community_room');
         const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
         const welcomeMessage = createAutoWelcomeIfFirstVisit(latestProfile);
         const latestMembers = getCommunityMembersList(onlineCommunityUserIds);
+        const userClearedAt = getUserCommunityClearedAt(authenticatedGoogleId);
 
         if (welcomeMessage) {
           clientSocket.broadcast.emit('community:message:new', welcomeMessage);
           io.emit('community:members:update', latestMembers);
         }
 
+        const initialPage = getCommunityMessagesPage({
+          limit: 30,
+          minTimestamp: userClearedAt
+        });
+
         clientSocket.emit('community:ready', {
           profile: latestProfile,
           isAdmin,
-          messages: getPublicChatMessages(),
+          messages: initialPage.messages,
+          hasMoreMessages: initialPage.hasMore,
+          communityClearedAt: userClearedAt,
           pinnedMessages: getPinnedCommunityMessages(),
           members: latestMembers,
           dmRooms: getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds),
@@ -1375,6 +1387,55 @@ export function registerSocketHandlers(io, coreModules) {
         });
       } catch (initErr) {
         clientSocket.emit('community:error', { errorMessage: initErr.message || 'Gagal memuat ruang komunitas.' });
+      }
+    });
+
+    // --- muat halaman pesan komunitas lebih lama saat user menggulir ke atas ---
+    clientSocket.on('community:history:older', (payload) => {
+      try {
+        const userClearedAt = getUserCommunityClearedAt(authenticatedGoogleId);
+        const olderPage = getCommunityMessagesPage({
+          beforeId: payload?.beforeId || '',
+          beforeTimestamp: payload?.beforeTimestamp || 0,
+          limit: payload?.limit || 30,
+          minTimestamp: userClearedAt
+        });
+        clientSocket.emit('community:history:older:data', {
+          messages: olderPage.messages,
+          hasMore: olderPage.hasMore
+        });
+      } catch (olderErr) {
+        clientSocket.emit('community:error', { errorMessage: olderErr.message || 'Gagal memuat riwayat pesan lama.' });
+      }
+    });
+
+    // --- bersihkan riwayat forum komunitas khusus di akun user ini saja ---
+    clientSocket.on('community:clear:me', () => {
+      try {
+        const clearedAt = setUserCommunityClearedAt(authenticatedGoogleId, Date.now());
+        clientSocket.emit('community:cleared:me', { clearedAt });
+      } catch (clearSelfErr) {
+        clientSocket.emit('community:error', { errorMessage: clearSelfErr.message || 'Gagal membersihkan riwayat chat.' });
+      }
+    });
+
+    // --- hapus seluruh riwayat pesan & pin forum komunitas secara global khusus admin ---
+    clientSocket.on('community:clear:global', () => {
+      if (!isAdmin) {
+        clientSocket.emit('community:error', {
+          errorMessage: 'Akses ditolak: hanya Admin yang dapat menghapus seluruh riwayat komunitas.'
+        });
+        return;
+      }
+      try {
+        const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
+        const result = clearCommunityMessagesGlobal();
+        io.emit('community:cleared:global', {
+          clearedBy: latestProfile?.displayName || 'Admin',
+          clearedAt: result.clearedAt
+        });
+      } catch (clearGlobalErr) {
+        clientSocket.emit('community:error', { errorMessage: clearGlobalErr.message || 'Gagal menghapus riwayat global.' });
       }
     });
 
@@ -1387,15 +1448,17 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- buka ruang dm dengan akun xu core lain dan tandai sudah dibaca ---
+    // --- buka ruang dm dengan 30 pesan terbaru dan status pagination ---
     clientSocket.on('dm:open', (payload) => {
       try {
         const peerUserId = String(payload?.peerUserId || '').trim();
         if (!peerUserId || peerUserId === authenticatedGoogleId) return;
         markDmRoomRead(authenticatedGoogleId, peerUserId);
+        const dmPage = getDmMessagesPage(authenticatedGoogleId, peerUserId, { limit: 30 });
         clientSocket.emit('dm:messages', {
           peerUserId,
-          messages: getDmRoomMessages(authenticatedGoogleId, peerUserId)
+          messages: dmPage.messages,
+          hasMore: dmPage.hasMore
         });
         clientSocket.emit('dm:list:data', getUserDmRoomsList(authenticatedGoogleId, onlineCommunityUserIds));
       } catch (dmOpenErr) {
@@ -1403,7 +1466,27 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim pesan dm (teks, foto, video, stiker) ke sesama user akun xu core ---
+    // --- muat halaman pesan dm lebih lama saat user menggulir ke atas ---
+    clientSocket.on('dm:history:older', (payload) => {
+      try {
+        const peerUserId = String(payload?.peerUserId || '').trim();
+        if (!peerUserId || peerUserId === authenticatedGoogleId) return;
+        const olderDmPage = getDmMessagesPage(authenticatedGoogleId, peerUserId, {
+          beforeId: payload?.beforeId || '',
+          beforeTimestamp: payload?.beforeTimestamp || 0,
+          limit: payload?.limit || 30
+        });
+        clientSocket.emit('dm:history:older:data', {
+          peerUserId,
+          messages: olderDmPage.messages,
+          hasMore: olderDmPage.hasMore
+        });
+      } catch (dmOlderErr) {
+        clientSocket.emit('community:error', { errorMessage: dmOlderErr.message || 'Gagal memuat riwayat DM lama.' });
+      }
+    });
+
+    // --- kirim pesan dm beserta posterUrl video ke sesama user akun xu core ---
     clientSocket.on('dm:send', (payload) => {
       try {
         const peerUserId = String(payload?.peerUserId || '').trim();
@@ -1418,6 +1501,7 @@ export function registerSocketHandlers(io, coreModules) {
           type: payload?.type || 'text',
           text: payload?.text || '',
           mediaUrl: payload?.mediaUrl || '',
+          posterUrl: payload?.posterUrl || '',
           replyTo: payload?.replyTo || null
         });
 
@@ -1460,11 +1544,11 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- kirim pesan teks, foto, video, stiker, atau balasan ke seluruh user komunitas ---
+    // --- kirim pesan komunitas beserta posterUrl video bila ada ---
     clientSocket.on('community:message:send', (payload) => {
       try {
         const latestProfile = getOrSyncUserProfile(sessionUser, isAdmin);
-        const added = appendCommunityChatMessage({
+        const savedResult = appendCommunityChatMessage({
           userId: authenticatedGoogleId,
           name: latestProfile?.displayName || sessionUser.givenName || 'Member',
           handle: latestProfile?.handle || '',
@@ -1474,13 +1558,15 @@ export function registerSocketHandlers(io, coreModules) {
           type: payload?.type || 'text',
           text: payload?.text || '',
           mediaUrl: payload?.mediaUrl || '',
+          posterUrl: payload?.posterUrl || '',
           replyTo: payload?.replyTo || null
         });
-        if (added?.item) {
-          io.emit('community:message:new', added.item);
+
+        if (savedResult?.item) {
+          io.emit('community:message:new', savedResult.item);
         }
-      } catch (sendErr) {
-        clientSocket.emit('community:error', { errorMessage: sendErr.message || 'Gagal mengirim pesan komunitas.' });
+      } catch (sendError) {
+        clientSocket.emit('community:error', { errorMessage: sendError.message || 'Gagal mengirim pesan.' });
       }
     });
 
@@ -1525,7 +1611,7 @@ export function registerSocketHandlers(io, coreModules) {
       }
     });
 
-    // --- sematkan pesan wajib berasal dari pesan chat asli berupa pengumuman admin atau media ---
+    // --- sematkan pesan wajib berasal dari pesan chat asli lengkap dengan thumbnail media ---
     clientSocket.on('community:pin:add', (payload) => {
       if (!isAdmin) {
         clientSocket.emit('community:error', { errorMessage: 'Akses ditolak: hanya Admin yang dapat menyematkan pesan.' });
@@ -1566,7 +1652,10 @@ export function registerSocketHandlers(io, coreModules) {
         const pinnedMessages = addPinnedCommunityMessage({
           messageId: targetMessageId,
           text: payload?.text || '',
-          pinnedBy: latestProfile?.displayName || 'Admin'
+          pinnedBy: latestProfile?.displayName || 'Admin',
+          mediaType: normalizedType,
+          mediaUrl: targetMessage.mediaUrl || '',
+          posterUrl: targetMessage.posterUrl || ''
         });
         io.emit('community:pins:update', pinnedMessages);
       } catch (pinError) {
