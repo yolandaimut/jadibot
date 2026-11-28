@@ -1,1 +1,199 @@
-import e from"crypto";import t from"fs";import r from"path";import{SESSIONS_VOLUME_ROOT as o}from"./config.js";const n=r.join(o,"uploads");export function decodeBase64DataUrl(e,t=5242880){const r=String(e||"").trim().match(/^data:([^;]+);base64,(.+)$/i);if(!r)throw new Error("Format media Base64 tidak valid.");const o=String(r[1]||"application/octet-stream").trim().toLowerCase(),n=Buffer.from(r[2],"base64");if(!n.length)throw new Error("File media kosong.");if(n.length>t){const e=(t/1048576).toFixed(1);throw new Error(`Ukuran file melebihi batas maksimal ${e} MB.`)}return{mimeType:o,binaryBuffer:n}}export async function uploadMediaToSupabaseStorage({folder:o="stickers",ownerId:a="guest",dataUrl:i="",maxBytes:s=5242880}={}){const{mimeType:c,binaryBuffer:l}=decodeBase64DataUrl(i,s),p=String(o||"stickers").replace(/[^a-zA-Z0-9_-]/g,""),m=String(a||"guest").replace(/[^a-zA-Z0-9_-]/g,""),u=function(e){const t=String(e||"").toLowerCase();return t.includes("webp")?"webp":t.includes("png")?"png":t.includes("gif")?"gif":t.includes("jpeg")||t.includes("jpg")?"jpg":t.includes("mp4")?"mp4":t.includes("webm")?"webm":t.includes("quicktime")?"mov":"bin"}(c),g=`${Date.now()}_${e.randomBytes(5).toString("hex")}.${u}`,d=`${p}/${m}/${g}`,S=String(process.env.SUPABASE_URL||"https://rxcvojhhtldbkhhnehwn.supabase.co").trim().replace(/\/+$/,""),f=String(process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_KEY||"sb_secret_kXRCt7_N1R4XKPLTHmciDQ_X9EUkk9O").trim(),h=String(process.env.SUPABASE_STORAGE_BUCKET||"xucore-media").trim();if(S&&f)try{const e=`${S}/storage/v1/object/${encodeURIComponent(h)}/${d}`,t=f.startsWith("eyJ"),r={apikey:f,"Content-Type":c,"x-upsert":"true"};t&&(r.Authorization=`Bearer ${f}`);const o=await fetch(e,{method:"POST",headers:r,body:l});if(!o.ok){const e=await o.text().catch(()=>"");throw new Error(`Supabase HTTP ${o.status}: ${e.slice(0,180)}`)}return{storage:"supabase",url:`${S}/storage/v1/object/public/${encodeURIComponent(h)}/${d}`,mimeType:c,sizeBytes:l.length}}catch(e){console.error(`[SUPABASE STORAGE WARN] Fallback ke volume lokal: ${e.message}`)}const $=r.join(n,p,m);t.mkdirSync($,{recursive:!0});const b=r.join($,g);return t.writeFileSync(b,l),{storage:"local",url:`/api/uploads/${p}/${m}/${g}`,mimeType:c,sizeBytes:l.length}}export function resolveLocalUploadFilePath(e,t,o){const a=String(e||"").replace(/[^a-zA-Z0-9_-]/g,""),i=String(t||"").replace(/[^a-zA-Z0-9_-]/g,""),s=r.basename(String(o||"")).replace(/[^a-zA-Z0-9._-]/g,"");if(!a||!i||!s)return null;const c=r.resolve(n,a,i,s);return c.startsWith(`${r.resolve(n)}${r.sep}`)?c:null}
+// --- utilitas unggah media dan stiker ke supabase storage dengan fallback volume aman ---
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { SESSIONS_VOLUME_ROOT } from './config.js';
+
+const LOCAL_UPLOADS_ROOT = path.join(SESSIONS_VOLUME_ROOT, 'uploads');
+const SUPABASE_URL = "https://rxcvojhhtldbkhhnehwn.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4Y3ZvamhodGxkYmtoaG5laHduIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NTc3MzM3MSwiZXhwIjoyMTExMzQ5MzcxfQ.XqJO3As164EEOxk6sUsXFgmbnhbi9xN2keXCsuPO2GY";
+const SUPABASE_STORAGE_BUCKET = "xucore-media";
+
+const supabaseUrl = String(SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const supabaseKey = String(SUPABASE_KEY || '').trim();
+const bucketName = String(SUPABASE_STORAGE_BUCKET || 'xucore-media').trim();
+
+// --- peta ekstensi file berdasarkan mimetype ---
+function resolveExtensionFromMime(mimeType) {
+  const normalized = String(mimeType || '').toLowerCase();
+  if (normalized.includes('webp')) return 'webp';
+  if (normalized.includes('png')) return 'png';
+  if (normalized.includes('gif')) return 'gif';
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
+  if (normalized.includes('mp4')) return 'mp4';
+  if (normalized.includes('webm')) return 'webm';
+  if (normalized.includes('quicktime')) return 'mov';
+  return 'bin';
+}
+
+// --- konversi string data url base64 menjadi buffer dan mimetype ---
+export function decodeBase64DataUrl(rawDataUrl, maxBytes = 5 * 1024 * 1024) {
+  const trimmed = String(rawDataUrl || '').trim();
+  const dataUrlMatch = trimmed.match(/^data:([^;]+);base64,(.+)$/i);
+  if (!dataUrlMatch) {
+    throw new Error('Format media Base64 tidak valid.');
+  }
+
+  const mimeType = String(dataUrlMatch[1] || 'application/octet-stream').trim().toLowerCase();
+  const binaryBuffer = Buffer.from(dataUrlMatch[2], 'base64');
+
+  if (!binaryBuffer.length) {
+    throw new Error('File media kosong.');
+  }
+  if (binaryBuffer.length > maxBytes) {
+    const maxMb = (maxBytes / (1024 * 1024)).toFixed(1);
+    throw new Error(`Ukuran file melebihi batas maksimal ${maxMb} MB.`);
+  }
+
+  return { mimeType, binaryBuffer };
+}
+
+// --- unggah buffer ke supabase storage menggunakan service_role jwt ---
+export async function uploadMediaToSupabaseStorage({
+  folder = 'stickers',
+  ownerId = 'guest',
+  dataUrl = '',
+  maxBytes = 5 * 1024 * 1024
+} = {}) {
+  const { mimeType, binaryBuffer } = decodeBase64DataUrl(dataUrl, maxBytes);
+  const safeFolder = String(folder || 'stickers').replace(/[^a-zA-Z0-9_-]/g, '');
+  const safeOwner = String(ownerId || 'guest').replace(/[^a-zA-Z0-9_-]/g, '');
+  const extension = resolveExtensionFromMime(mimeType);
+  const uniqueName = `${Date.now()}_${crypto.randomBytes(5).toString('hex')}.${extension}`;
+  const objectPath = `${safeFolder}/${safeOwner}/${uniqueName}`;
+
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const uploadEndpoint = `${supabaseUrl}/storage/v1/object/${encodeURIComponent(bucketName)}/${objectPath}`;
+      const requestHeaders = {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': mimeType,
+        'x-upsert': 'true'
+      };
+
+      const uploadResponse = await fetch(uploadEndpoint, {
+        method: 'POST',
+        headers: requestHeaders,
+        body: binaryBuffer
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text().catch(() => '');
+        throw new Error(`Supabase HTTP ${uploadResponse.status}: ${errorText.slice(0, 180)}`);
+      }
+
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(bucketName)}/${objectPath}`;
+      return {
+        storage: 'supabase',
+        url: publicUrl,
+        mimeType,
+        sizeBytes: binaryBuffer.length
+      };
+    } catch (supabaseError) {
+      console.error(`[SUPABASE STORAGE WARN] Fallback ke volume lokal: ${supabaseError.message}`);
+    }
+  }
+
+  // --- fallback penyimpanan volume lokal jika unggah supabase gagal ---
+  const targetDir = path.join(LOCAL_UPLOADS_ROOT, safeFolder, safeOwner);
+  fs.mkdirSync(targetDir, { recursive: true });
+  const localFilePath = path.join(targetDir, uniqueName);
+  fs.writeFileSync(localFilePath, binaryBuffer);
+
+  return {
+    storage: 'local',
+    url: `/api/uploads/${safeFolder}/${safeOwner}/${uniqueName}`,
+    mimeType,
+    sizeBytes: binaryBuffer.length
+  };
+}
+
+// --- resolusi path aman untuk melayani file fallback dari volume lokal ---
+export function resolveLocalUploadFilePath(folder, ownerId, fileName) {
+  const safeFolder = String(folder || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const safeOwner = String(ownerId || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const safeFile = path.basename(String(fileName || '')).replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!safeFolder || !safeOwner || !safeFile) return null;
+
+  const fullPath = path.resolve(LOCAL_UPLOADS_ROOT, safeFolder, safeOwner, safeFile);
+  if (!fullPath.startsWith(`${path.resolve(LOCAL_UPLOADS_ROOT)}${path.sep}`)) {
+    return null;
+  }
+  return fullPath;
+}
+
+// --- ekstrak object path dari public url supabase storage ---
+function extractSupabaseObjectPath(rawUrl, supabaseUrl, bucketName) {
+  const cleanUrl = String(rawUrl || '').trim().split('?')[0];
+  const publicPrefix = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(bucketName)}/`;
+  if (!cleanUrl.startsWith(publicPrefix)) return '';
+  try {
+    return decodeURIComponent(cleanUrl.slice(publicPrefix.length));
+  } catch {
+    return cleanUrl.slice(publicPrefix.length);
+  }
+}
+
+// --- hapus satu atau banyak file media dari supabase storage dan fallback volume lokal ---
+export async function deleteMediaFromSupabaseStorage(mediaUrls = []) {
+  const rawList = Array.isArray(mediaUrls) ? mediaUrls : [mediaUrls];
+  const uniqueUrls = Array.from(
+    new Set(rawList.map((item) => String(item || '').trim()).filter(Boolean))
+  );
+  if (uniqueUrls.length === 0) {
+    return { deletedSupabase: 0, deletedLocal: 0 };
+  }
+
+  const supabasePrefixes = [];
+  let deletedLocal = 0;
+
+  for (const mediaUrl of uniqueUrls) {
+    if (mediaUrl.startsWith('/api/uploads/')) {
+      const pathParts = mediaUrl.replace(/^\/api\/uploads\//, '').split('/');
+      if (pathParts.length === 3) {
+        const localPath = resolveLocalUploadFilePath(pathParts[0], pathParts[1], pathParts[2]);
+        if (localPath && fs.existsSync(localPath)) {
+          try {
+            fs.unlinkSync(localPath);
+            deletedLocal += 1;
+          } catch (localDelErr) {
+            console.error(`[LOCAL MEDIA DELETE WARN] ${localDelErr.message}`);
+          }
+        }
+      }
+      continue;
+    }
+
+    if (supabaseUrl && bucketName) {
+      const objectPath = extractSupabaseObjectPath(mediaUrl, supabaseUrl, bucketName);
+      if (objectPath) supabasePrefixes.push(objectPath);
+    }
+  }
+
+  let deletedSupabase = 0;
+  if (supabasePrefixes.length > 0 && supabaseUrl && supabaseKey) {
+    try {
+      const deleteEndpoint = `${supabaseUrl}/storage/v1/object/${encodeURIComponent(bucketName)}`;
+      const deleteResponse = await fetch(deleteEndpoint, {
+        method: 'DELETE',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prefixes: supabasePrefixes })
+      });
+
+      if (!deleteResponse.ok) {
+        const errorText = await deleteResponse.text().catch(() => '');
+        throw new Error(`Supabase DELETE HTTP ${deleteResponse.status}: ${errorText.slice(0, 180)}`);
+      }
+      deletedSupabase = supabasePrefixes.length;
+    } catch (supabaseDelErr) {
+      console.error(`[SUPABASE STORAGE DELETE WARN] ${supabaseDelErr.message}`);
+    }
+  }
+
+  return { deletedSupabase, deletedLocal };
+}
